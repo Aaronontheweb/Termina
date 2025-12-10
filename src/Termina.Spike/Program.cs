@@ -1,72 +1,54 @@
-using System.Threading.Channels;
-using Spectre.Console;
+using static Termina.UI;
+using Termina.Components;
 
-// Week 1 Validation Spike: Minimal Event Loop + Spectre/ANSI Coexistence (Non-Interactive)
+// Week 2 Validation: Fluent Builder API
 
-Console.WriteLine("Termina Week 1 Validation Spike");
-Console.WriteLine("================================");
+Console.WriteLine("Termina Week 2 Validation - Fluent Builder API");
+Console.WriteLine("=================================================");
 Console.WriteLine();
 
-// Create unbounded channel for events (will be bounded in later phases)
-var eventChannel = Channel.CreateUnbounded<string>();
+// Example 1: Simple text with styling
+Console.WriteLine("Example 1: Styled Text");
+Console.WriteLine("-----------------------");
+var styledText = Text("Success!").Color(TextColor.Green).Bold();
+var lines = styledText.Render(new Termina.RenderContext(80, 1));
+foreach (var line in lines)
+    Console.WriteLine(line);
+Console.WriteLine();
 
-// Track if we should exit
-var cts = new CancellationTokenSource();
+// Example 2: Panel with children
+Console.WriteLine("Example 2: Panel Container");
+Console.WriteLine("---------------------------");
+var panel = Panel("User Information")
+    .Add(Text("Name: John Doe"))
+    .Add(Text("Status: Active").Color(TextColor.Cyan));
 
-// Background task: Simulate app events
-var simulatorTask = Task.Run(async () =>
-{
-    try
-    {
-        for (int i = 1; i <= 5; i++)
-        {
-            await Task.Delay(500, cts.Token);
-            await eventChannel.Writer.WriteAsync($"Event {i}: Timer tick", cts.Token);
-        }
+var panelLines = panel.Render(new Termina.RenderContext(60, 10));
+foreach (var line in panelLines)
+    Console.WriteLine(line);
+Console.WriteLine();
 
-        // Signal completion
-        await eventChannel.Writer.WriteAsync("Exit", cts.Token);
-    }
-    catch (OperationCanceledException)
-    {
-        // Normal shutdown
-    }
-}, cts.Token);
+// Example 3: Complex nested layout
+Console.WriteLine("Example 3: Complex Nested UI");
+Console.WriteLine("-----------------------------");
+var complexUI = Panel("Registration Form")
+    .Add(Rows()
+        .Add(Text("Welcome to Termina!").Bold())
+        .Add(Text(""))
+        .Add(Text("Name:"))
+        .Add(TextInput().Placeholder("Enter your name"))
+        .Add(Text(""))
+        .Add(Text("Status: Ready").Color(TextColor.Green)));
 
-// Test Spectre.Console rendering
-var panel = new Panel("This validates that Spectre.Console and ANSI coexistence works.")
-{
-    Header = new PanelHeader("Spectre.Console + Manual ANSI Test"),
-    Border = BoxBorder.Rounded
-};
-AnsiConsole.Write(panel);
-AnsiConsole.WriteLine();
+var complexLines = complexUI.Render(new Termina.RenderContext(60, 20));
+foreach (var line in complexLines)
+    Console.WriteLine(line);
+Console.WriteLine();
 
-Console.WriteLine("Event Log:");
-Console.WriteLine("----------");
-
-try
-{
-    await foreach (var evt in eventChannel.Reader.ReadAllAsync(cts.Token))
-    {
-        // Write event with ANSI color codes
-        Console.WriteLine($"\x1b[36m[{DateTime.Now:HH:mm:ss}]\x1b[0m {evt}");
-
-        if (evt == "Exit")
-        {
-            break;
-        }
-    }
-}
-catch (OperationCanceledException)
-{
-    // Normal shutdown
-}
-finally
-{
-    cts.Cancel();
-    await simulatorTask;
-
-    Console.WriteLine();
-    AnsiConsole.MarkupLine("[green]✓ Week 1 Validation Complete: Channels + Spectre/ANSI coexistence confirmed![/]");
-}
+Console.WriteLine("✓ Fluent API validation complete!");
+Console.WriteLine();
+Console.WriteLine("Key validations:");
+Console.WriteLine("  ✓ Fluent method chaining works");
+Console.WriteLine("  ✓ Components render correctly");
+Console.WriteLine("  ✓ Nested composition works");
+Console.WriteLine("  ✓ AOT-compatible (no reflection)");

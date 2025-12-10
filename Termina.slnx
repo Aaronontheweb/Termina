@@ -7,5 +7,8 @@
     <File Path="README.md" />
   </Folder>
   <Project Path="src/Termina/Termina.csproj" />
+  <Folder Name="/tests/">
+    <Project Path="tests/Termina.Tests/Termina.Tests.csproj" />
+  </Folder>
   <Project Path="src/Termina.Spike/Termina.Spike.csproj" />
 </Solution>
