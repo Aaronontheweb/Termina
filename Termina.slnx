@@ -6,5 +6,6 @@
     <File Path="NuGet.Config" />
     <File Path="README.md" />
   </Folder>
-  <Project Path="src/Akka.Console/Akka.Console.csproj" />
+  <Project Path="src/Termina/Termina.csproj" />
+  <Project Path="src/Termina.Spike/Termina.Spike.csproj" />
 </Solution>
