@@ -3,20 +3,26 @@ using Spectre.Console;
 
 // Week 1 Validation Spike: Minimal Event Loop + Keyboard Input + Spectre/ANSI Coexistence
 
-// Detect CI environment - exit immediately if running in CI
-if (Environment.GetEnvironmentVariable("CI") == "true" ||
-    Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true")
-{
-    Console.WriteLine("✓ Running in CI - AOT compilation validation passed");
-    Console.WriteLine("✓ Termina library is AOT-compatible");
-    return 0;
-}
+// Detect if we're in an interactive terminal
+var isInteractive = !Console.IsInputRedirected && !Console.IsOutputRedirected;
 
 // Create unbounded channel for events (will be bounded in later phases)
 var eventChannel = Channel.CreateUnbounded<string>();
 
 // Track if we should exit
 var cts = new CancellationTokenSource();
+
+// In non-interactive mode (CI/headless), run for 2 seconds then exit
+if (!isInteractive)
+{
+    Console.WriteLine("Running in non-interactive mode (headless/CI)");
+    _ = Task.Run(async () =>
+    {
+        await Task.Delay(2000);
+        Console.WriteLine("✓ Non-interactive test complete - AOT validation passed");
+        await eventChannel.Writer.WriteAsync("Exit");
+    });
+}
 
 // Background task: Non-blocking keyboard input polling
 var keyboardTask = Task.Run(async () =>
@@ -68,23 +74,26 @@ var simulatorTask = Task.Run(async () =>
 }, cts.Token);
 
 // Main event loop
-Console.Clear();
-AnsiConsole.MarkupLine("[bold yellow]Termina Week 1 Validation Spike[/]");
-AnsiConsole.WriteLine();
-
-// Test Spectre.Console rendering
-var panel = new Panel("This is a [green]Spectre.Console[/] Panel!\nPress any key to see events. Press [red]ESC[/] to exit.")
+if (isInteractive)
 {
-    Header = new PanelHeader("Spectre.Console + Manual ANSI Coexistence"),
-    Border = BoxBorder.Rounded
-};
-AnsiConsole.Write(panel);
+    Console.Clear();
+    AnsiConsole.MarkupLine("[bold yellow]Termina Week 1 Validation Spike[/]");
+    AnsiConsole.WriteLine();
 
-AnsiConsole.WriteLine();
-AnsiConsole.MarkupLine("[dim]Event Log:[/]");
+    // Test Spectre.Console rendering
+    var panel = new Panel("This is a [green]Spectre.Console[/] Panel!\nPress any key to see events. Press [red]ESC[/] to exit.")
+    {
+        Header = new PanelHeader("Spectre.Console + Manual ANSI Coexistence"),
+        Border = BoxBorder.Rounded
+    };
+    AnsiConsole.Write(panel);
+
+    AnsiConsole.WriteLine();
+    AnsiConsole.MarkupLine("[dim]Event Log:[/]");
+}
 
 // Remember cursor position for event log (manual ANSI positioning)
-var logStartRow = Console.CursorTop;
+var logStartRow = isInteractive ? Console.CursorTop : 0;
 var eventCount = 0;
 
 try
