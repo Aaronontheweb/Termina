@@ -88,19 +88,11 @@ jobs:
         if: matrix.os == 'ubuntu-latest' && matrix.runtime == 'linux-x64'
         run: dotnet publish src/Termina.Spike -c Release -r linux-x64 --self-contained /p:TrimmerSingleWarn=false /p:PublishTrimmed=true /p:TreatWarningsAsErrors=true /warnAsError:IL2026 /warnAsError:IL2057 /warnAsError:IL2067 /warnAsError:IL2075 /warnAsError:IL2096 /warnAsError:IL3050
 
-      - name: "Verify AOT binary exists"
+      - name: "Test AOT binary"
         shell: bash
         run: |
           if [[ "${{ matrix.runtime }}" == win-* ]]; then
-            BINARY_PATH="./publish/${{ matrix.runtime }}/Termina.Spike.exe"
+            ./publish/${{ matrix.runtime }}/Termina.Spike.exe
           else
-            BINARY_PATH="./publish/${{ matrix.runtime }}/Termina.Spike"
-          fi
-
-          if [ -f "$BINARY_PATH" ]; then
-            echo "✓ AOT binary created successfully: $BINARY_PATH"
-            ls -lh "$BINARY_PATH"
-          else
-            echo "✗ AOT binary not found: $BINARY_PATH"
-            exit 1
+            ./publish/${{ matrix.runtime }}/Termina.Spike
           fi
