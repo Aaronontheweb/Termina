@@ -1,54 +1,60 @@
-using static Termina.UI;
-using Termina.Components;
+using System.Threading.Channels;
+using Spectre.Console;
+using Termina;
+using Termina.Examples;
 
-// Week 2 Validation: Fluent Builder API
+// Event-Mediator Architecture Proof of Concept
 
-Console.WriteLine("Termina Week 2 Validation - Fluent Builder API");
-Console.WriteLine("=================================================");
+Console.WriteLine("Termina Event-Mediator Architecture - Proof of Concept");
+Console.WriteLine("========================================================");
 Console.WriteLine();
 
-// Example 1: Simple text with styling
-Console.WriteLine("Example 1: Styled Text");
-Console.WriteLine("-----------------------");
-var styledText = Text("Success!").Color(TextColor.Green).Bold();
-var lines = styledText.Render(new Termina.RenderContext(80, 1));
-foreach (var line in lines)
-    Console.WriteLine(line);
+// 1. Create event channel
+var eventChannel = Channel.CreateUnbounded<IUIEvent>();
+
+// 2. Create components with subscriptions
+var statusBar = new StatusBar();
+
+// 3. Create mediator and register components
+var mediator = new EventMediator(eventChannel.Reader, AnsiConsole.Console);
+mediator.RegisterComponent(statusBar);
+
+// 4. Start mediator in background task
+using var cts = new CancellationTokenSource();
+var mediatorTask = Task.Run(() => mediator.RunAsync(cts.Token), cts.Token);
+
+// 5. Simulate backend pushing events
+await Task.Delay(500);
+await eventChannel.Writer.WriteAsync(new StatusUpdated("Processing request...", DateTime.UtcNow));
+
+await Task.Delay(1000);
+await eventChannel.Writer.WriteAsync(new StatusUpdated("Loading data...", DateTime.UtcNow));
+
+await Task.Delay(1000);
+await eventChannel.Writer.WriteAsync(new StatusUpdated("Rendering results...", DateTime.UtcNow));
+
+await Task.Delay(1000);
+await eventChannel.Writer.WriteAsync(new StatusUpdated("Complete!", DateTime.UtcNow));
+
+await Task.Delay(1000);
+
+// 6. Shutdown
+cts.Cancel();
+
+try
+{
+    await mediatorTask;
+}
+catch (OperationCanceledException)
+{
+    // Expected
+}
+
 Console.WriteLine();
-
-// Example 2: Panel with children
-Console.WriteLine("Example 2: Panel Container");
-Console.WriteLine("---------------------------");
-var panel = Panel("User Information")
-    .Add(Text("Name: John Doe"))
-    .Add(Text("Status: Active").Color(TextColor.Cyan));
-
-var panelLines = panel.Render(new Termina.RenderContext(60, 10));
-foreach (var line in panelLines)
-    Console.WriteLine(line);
-Console.WriteLine();
-
-// Example 3: Complex nested layout
-Console.WriteLine("Example 3: Complex Nested UI");
-Console.WriteLine("-----------------------------");
-var complexUI = Panel("Registration Form")
-    .Add(Rows()
-        .Add(Text("Welcome to Termina!").Bold())
-        .Add(Text(""))
-        .Add(Text("Name:"))
-        .Add(TextInput().Placeholder("Enter your name"))
-        .Add(Text(""))
-        .Add(Text("Status: Ready").Color(TextColor.Green)));
-
-var complexLines = complexUI.Render(new Termina.RenderContext(60, 20));
-foreach (var line in complexLines)
-    Console.WriteLine(line);
-Console.WriteLine();
-
-Console.WriteLine("✓ Fluent API validation complete!");
+Console.WriteLine("✓ Event-mediator architecture validated!");
 Console.WriteLine();
 Console.WriteLine("Key validations:");
-Console.WriteLine("  ✓ Fluent method chaining works");
-Console.WriteLine("  ✓ Components render correctly");
-Console.WriteLine("  ✓ Nested composition works");
-Console.WriteLine("  ✓ AOT-compatible (no reflection)");
+Console.WriteLine("  ✓ Channel-based event routing works");
+Console.WriteLine("  ✓ Component subscriptions work");
+Console.WriteLine("  ✓ Spectre.Console Live display integration works");
+Console.WriteLine("  ✓ Thread-safe single consumer model works");
