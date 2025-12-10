@@ -46,10 +46,11 @@ public sealed class Text : Component
             text = $"\x1b[{colorCode}m{text}\x1b[0m";
         }
 
-        // Truncate if wider than available space
-        if (text.Length > context.Width)
+        // Truncate if wider than available space (account for ANSI codes)
+        var visualWidth = AnsiHelper.GetVisualWidth(text);
+        if (visualWidth > context.Width)
         {
-            text = text.Substring(0, Math.Max(0, context.Width - 3)) + "...";
+            text = AnsiHelper.TruncateVisual(text, context.Width);
         }
 
         return new[] { text };

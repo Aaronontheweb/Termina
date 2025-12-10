@@ -59,9 +59,18 @@ public sealed class Panel : Component
                 var childLines = child.Render(childContext);
                 foreach (var line in childLines)
                 {
-                    var paddedLine = line.PadRight(innerWidth);
-                    if (paddedLine.Length > innerWidth)
-                        paddedLine = paddedLine.Substring(0, innerWidth);
+                    // Account for ANSI codes when padding
+                    var visualWidth = AnsiHelper.GetVisualWidth(line);
+                    string paddedLine;
+
+                    if (visualWidth > innerWidth)
+                    {
+                        paddedLine = AnsiHelper.TruncateVisual(line, innerWidth);
+                    }
+                    else
+                    {
+                        paddedLine = AnsiHelper.PadRightVisual(line, innerWidth);
+                    }
 
                     lines.Add($"{vertical} {paddedLine} {vertical}");
                 }
