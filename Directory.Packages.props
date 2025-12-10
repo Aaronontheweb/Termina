@@ -2,7 +2,7 @@
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <!-- Nuget package versions -->
-    <SpectreConsoleVersion>0.49.1</SpectreConsoleVersion>
+    <SpectreConsoleVersion>0.54.0</SpectreConsoleVersion>
   </PropertyGroup>
   <!-- App dependencies -->
   <ItemGroup>
