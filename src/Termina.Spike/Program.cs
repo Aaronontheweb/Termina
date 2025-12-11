@@ -1,54 +1,102 @@
-using static Termina.UI;
-using Termina.Components;
+using Spectre.Console;
+using Termina;
+using Termina.Input;
+using Termina.Navigation;
+using Termina.Pages;
+using Termina.Spike.Pages;
 
-// Week 2 Validation: Fluent Builder API
+// Two-Tier Event Architecture - Full Vertical Slice Demo
+// ========================================================
+//
+// This demonstrates:
+// - Page + Handler architecture (MVVM-like)
+// - Navigation with ResetOnNavigation vs PreserveState
+// - SelectList and TextInput components
+// - Low-level input handling (keyboard) vs business events
+// - Multiple input sources (console + virtual)
 
-Console.WriteLine("Termina Week 2 Validation - Fluent Builder API");
-Console.WriteLine("=================================================");
-Console.WriteLine();
+// Check for --test flag (used in CI/CD to run scripted test and exit)
+var testMode = args.Contains("--test");
 
-// Example 1: Simple text with styling
-Console.WriteLine("Example 1: Styled Text");
-Console.WriteLine("-----------------------");
-var styledText = Text("Success!").Color(TextColor.Green).Bold();
-var lines = styledText.Render(new Termina.RenderContext(80, 1));
-foreach (var line in lines)
-    Console.WriteLine(line);
-Console.WriteLine();
+// Create input sources
+List<IInputSource> inputSources;
+VirtualInputSource? scriptedInput = null;
 
-// Example 2: Panel with children
-Console.WriteLine("Example 2: Panel Container");
-Console.WriteLine("---------------------------");
-var panel = Panel("User Information")
-    .Add(Text("Name: John Doe"))
-    .Add(Text("Status: Active").Color(TextColor.Cyan));
+if (testMode)
+{
+    // Test mode: use only scripted input that navigates to Exit
+    scriptedInput = new VirtualInputSource();
+    inputSources = [scriptedInput];
+}
+else
+{
+    // Normal mode: keyboard + programmatic input for LLM
+    var keyboard = new ConsoleInputSource();
+    var programmaticInput = new VirtualInputSource();
+    inputSources = [keyboard, programmaticInput];
+}
 
-var panelLines = panel.Render(new Termina.RenderContext(60, 10));
-foreach (var line in panelLines)
-    Console.WriteLine(line);
-Console.WriteLine();
+// Create navigation service
+var navigation = new NavigationService();
 
-// Example 3: Complex nested layout
-Console.WriteLine("Example 3: Complex Nested UI");
-Console.WriteLine("-----------------------------");
-var complexUI = Panel("Registration Form")
-    .Add(Rows()
-        .Add(Text("Welcome to Termina!").Bold())
-        .Add(Text(""))
-        .Add(Text("Name:"))
-        .Add(TextInput().Placeholder("Enter your name"))
-        .Add(Text(""))
-        .Add(Text("Status: Ready").Color(TextColor.Green)));
+// Create mediator - wires up navigation automatically
+var mediator = new EventMediator(
+    inputSources,
+    AnsiConsole.Console,
+    navigation
+);
 
-var complexLines = complexUI.Render(new Termina.RenderContext(60, 20));
-foreach (var line in complexLines)
-    Console.WriteLine(line);
-Console.WriteLine();
+// Register pages
+// MainMenu: ResetOnNavigation - always starts fresh
+navigation.RegisterPage<MainMenuPage, MainMenuHandler>(
+    "main-menu",
+    NavigationBehavior.ResetOnNavigation);
 
-Console.WriteLine("✓ Fluent API validation complete!");
-Console.WriteLine();
-Console.WriteLine("Key validations:");
-Console.WriteLine("  ✓ Fluent method chaining works");
-Console.WriteLine("  ✓ Components render correctly");
-Console.WriteLine("  ✓ Nested composition works");
-Console.WriteLine("  ✓ AOT-compatible (no reflection)");
+// Settings: PreserveState - form data persists across visits
+navigation.RegisterPage<SettingsPage, SettingsHandler>(
+    "settings",
+    NavigationBehavior.PreserveState);
+
+// About: ResetOnNavigation - static content
+navigation.RegisterPage<AboutPage, AboutHandler>(
+    "about",
+    NavigationBehavior.ResetOnNavigation);
+
+// Navigate to initial page
+navigation.NavigateTo("main-menu");
+
+// In test mode, queue up scripted input to navigate to Exit and select it
+if (testMode && scriptedInput != null)
+{
+    // Small delay to let the app initialize, then navigate to Exit (3rd option)
+    _ = Task.Run(async () =>
+    {
+        await Task.Delay(500); // Wait for initial render
+        scriptedInput.EnqueueKey(ConsoleKey.DownArrow); // Settings -> About
+        scriptedInput.EnqueueKey(ConsoleKey.DownArrow); // About -> Exit
+        scriptedInput.EnqueueKey(ConsoleKey.Enter);     // Select Exit
+        scriptedInput.Complete();
+    });
+}
+
+// Run the event loop
+using var cts = new CancellationTokenSource();
+
+// Handle Ctrl+C gracefully
+Console.CancelKeyPress += (_, e) =>
+{
+    e.Cancel = true;
+    cts.Cancel();
+};
+
+try
+{
+    await mediator.RunAsync(cts.Token);
+}
+catch (OperationCanceledException)
+{
+    // Normal shutdown
+}
+
+AnsiConsole.WriteLine();
+AnsiConsole.MarkupLine("[green]Thanks for trying Termina![/]");

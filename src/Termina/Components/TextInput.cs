@@ -1,110 +1,108 @@
+using Spectre.Console;
+using Spectre.Console.Rendering;
+using Termina.Input;
+
 namespace Termina.Components;
 
+// Business events for TextInput
+
 /// <summary>
-/// Interactive single-line text input component
+/// Command: Set the text content programmatically.
+/// </summary>
+public sealed record SetText(string Text);
+
+/// <summary>
+/// Notification: The text content changed (user typed or deleted).
+/// </summary>
+public sealed record TextChanged(string Text);
+
+/// <summary>
+/// Notification: User submitted the text (pressed Enter).
+/// </summary>
+public sealed record TextSubmitted(string Text);
+
+/// <summary>
+/// A text input component.
+/// Handles character input and backspace internally, emits business events on changes and submit.
 /// </summary>
 public sealed class TextInput : Component
 {
-    private string _buffer = "";
-    private string _placeholder = "";
-    private Action<string>? _onSubmit;
-    private Action<string>? _onChange;
+    private string _text = "";
+    private readonly string _placeholder;
+    private readonly string _label;
 
-    public override bool CanFocus => true;
-
-    /// <summary>
-    /// Set placeholder text shown when empty
-    /// </summary>
-    public TextInput Placeholder(string placeholder)
+    public TextInput(string label = "", string placeholder = "")
     {
+        _label = label;
         _placeholder = placeholder;
-        return this;
+
+        // Subscribe to business commands
+        Subscribe<SetText>(OnSetText);
+    }
+
+    private void OnSetText(SetText evt)
+    {
+        _text = evt.Text;
     }
 
     /// <summary>
-    /// Set handler called when Enter is pressed
+    /// Handle keyboard input for text entry.
     /// </summary>
-    public TextInput OnSubmit(Action<string> handler)
+    public override void HandleInput(KeyPressed key)
     {
-        _onSubmit = handler;
-        return this;
-    }
+        var info = key.KeyInfo;
 
-    /// <summary>
-    /// Set handler called on every keystroke
-    /// </summary>
-    public TextInput OnChange(Action<string> handler)
-    {
-        _onChange = handler;
-        return this;
-    }
-
-    public override void OnKeyPress(ConsoleKeyInfo key)
-    {
-        switch (key.Key)
+        // Enter submits
+        if (info.Key == ConsoleKey.Enter)
         {
-            case ConsoleKey.Enter:
-                _onSubmit?.Invoke(_buffer);
-                break;
+            Emit(new TextSubmitted(_text));
+            return;
+        }
 
-            case ConsoleKey.Backspace when _buffer.Length > 0:
-                _buffer = _buffer[..^1];
-                _onChange?.Invoke(_buffer);
-                break;
+        // Backspace deletes last character
+        if (info.Key == ConsoleKey.Backspace && _text.Length > 0)
+        {
+            _text = _text[..^1];
+            Emit(new TextChanged(_text));
+            return;
+        }
 
-            case ConsoleKey.Escape:
-                _buffer = "";
-                _onChange?.Invoke(_buffer);
-                break;
-
-            default:
-                if (!char.IsControl(key.KeyChar))
-                {
-                    _buffer += key.KeyChar;
-                    _onChange?.Invoke(_buffer);
-                }
-                break;
+        // Regular character input
+        if (!char.IsControl(info.KeyChar))
+        {
+            _text += info.KeyChar;
+            Emit(new TextChanged(_text));
         }
     }
 
-    public override string[] Render(RenderContext context)
+    /// <summary>
+    /// Get the current text value.
+    /// </summary>
+    public string Text => _text;
+
+    public override IRenderable Render()
     {
-        var isFocused = context.FocusedComponent == this;
-
-        var displayText = string.IsNullOrEmpty(_buffer)
-            ? $"\x1b[2m{_placeholder}\x1b[0m"  // Dim placeholder
-            : _buffer;
-
-        var cursor = isFocused ? "_" : "";
-        var prefix = isFocused ? "\x1b[32m>\x1b[0m " : "> "; // Green > when focused
-
-        var line = $"{prefix}{displayText}{cursor}";
-
-        // Truncate if too wide
-        if (line.Length > context.Width)
+        string displayText;
+        if (string.IsNullOrEmpty(_text))
         {
-            line = line.Substring(0, context.Width);
+            displayText = string.IsNullOrEmpty(_placeholder)
+                ? "[blink]|[/]"
+                : $"[grey]{Markup.Escape(_placeholder)}[/][blink]|[/]";
+        }
+        else
+        {
+            displayText = $"{Markup.Escape(_text)}[blink]|[/]";
         }
 
-        return new[] { line };
-    }
+        IRenderable content = new Markup(displayText);
 
-    public override Size MeasureSize(int availableWidth, int availableHeight)
-    {
-        return new Size(availableWidth, 1);
-    }
+        if (!string.IsNullOrEmpty(_label))
+        {
+            content = new Panel(content)
+                .Header($"[bold]{Markup.Escape(_label)}[/]")
+                .Border(BoxBorder.Rounded);
+        }
 
-    /// <summary>
-    /// Get current buffer value (for testing)
-    /// </summary>
-    public string GetValue() => _buffer;
-
-    /// <summary>
-    /// Set buffer value (for testing)
-    /// </summary>
-    public void SetValue(string value)
-    {
-        _buffer = value;
-        _onChange?.Invoke(_buffer);
+        return content;
     }
 }
