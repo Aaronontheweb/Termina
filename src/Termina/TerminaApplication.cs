@@ -102,6 +102,34 @@ public sealed class TerminaApplication
     }
 
     /// <summary>
+    /// Register a page with a custom handler factory for dependency injection scenarios.
+    /// </summary>
+    /// <typeparam name="THandler">The handler type (must implement IPageHandler).</typeparam>
+    /// <param name="pageKey">Unique key to identify this page.</param>
+    /// <param name="handlerFactory">Factory function that creates the handler instance.</param>
+    /// <param name="behavior">How the page behaves on navigation.</param>
+    /// <example>
+    /// <code>
+    /// // With dependency injection
+    /// app.RegisterPage&lt;TaskListHandler&gt;("tasks", () =>
+    /// {
+    ///     var handler = new TaskListHandler();
+    ///     handler.SetTaskManager(taskManagerActor);
+    ///     return handler;
+    /// });
+    /// </code>
+    /// </example>
+    public void RegisterPage<THandler>(
+        string pageKey,
+        Func<THandler> handlerFactory,
+        NavigationBehavior behavior = NavigationBehavior.ResetOnNavigation)
+        where THandler : IPageHandler
+    {
+        var registration = THandler.CreateRegistration(pageKey, behavior);
+        _pages[pageKey] = registration with { HandlerFactory = () => handlerFactory() };
+    }
+
+    /// <summary>
     /// Navigate to a page by key.
     /// </summary>
     /// <param name="pageKey">The key of the page to navigate to.</param>

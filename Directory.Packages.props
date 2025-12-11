@@ -3,10 +3,14 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <!-- Nuget package versions -->
     <SpectreConsoleVersion>0.54.0</SpectreConsoleVersion>
+    <AkkaVersion>1.5.37</AkkaVersion>
   </PropertyGroup>
   <!-- App dependencies -->
   <ItemGroup>
     <PackageVersion Include="Spectre.Console" Version="$(SpectreConsoleVersion)"/>
+    <PackageVersion Include="Akka" Version="$(AkkaVersion)"/>
+    <PackageVersion Include="Akka.Hosting" Version="$(AkkaVersion)"/>
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="9.0.0"/>
   </ItemGroup>
   <!-- Test dependencies -->
   <ItemGroup>
