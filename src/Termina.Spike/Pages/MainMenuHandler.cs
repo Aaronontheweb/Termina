@@ -1,45 +1,38 @@
-using System.Threading.Channels;
-using Termina.Components;
-using Termina.Navigation;
 using Termina.Pages;
 
 namespace Termina.Spike.Pages;
 
 /// <summary>
 /// Handler for the main menu page.
-/// Handles menu selections and triggers navigation.
+/// Stateless event transformer - handles menu selections and triggers navigation.
 /// </summary>
-public sealed class MainMenuHandler : IPageHandler
+public sealed class MainMenuHandler
+    : PageHandler<MainMenuPage, MainMenuUIEvent, MainMenuCommand>
 {
-    private ChannelWriter<object>? _eventWriter;
-
-    public void SetEventWriter(ChannelWriter<object> writer)
+    protected override void OnNavigatedTo()
     {
-        _eventWriter = writer;
+        // Initialize the menu with options
+        Send(new MainMenuCommand.InitializeMenu(["Settings", "About", "Exit"]));
     }
 
-    public void HandleEvent(object evt)
+    protected override void HandleUIEvent(MainMenuUIEvent evt)
     {
-        if (evt is OptionSelected selected)
+        switch (evt)
         {
-            switch (selected.Value)
-            {
-                case "Settings":
-                    _eventWriter?.TryWrite(new NavigationRequested("settings"));
-                    break;
-                case "About":
-                    _eventWriter?.TryWrite(new NavigationRequested("about"));
-                    break;
-                case "Exit":
-                    // Signal graceful shutdown
-                    _eventWriter?.TryWrite(new ShutdownRequested());
-                    break;
-            }
+            case MainMenuUIEvent.MenuItemSelected(var value):
+                switch (value)
+                {
+                    case "Settings":
+                        Navigate("settings");
+                        break;
+                    case "About":
+                        Navigate("about");
+                        break;
+                    case "Exit":
+                        Shutdown();
+                        break;
+                }
+                break;
         }
-    }
-
-    public void Tick()
-    {
-        // No state updates needed
     }
 }

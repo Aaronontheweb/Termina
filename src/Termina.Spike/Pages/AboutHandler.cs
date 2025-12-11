@@ -1,33 +1,22 @@
-using System.Threading.Channels;
-using Termina.Input;
-using Termina.Navigation;
 using Termina.Pages;
 
 namespace Termina.Spike.Pages;
 
 /// <summary>
 /// Handler for the about page.
-/// Just handles back navigation.
+/// Stateless event transformer - just handles back navigation.
 /// </summary>
-public sealed class AboutHandler : IPageHandler
+public sealed class AboutHandler
+    : PageHandler<AboutPage, AboutUIEvent, AboutCommand>
 {
-    private ChannelWriter<object>? _eventWriter;
-
-    public void SetEventWriter(ChannelWriter<object> writer)
+    protected override void HandleUIEvent(AboutUIEvent evt)
     {
-        _eventWriter = writer;
-    }
-
-    public void HandleEvent(object evt)
-    {
-        if (evt is KeyPressed key && key.KeyInfo.Key == ConsoleKey.Escape)
+        switch (evt)
         {
-            _eventWriter?.TryWrite(new NavigationBackRequested());
+            case AboutUIEvent.BackRequested:
+                // Use navigation service to go back
+                Navigate("main-menu");
+                break;
         }
-    }
-
-    public void Tick()
-    {
-        // No state updates needed
     }
 }

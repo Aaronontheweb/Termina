@@ -1,28 +1,35 @@
 using Spectre.Console;
 using Spectre.Console.Rendering;
 using Termina;
+using Termina.Input;
 using Termina.Pages;
 
 namespace Termina.Spike.Pages;
 
 /// <summary>
-/// Simple about page demonstrating ResetOnNavigation behavior.
+/// About page using the two-tier event architecture.
+/// Simple static content page demonstrating ResetOnNavigation behavior.
 /// </summary>
-public sealed class AboutPage : IPage
+public sealed class AboutPage : PageBase<AboutUIEvent, AboutCommand>
 {
-    public IEnumerable<Component> Components => [];
+    public override IEnumerable<Component> Components => [];
 
-    public void OnNavigatedTo()
+    protected override AboutUIEvent? MapToUIEvent(IInputEvent raw)
     {
-        // Nothing to initialize
+        if (raw is KeyPressed key && key.KeyInfo.Key == ConsoleKey.Escape)
+        {
+            return new AboutUIEvent.BackRequested();
+        }
+
+        return null;
     }
 
-    public void OnNavigatingFrom()
+    protected override void ApplyCommand(AboutCommand command)
     {
-        // Nothing to clean up
+        // No commands to handle - static page
     }
 
-    public IRenderable Render()
+    public override IRenderable Render()
     {
         return new Rows(
             new Rule("[bold]About Termina[/]").RuleStyle("aqua"),
@@ -32,8 +39,9 @@ public sealed class AboutPage : IPage
                 "Features:\n" +
                 "  [green]•[/] Two-tier event architecture\n" +
                 "  [green]•[/] Page-based navigation\n" +
-                "  [green]•[/] Reusable components\n" +
-                "  [green]•[/] Single-threaded event loop\n\n" +
+                "  [green]•[/] Stateless handlers\n" +
+                "  [green]•[/] Duplex event loop\n" +
+                "  [green]•[/] Model layer integration\n\n" +
                 "[grey]Press Escape to go back[/]"))
                 .Border(BoxBorder.Rounded)
                 .BorderColor(Color.Aqua)

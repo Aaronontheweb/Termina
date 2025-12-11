@@ -1,47 +1,37 @@
-using System.Threading.Channels;
-using Termina.Components;
-using Termina.Input;
-using Termina.Navigation;
 using Termina.Pages;
 
 namespace Termina.Spike.Pages;
 
 /// <summary>
 /// Handler for the settings page.
-/// Handles form interactions and back navigation.
+/// Stateless event transformer - handles form interactions and back navigation.
 /// </summary>
-public sealed class SettingsHandler : IPageHandler
+public sealed class SettingsHandler
+    : PageHandler<SettingsPage, SettingsUIEvent, SettingsCommand>
 {
-    private ChannelWriter<object>? _eventWriter;
-
-    public void SetEventWriter(ChannelWriter<object> writer)
+    protected override void OnNavigatedTo()
     {
-        _eventWriter = writer;
+        // Initialize theme options (only needed first time, but idempotent)
+        Send(new SettingsCommand.InitializeThemes(["Light", "Dark", "System Default"]));
     }
 
-    public void HandleEvent(object evt)
+    protected override void HandleUIEvent(SettingsUIEvent evt)
     {
         switch (evt)
         {
-            // Handle Escape key to go back
-            case KeyPressed key when key.KeyInfo.Key == ConsoleKey.Escape:
-                _eventWriter?.TryWrite(new NavigationBackRequested());
+            case SettingsUIEvent.BackRequested:
+                Navigate("main-menu");
                 break;
 
-            // Could handle other events like TextSubmitted, OptionSelected
-            // For the POC, we just let the components manage their own state
-            case TextSubmitted submitted:
-                // Could save the username somewhere
+            case SettingsUIEvent.UsernameSubmitted(var username):
+                // In a real app, we'd publish an event to save this
+                // Publish(new SaveUsernameSetting(username));
                 break;
 
-            case OptionSelected selected:
-                // Could apply the theme
+            case SettingsUIEvent.ThemeSelected(var theme):
+                // In a real app, we'd publish an event to apply the theme
+                // Publish(new ApplyThemeSetting(theme));
                 break;
         }
-    }
-
-    public void Tick()
-    {
-        // No state updates needed
     }
 }

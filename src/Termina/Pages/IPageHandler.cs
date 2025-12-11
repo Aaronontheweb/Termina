@@ -1,28 +1,23 @@
-using System.Threading.Channels;
-
 namespace Termina.Pages;
 
 /// <summary>
-/// Handles business events for a page.
-/// The handler contains the logic (code-behind) while the page contains the UI.
+/// Interface for page handlers that provides AOT-compatible registration.
 /// </summary>
+/// <remarks>
+/// This interface uses static abstract members (C# 11 / .NET 7+) to create
+/// typed registrations at compile time without reflection.
+/// </remarks>
 public interface IPageHandler
 {
     /// <summary>
-    /// Set the event writer for emitting events back to the event loop.
-    /// Called by the navigation service when the page becomes active.
+    /// Creates a registration for this handler type.
+    /// The concrete handler implements this to create typed delegates
+    /// that capture all type information at compile time.
     /// </summary>
-    void SetEventWriter(ChannelWriter<object> writer);
-
-    /// <summary>
-    /// Handle a business event from a component or the system.
-    /// </summary>
-    /// <param name="evt">The event to handle.</param>
-    void HandleEvent(object evt);
-
-    /// <summary>
-    /// Called after each event is processed.
-    /// Use this to push state updates or commands to components if needed.
-    /// </summary>
-    void Tick();
+    /// <param name="pageKey">The unique key for this page.</param>
+    /// <param name="behavior">Navigation behavior for this page.</param>
+    /// <returns>A page registration with typed delegate closures.</returns>
+    static abstract PageRegistration CreateRegistration(
+        string pageKey,
+        NavigationBehavior behavior);
 }
