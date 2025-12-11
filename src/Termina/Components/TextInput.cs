@@ -30,11 +30,19 @@ public sealed class TextInput : Component
     private string _text = "";
     private readonly string _placeholder;
     private readonly string _label;
+    private readonly int _minWidth;
 
-    public TextInput(string label = "", string placeholder = "")
+    /// <summary>
+    /// Creates a new text input component.
+    /// </summary>
+    /// <param name="label">Label displayed above the input.</param>
+    /// <param name="placeholder">Placeholder text shown when empty.</param>
+    /// <param name="minWidth">Minimum width of the input field in characters. Default is 30.</param>
+    public TextInput(string label = "", string placeholder = "", int minWidth = 30)
     {
         _label = label;
         _placeholder = placeholder;
+        _minWidth = minWidth;
 
         // Subscribe to business commands
         Subscribe<SetText>(OnSetText);
@@ -92,6 +100,17 @@ public sealed class TextInput : Component
         else
         {
             displayText = $"{Markup.Escape(_text)}[blink]|[/]";
+        }
+
+        // Calculate visible text length (without markup)
+        var visibleLength = string.IsNullOrEmpty(_text)
+            ? (_placeholder?.Length ?? 0) + 1 // +1 for cursor
+            : _text.Length + 1; // +1 for cursor
+
+        // Pad to minimum width
+        if (visibleLength < _minWidth)
+        {
+            displayText += new string(' ', _minWidth - visibleLength);
         }
 
         IRenderable content = new Markup(displayText);

@@ -1,28 +1,40 @@
-using System.Threading.Channels;
+using Termina.Events;
 
 namespace Termina.Pages;
 
 /// <summary>
-/// Handles business events for a page.
-/// The handler contains the logic (code-behind) while the page contains the UI.
+/// Interface for page handlers that provides static type information.
+/// Used for AOT-compatible registration without reflection.
 /// </summary>
-public interface IPageHandler
+/// <remarks>
+/// This interface uses static abstract members (C# 11 / .NET 7+) to expose
+/// type metadata at compile time, avoiding runtime reflection.
+/// </remarks>
+public interface IPageHandler<THandler> where THandler : new()
 {
     /// <summary>
-    /// Set the event writer for emitting events back to the event loop.
-    /// Called by the navigation service when the page becomes active.
+    /// Gets the page type this handler controls.
     /// </summary>
-    void SetEventWriter(ChannelWriter<object> writer);
+    static abstract Type PageType { get; }
 
     /// <summary>
-    /// Handle a business event from a component or the system.
+    /// Gets the UI event type for this handler's page.
     /// </summary>
-    /// <param name="evt">The event to handle.</param>
-    void HandleEvent(object evt);
+    static abstract Type UIEventType { get; }
 
     /// <summary>
-    /// Called after each event is processed.
-    /// Use this to push state updates or commands to components if needed.
+    /// Gets the command type for this handler's page.
     /// </summary>
-    void Tick();
+    static abstract Type CommandType { get; }
+
+    /// <summary>
+    /// Creates a registration for this handler type.
+    /// This method enables AOT-compatible registration without reflection.
+    /// </summary>
+    /// <param name="pageKey">The unique key for this page.</param>
+    /// <param name="behavior">Navigation behavior for this page.</param>
+    /// <returns>A page registration that can be added to the application.</returns>
+    static abstract PageRegistration CreateRegistration(
+        string pageKey,
+        NavigationBehavior behavior);
 }

@@ -1,74 +1,45 @@
 using Spectre.Console;
 using Termina;
 using Termina.Input;
-using Termina.Navigation;
 using Termina.Pages;
 using Termina.Spike.Pages;
 
-// Two-Tier Event Architecture - Full Vertical Slice Demo
-// ========================================================
+// Termina Two-Tier Event Architecture Demo
+// ==========================================
 //
 // This demonstrates:
-// - Page + Handler architecture (MVVM-like)
+// - TerminaApplication orchestrator with duplex event loop
+// - PageBase + PageHandler architecture
+// - Stateless handlers (no mutable state in handlers)
+// - Typed UI events transformed from raw input
+// - Commands from handler to page for UI updates
+// - Model events from backend to handler (via IApplicationBus)
 // - Navigation with ResetOnNavigation vs PreserveState
-// - SelectList and TextInput components
-// - Low-level input handling (keyboard) vs business events
-// - Multiple input sources (console + virtual)
 
 // Check for --test flag (used in CI/CD to run scripted test and exit)
 var testMode = args.Contains("--test");
 
-// Create input sources
-List<IInputSource> inputSources;
-VirtualInputSource? scriptedInput = null;
+// Create the application
+var app = new TerminaApplication(AnsiConsole.Console);
 
-if (testMode)
-{
-    // Test mode: use only scripted input that navigates to Exit
-    scriptedInput = new VirtualInputSource();
-    inputSources = [scriptedInput];
-}
-else
-{
-    // Normal mode: keyboard + programmatic input for LLM
-    var keyboard = new ConsoleInputSource();
-    var programmaticInput = new VirtualInputSource();
-    inputSources = [keyboard, programmaticInput];
-}
-
-// Create navigation service
-var navigation = new NavigationService();
-
-// Create mediator - wires up navigation automatically
-var mediator = new EventMediator(
-    inputSources,
-    AnsiConsole.Console,
-    navigation
-);
-
-// Register pages
+// Register pages with their handlers
 // MainMenu: ResetOnNavigation - always starts fresh
-navigation.RegisterPage<MainMenuPage, MainMenuHandler>(
-    "main-menu",
-    NavigationBehavior.ResetOnNavigation);
+app.RegisterPage<MainMenuHandler>("main-menu");
 
 // Settings: PreserveState - form data persists across visits
-navigation.RegisterPage<SettingsPage, SettingsHandler>(
-    "settings",
-    NavigationBehavior.PreserveState);
+app.RegisterPage<SettingsHandler>("settings", NavigationBehavior.PreserveState);
 
 // About: ResetOnNavigation - static content
-navigation.RegisterPage<AboutPage, AboutHandler>(
-    "about",
-    NavigationBehavior.ResetOnNavigation);
+app.RegisterPage<AboutHandler>("about");
 
-// Navigate to initial page
-navigation.NavigateTo("main-menu");
-
-// In test mode, queue up scripted input to navigate to Exit and select it
-if (testMode && scriptedInput != null)
+// Set up input sources
+if (testMode)
 {
-    // Small delay to let the app initialize, then navigate to Exit (3rd option)
+    // Test mode: use scripted input that navigates to Exit
+    var scriptedInput = new VirtualInputSource();
+    app.AddInputSource(scriptedInput);
+
+    // Queue up scripted input to navigate to Exit and select it
     _ = Task.Run(async () =>
     {
         await Task.Delay(500); // Wait for initial render
@@ -78,8 +49,23 @@ if (testMode && scriptedInput != null)
         scriptedInput.Complete();
     });
 }
+else
+{
+    // Normal mode: keyboard input
+    app.AddInputSource(new ConsoleInputSource());
+}
 
-// Run the event loop
+// Optional: Subscribe to dead letter events for debugging
+app.Bus.DeadLetter += (evt, reason) =>
+{
+    // In a real app, you'd log this
+    // Console.WriteLine($"[DeadLetter] {evt.GetType().Name}: {reason}");
+};
+
+// Navigate to initial page
+app.NavigateTo("main-menu");
+
+// Run the application
 using var cts = new CancellationTokenSource();
 
 // Handle Ctrl+C gracefully
@@ -91,7 +77,7 @@ Console.CancelKeyPress += (_, e) =>
 
 try
 {
-    await mediator.RunAsync(cts.Token);
+    await app.RunAsync(cts.Token);
 }
 catch (OperationCanceledException)
 {
