@@ -9,8 +9,8 @@ Console.WriteLine("Termina Event-Mediator Architecture - Proof of Concept");
 Console.WriteLine("========================================================");
 Console.WriteLine();
 
-// 1. Create event channel
-var eventChannel = Channel.CreateUnbounded<IUIEvent>();
+// 1. Create event channel (supports any event type)
+var eventChannel = Channel.CreateUnbounded<object>();
 
 // 2. Create components with subscriptions
 var statusBar = new StatusBar();

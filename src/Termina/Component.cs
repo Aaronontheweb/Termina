@@ -8,7 +8,7 @@ namespace Termina;
 /// </summary>
 public abstract class Component
 {
-    private readonly Dictionary<Type, List<Action<IUIEvent>>> _subscriptions = new();
+    private readonly Dictionary<Type, List<Action<object>>> _subscriptions = new();
 
     /// <summary>
     /// Subscribe to an event type with a typed handler.
@@ -17,11 +17,11 @@ public abstract class Component
     /// <typeparam name="TEvent">The event type to subscribe to.</typeparam>
     /// <param name="handler">Handler that receives the event and updates component state.</param>
     public Component Subscribe<TEvent>(Action<TEvent> handler)
-        where TEvent : IUIEvent
+        where TEvent : class
     {
         var eventType = typeof(TEvent);
         if (!_subscriptions.ContainsKey(eventType))
-            _subscriptions[eventType] = new List<Action<IUIEvent>>();
+            _subscriptions[eventType] = new List<Action<object>>();
 
         _subscriptions[eventType].Add(evt => handler((TEvent)evt));
         return this;
@@ -31,7 +31,7 @@ public abstract class Component
     /// Called by EventMediator when an event occurs.
     /// Routes the event to subscribed handlers.
     /// </summary>
-    internal void ReceiveEvent(IUIEvent evt)
+    internal void ReceiveEvent(object evt)
     {
         var eventType = evt.GetType();
         if (_subscriptions.TryGetValue(eventType, out var handlers))

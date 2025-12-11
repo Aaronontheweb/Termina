@@ -11,15 +11,15 @@ namespace Termina;
 public sealed class EventMediator
 {
     private readonly List<Component> _components = new();
-    private readonly ChannelReader<IUIEvent> _eventReader;
+    private readonly ChannelReader<object> _eventReader;
     private readonly IAnsiConsole _console;
 
     /// <summary>
     /// Creates a new event mediator.
     /// </summary>
-    /// <param name="eventReader">Channel reader for incoming UI events.</param>
+    /// <param name="eventReader">Channel reader for incoming events of any type.</param>
     /// <param name="console">Spectre.Console instance for rendering.</param>
-    public EventMediator(ChannelReader<IUIEvent> eventReader, IAnsiConsole console)
+    public EventMediator(ChannelReader<object> eventReader, IAnsiConsole console)
     {
         _eventReader = eventReader;
         _console = console;
