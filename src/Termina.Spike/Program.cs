@@ -15,16 +15,33 @@ using Termina.Spike.Pages;
 // - Low-level input handling (keyboard) vs business events
 // - Multiple input sources (console + virtual)
 
+// Check for --test flag (used in CI/CD to run scripted test and exit)
+var testMode = args.Contains("--test");
+
 // Create input sources
-var keyboard = new ConsoleInputSource();
-var programmaticInput = new VirtualInputSource(); // For LLM or other programmatic input
+List<IInputSource> inputSources;
+VirtualInputSource? scriptedInput = null;
+
+if (testMode)
+{
+    // Test mode: use only scripted input that navigates to Exit
+    scriptedInput = new VirtualInputSource();
+    inputSources = [scriptedInput];
+}
+else
+{
+    // Normal mode: keyboard + programmatic input for LLM
+    var keyboard = new ConsoleInputSource();
+    var programmaticInput = new VirtualInputSource();
+    inputSources = [keyboard, programmaticInput];
+}
 
 // Create navigation service
 var navigation = new NavigationService();
 
 // Create mediator - wires up navigation automatically
 var mediator = new EventMediator(
-    [keyboard, programmaticInput],
+    inputSources,
     AnsiConsole.Console,
     navigation
 );
@@ -47,6 +64,20 @@ navigation.RegisterPage<AboutPage, AboutHandler>(
 
 // Navigate to initial page
 navigation.NavigateTo("main-menu");
+
+// In test mode, queue up scripted input to navigate to Exit and select it
+if (testMode && scriptedInput != null)
+{
+    // Small delay to let the app initialize, then navigate to Exit (3rd option)
+    _ = Task.Run(async () =>
+    {
+        await Task.Delay(500); // Wait for initial render
+        scriptedInput.EnqueueKey(ConsoleKey.DownArrow); // Settings -> About
+        scriptedInput.EnqueueKey(ConsoleKey.DownArrow); // About -> Exit
+        scriptedInput.EnqueueKey(ConsoleKey.Enter);     // Select Exit
+        scriptedInput.Complete();
+    });
+}
 
 // Run the event loop
 using var cts = new CancellationTokenSource();

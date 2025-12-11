@@ -90,9 +90,11 @@ jobs:
 
       - name: "Test AOT binary"
         shell: bash
+        timeout-minutes: 1
         run: |
+          # Run with --test flag which uses scripted input to navigate to Exit
           if [[ "${{ matrix.runtime }}" == win-* ]]; then
-            ./publish/${{ matrix.runtime }}/Termina.Spike.exe
+            ./publish/${{ matrix.runtime }}/Termina.Spike.exe --test
           else
-            ./publish/${{ matrix.runtime }}/Termina.Spike
+            ./publish/${{ matrix.runtime }}/Termina.Spike --test
           fi
