@@ -7,7 +7,7 @@ namespace Termina.Spike.Pages;
 /// Stateless event transformer - just handles back navigation.
 /// </summary>
 public sealed class AboutHandler
-    : PageHandler<AboutHandler, AboutPage, AboutUIEvent, AboutCommand>
+    : PageHandler<AboutPage, AboutUIEvent, AboutCommand>
 {
     protected override void HandleUIEvent(AboutUIEvent evt)
     {

@@ -95,9 +95,10 @@ public sealed class TerminaApplication
     public void RegisterPage<THandler>(
         string pageKey,
         NavigationBehavior behavior = NavigationBehavior.ResetOnNavigation)
-        where THandler : IPageHandler<THandler>, new()
+        where THandler : IPageHandler, new()
     {
-        _pages[pageKey] = THandler.CreateRegistration(pageKey, behavior);
+        var registration = THandler.CreateRegistration(pageKey, behavior);
+        _pages[pageKey] = registration with { HandlerFactory = () => new THandler() };
     }
 
     /// <summary>

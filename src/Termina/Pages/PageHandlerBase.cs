@@ -101,64 +101,37 @@ public abstract class PageHandler<TPage>
 
 /// <summary>
 /// Base class for page handlers with typed UI events and commands.
-/// Implements <see cref="IPageHandler{THandler}"/> for AOT-compatible registration.
 /// </summary>
-/// <typeparam name="THandler">The concrete handler type (CRTP pattern).</typeparam>
 /// <typeparam name="TPage">The page type this handler controls.</typeparam>
 /// <typeparam name="TUIEvent">The typed UI event type (user interactions).</typeparam>
 /// <typeparam name="TCommand">The command type sent to the page.</typeparam>
 /// <remarks>
-/// <para>
-/// This base class is used when the handler needs to receive UI events and send commands.
-/// </para>
 /// <example>
 /// <code>
-/// public class SettingsHandler : PageHandler&lt;SettingsHandler, SettingsPage, SettingsUIEvent, SettingsCommand&gt;
+/// public class SettingsHandler : PageHandler&lt;SettingsPage, SettingsUIEvent, SettingsCommand&gt;
 /// {
-///     protected override void HandleUIEvent(SettingsUIEvent evt)
-///     {
-///         switch (evt)
-///         {
-///             case SettingsUIEvent.SaveRequested:
-///                 Publish(new SaveSettings());
-///                 break;
-///         }
-///     }
+///     protected override void HandleUIEvent(SettingsUIEvent evt) { ... }
 /// }
 /// </code>
 /// </example>
 /// </remarks>
-public abstract class PageHandler<THandler, TPage, TUIEvent, TCommand>
-    : PageHandler<TPage>, IPageHandler<THandler>
-    where THandler : new()
+public abstract class PageHandler<TPage, TUIEvent, TCommand>
+    : PageHandler<TPage>, IPageHandler
     where TPage : PageBase<TUIEvent, TCommand>, new()
     where TUIEvent : IPageUIEvent
     where TCommand : IUICommand
 {
-    /// <inheritdoc />
-    public static Type PageType => typeof(TPage);
-
-    /// <inheritdoc />
-    public static Type UIEventType => typeof(TUIEvent);
-
-    /// <inheritdoc />
-    public static Type CommandType => typeof(TCommand);
-
     /// <inheritdoc />
     public static PageRegistration CreateRegistration(string pageKey, NavigationBehavior behavior)
     {
         return new PageRegistration
         {
             PageFactory = () => new TPage(),
-            HandlerFactory = () => new THandler(),
+            HandlerFactory = null!, // Filled in by TerminaApplication.RegisterPage
             Behavior = behavior,
-            PageType = typeof(TPage),
-            HandlerType = typeof(THandler),
-            UIEventType = typeof(TUIEvent),
-            CommandType = typeof(TCommand),
             WireUpHandler = (handler, page, bus, navigate, shutdown) =>
             {
-                var typedHandler = (PageHandler<THandler, TPage, TUIEvent, TCommand>)handler;
+                var typedHandler = (PageHandler<TPage, TUIEvent, TCommand>)handler;
                 typedHandler.Page = (TPage)page;
                 typedHandler.Bus = bus;
                 typedHandler.NavigateAction = navigate;
@@ -166,22 +139,22 @@ public abstract class PageHandler<THandler, TPage, TUIEvent, TCommand>
             },
             InvokeHandleUIEvent = (handler, evt) =>
             {
-                var typedHandler = (PageHandler<THandler, TPage, TUIEvent, TCommand>)handler;
+                var typedHandler = (PageHandler<TPage, TUIEvent, TCommand>)handler;
                 typedHandler.InvokeHandleUIEvent((TUIEvent)evt);
             },
             InvokeHandleModelEvent = (handler, evt) =>
             {
-                var typedHandler = (PageHandler<THandler, TPage, TUIEvent, TCommand>)handler;
+                var typedHandler = (PageHandler<TPage, TUIEvent, TCommand>)handler;
                 typedHandler.InvokeHandleModelEvent(evt);
             },
             InvokeOnNavigatedTo = handler =>
             {
-                var typedHandler = (PageHandler<THandler, TPage, TUIEvent, TCommand>)handler;
+                var typedHandler = (PageHandler<TPage, TUIEvent, TCommand>)handler;
                 typedHandler.InvokeOnNavigatedTo();
             },
             InvokeOnNavigatingFrom = handler =>
             {
-                var typedHandler = (PageHandler<THandler, TPage, TUIEvent, TCommand>)handler;
+                var typedHandler = (PageHandler<TPage, TUIEvent, TCommand>)handler;
                 typedHandler.InvokeOnNavigatingFrom();
             },
             TransformInput = (page, raw) =>

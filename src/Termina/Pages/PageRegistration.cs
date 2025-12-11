@@ -6,8 +6,9 @@ namespace Termina.Pages;
 /// <summary>
 /// Registration info for a page in the two-tier architecture.
 /// Contains factories and delegates for creating and wiring up page/handler pairs.
+/// All type information is captured in the delegate closures at compile time.
 /// </summary>
-public sealed class PageRegistration
+public sealed record PageRegistration
 {
     /// <summary>
     /// Factory to create the page instance.
@@ -23,26 +24,6 @@ public sealed class PageRegistration
     /// How the page behaves on navigation (reset vs preserve state).
     /// </summary>
     public required NavigationBehavior Behavior { get; init; }
-
-    /// <summary>
-    /// The page type.
-    /// </summary>
-    public required Type PageType { get; init; }
-
-    /// <summary>
-    /// The handler type.
-    /// </summary>
-    public required Type HandlerType { get; init; }
-
-    /// <summary>
-    /// The UI event type for this page.
-    /// </summary>
-    public required Type UIEventType { get; init; }
-
-    /// <summary>
-    /// The command type for this page.
-    /// </summary>
-    public required Type CommandType { get; init; }
 
     /// <summary>
     /// Wires up the handler to the page, bus, and navigation actions.

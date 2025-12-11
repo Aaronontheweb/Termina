@@ -7,7 +7,7 @@ namespace Termina.Spike.Pages;
 /// Stateless event transformer - handles menu selections and triggers navigation.
 /// </summary>
 public sealed class MainMenuHandler
-    : PageHandler<MainMenuHandler, MainMenuPage, MainMenuUIEvent, MainMenuCommand>
+    : PageHandler<MainMenuPage, MainMenuUIEvent, MainMenuCommand>
 {
     protected override void OnNavigatedTo()
     {

@@ -7,7 +7,7 @@ namespace Termina.Spike.Pages;
 /// Stateless event transformer - handles form interactions and back navigation.
 /// </summary>
 public sealed class SettingsHandler
-    : PageHandler<SettingsHandler, SettingsPage, SettingsUIEvent, SettingsCommand>
+    : PageHandler<SettingsPage, SettingsUIEvent, SettingsCommand>
 {
     protected override void OnNavigatedTo()
     {
