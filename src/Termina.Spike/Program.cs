@@ -1,60 +1,71 @@
-using System.Threading.Channels;
 using Spectre.Console;
 using Termina;
-using Termina.Examples;
+using Termina.Input;
+using Termina.Navigation;
+using Termina.Pages;
+using Termina.Spike.Pages;
 
-// Event-Mediator Architecture Proof of Concept
+// Two-Tier Event Architecture - Full Vertical Slice Demo
+// ========================================================
+//
+// This demonstrates:
+// - Page + Handler architecture (MVVM-like)
+// - Navigation with ResetOnNavigation vs PreserveState
+// - SelectList and TextInput components
+// - Low-level input handling (keyboard) vs business events
+// - Multiple input sources (console + virtual)
 
-Console.WriteLine("Termina Event-Mediator Architecture - Proof of Concept");
-Console.WriteLine("========================================================");
-Console.WriteLine();
+// Create input sources
+var keyboard = new ConsoleInputSource();
+var programmaticInput = new VirtualInputSource(); // For LLM or other programmatic input
 
-// 1. Create event channel (supports any event type)
-var eventChannel = Channel.CreateUnbounded<object>();
+// Create navigation service
+var navigation = new NavigationService();
 
-// 2. Create components with subscriptions
-var statusBar = new StatusBar();
+// Create mediator - wires up navigation automatically
+var mediator = new EventMediator(
+    [keyboard, programmaticInput],
+    AnsiConsole.Console,
+    navigation
+);
 
-// 3. Create mediator and register components
-var mediator = new EventMediator(eventChannel.Reader, AnsiConsole.Console);
-mediator.RegisterComponent(statusBar);
+// Register pages
+// MainMenu: ResetOnNavigation - always starts fresh
+navigation.RegisterPage<MainMenuPage, MainMenuHandler>(
+    "main-menu",
+    NavigationBehavior.ResetOnNavigation);
 
-// 4. Start mediator in background task
+// Settings: PreserveState - form data persists across visits
+navigation.RegisterPage<SettingsPage, SettingsHandler>(
+    "settings",
+    NavigationBehavior.PreserveState);
+
+// About: ResetOnNavigation - static content
+navigation.RegisterPage<AboutPage, AboutHandler>(
+    "about",
+    NavigationBehavior.ResetOnNavigation);
+
+// Navigate to initial page
+navigation.NavigateTo("main-menu");
+
+// Run the event loop
 using var cts = new CancellationTokenSource();
-var mediatorTask = Task.Run(() => mediator.RunAsync(cts.Token), cts.Token);
 
-// 5. Simulate backend pushing events
-await Task.Delay(500);
-await eventChannel.Writer.WriteAsync(new StatusUpdated("Processing request...", DateTime.UtcNow));
-
-await Task.Delay(1000);
-await eventChannel.Writer.WriteAsync(new StatusUpdated("Loading data...", DateTime.UtcNow));
-
-await Task.Delay(1000);
-await eventChannel.Writer.WriteAsync(new StatusUpdated("Rendering results...", DateTime.UtcNow));
-
-await Task.Delay(1000);
-await eventChannel.Writer.WriteAsync(new StatusUpdated("Complete!", DateTime.UtcNow));
-
-await Task.Delay(1000);
-
-// 6. Shutdown
-cts.Cancel();
+// Handle Ctrl+C gracefully
+Console.CancelKeyPress += (_, e) =>
+{
+    e.Cancel = true;
+    cts.Cancel();
+};
 
 try
 {
-    await mediatorTask;
+    await mediator.RunAsync(cts.Token);
 }
 catch (OperationCanceledException)
 {
-    // Expected
+    // Normal shutdown
 }
 
-Console.WriteLine();
-Console.WriteLine("✓ Event-mediator architecture validated!");
-Console.WriteLine();
-Console.WriteLine("Key validations:");
-Console.WriteLine("  ✓ Channel-based event routing works");
-Console.WriteLine("  ✓ Component subscriptions work");
-Console.WriteLine("  ✓ Spectre.Console Live display integration works");
-Console.WriteLine("  ✓ Thread-safe single consumer model works");
+AnsiConsole.WriteLine();
+AnsiConsole.MarkupLine("[green]Thanks for trying Termina![/]");
