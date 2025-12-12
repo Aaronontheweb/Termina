@@ -3,7 +3,7 @@
     <Copyright>Copyright © 2015-$([System.DateTime]::Now.Year) Petabridge</Copyright>
     <Authors>Petabridge</Authors>
     <Tags>akka, akka.streams, kafka, akkadotnet, akka streams, akka.streams.kafka</Tags>
-    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <NoWarn>$(NoWarn);CS1591;CS0169;CS0414</NoWarn>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
@@ -14,7 +14,7 @@
     <!-- Visual Studio C# settings -->
     <NetStandardLibVersion>netstandard2.0</NetStandardLibVersion>
     <NetLibVersion>net6.0</NetLibVersion>
-    <NetCoreTestVersion>net9.0</NetCoreTestVersion>
+    <NetCoreTestVersion>net10.0</NetCoreTestVersion>
   </PropertyGroup>
   <!-- GitHub SourceLink -->
   <ItemGroup>

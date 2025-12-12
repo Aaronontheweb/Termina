@@ -81,20 +81,23 @@ jobs:
       - name: "Restore dependencies"
         run: dotnet restore
 
-      - name: "AOT Publish Spike App"
-        run: dotnet publish src/Termina.Spike -c Release -r ${{ matrix.runtime }} --self-contained -o ./publish/${{ matrix.runtime }} /p:TrimmerSingleWarn=false /p:PublishTrimmed=true
+      - name: "AOT Publish Demo App"
+        # Note: PublishAot=true is set in the project file, which implies PublishTrimmed=true
+        # Do NOT pass /p:PublishTrimmed=true on command line as it forces the property onto
+        # all referenced projects including netstandard2.0 source generators (SDK bug)
+        run: dotnet publish src/Termina.Demo -c Release -r ${{ matrix.runtime }} --self-contained -o ./publish/${{ matrix.runtime }} /p:TrimmerSingleWarn=false
 
       - name: "Check AOT warnings (Linux only)"
         if: matrix.os == 'ubuntu-latest' && matrix.runtime == 'linux-x64'
-        run: dotnet publish src/Termina.Spike -c Release -r linux-x64 --self-contained /p:TrimmerSingleWarn=false /p:PublishTrimmed=true /p:TreatWarningsAsErrors=true /warnAsError:IL2026 /warnAsError:IL2057 /warnAsError:IL2067 /warnAsError:IL2075 /warnAsError:IL2096 /warnAsError:IL3050
+        run: dotnet publish src/Termina.Demo -c Release -r linux-x64 --self-contained /p:TrimmerSingleWarn=false /p:TreatWarningsAsErrors=true /warnAsError:IL2026 /warnAsError:IL2057 /warnAsError:IL2067 /warnAsError:IL2075 /warnAsError:IL2096 /warnAsError:IL3050
 
       - name: "Test AOT binary"
         shell: bash
         timeout-minutes: 1
         run: |
-          # Run with --test flag which uses scripted input to navigate to Exit
+          # Run with --test flag which uses scripted input to test and exit
           if [[ "${{ matrix.runtime }}" == win-* ]]; then
-            ./publish/${{ matrix.runtime }}/Termina.Spike.exe --test
+            ./publish/${{ matrix.runtime }}/Termina.Demo.exe --test
           else
-            ./publish/${{ matrix.runtime }}/Termina.Spike --test
+            ./publish/${{ matrix.runtime }}/Termina.Demo --test
           fi

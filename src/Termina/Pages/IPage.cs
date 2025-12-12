@@ -1,18 +1,14 @@
 using Spectre.Console.Rendering;
+using Termina.Reactive;
 
 namespace Termina.Pages;
 
 /// <summary>
 /// Represents a page (screen) in the TUI application.
-/// Pages contain components and handle lifecycle events.
+/// Pages render UI and handle lifecycle events.
 /// </summary>
 public interface IPage
 {
-    /// <summary>
-    /// Get all components on this page for event routing and rendering.
-    /// </summary>
-    IEnumerable<Component> Components { get; }
-
     /// <summary>
     /// Called when the page becomes active (navigated to).
     /// Use this to initialize or refresh component state.
@@ -29,4 +25,17 @@ public interface IPage
     /// Render the page as a Spectre.Console renderable.
     /// </summary>
     IRenderable Render();
+}
+
+/// <summary>
+/// Internal interface for reactive pages that can be bound to ViewModels.
+/// This allows AOT-compatible binding without reflection.
+/// </summary>
+internal interface IBindablePage : IPage
+{
+    /// <summary>
+    /// Binds a ViewModel to this page.
+    /// </summary>
+    /// <param name="viewModel">The ViewModel to bind.</param>
+    void BindViewModel(ReactiveViewModel viewModel);
 }
