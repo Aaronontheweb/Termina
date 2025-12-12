@@ -1,4 +1,4 @@
-#### 0.1.0 December 11th 2025 ####
+#### 0.1.0-beta1 December 11th 2025 ####
 
 Initial release of Termina - a reactive terminal UI (TUI) framework for .NET.
 
