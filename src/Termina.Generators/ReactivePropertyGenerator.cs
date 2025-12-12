@@ -8,24 +8,32 @@ using Microsoft.CodeAnalysis.Text;
 namespace Termina.Generators;
 
 /// <summary>
-/// Source generator that generates reactive properties for fields marked with [Reactive].
+/// Source generator that generates reactive properties for fields marked with [Reactive]
+/// and route parameter receivers for fields marked with [FromRoute].
+///
 /// For each [Reactive] field, generates:
 /// - A BehaviorSubject backing field
 /// - A public property with get/set
 /// - A public IObservable property for subscriptions
+///
+/// For each [FromRoute] field, generates:
+/// - A public read-only property
+/// - IRouteParameterReceiver implementation with SetRouteParameters method
 /// </summary>
 [Generator]
 public class ReactivePropertyGenerator : IIncrementalGenerator
 {
     private const string ReactiveAttributeName = "Reactive";
     private const string ReactiveAttributeFullName = "Termina.Reactive.ReactiveAttribute";
+    private const string FromRouteAttributeName = "FromRoute";
+    private const string FromRouteAttributeFullName = "Termina.Routing.FromRouteAttribute";
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        // Find all field declarations with [Reactive] attribute
+        // Find all field declarations with [Reactive] or [FromRoute] attribute
         var fieldsWithAttribute = context.SyntaxProvider
             .CreateSyntaxProvider(
-                predicate: static (node, _) => IsFieldWithReactiveAttribute(node),
+                predicate: static (node, _) => IsFieldWithReactiveOrFromRouteAttribute(node),
                 transform: static (ctx, _) => GetFieldInfo(ctx))
             .Where(static f => f is not null);
 
@@ -35,13 +43,13 @@ public class ReactivePropertyGenerator : IIncrementalGenerator
             static (spc, fields) => GenerateSource(spc, fields!));
     }
 
-    private static bool IsFieldWithReactiveAttribute(SyntaxNode node)
+    private static bool IsFieldWithReactiveOrFromRouteAttribute(SyntaxNode node)
     {
         // Look for field declarations
         if (node is not FieldDeclarationSyntax fieldDeclaration)
             return false;
 
-        // Check if any attribute list contains [Reactive]
+        // Check if any attribute list contains [Reactive] or [FromRoute]
         foreach (var attributeList in fieldDeclaration.AttributeLists)
         {
             foreach (var attribute in attributeList.Attributes)
@@ -49,6 +57,11 @@ public class ReactivePropertyGenerator : IIncrementalGenerator
                 var name = attribute.Name.ToString();
                 if (name == ReactiveAttributeName || name == "ReactiveAttribute" ||
                     name == "Termina.Reactive.Reactive" || name == ReactiveAttributeFullName)
+                {
+                    return true;
+                }
+                if (name == FromRouteAttributeName || name == "FromRouteAttribute" ||
+                    name == "Termina.Routing.FromRoute" || name == FromRouteAttributeFullName)
                 {
                     return true;
                 }
@@ -86,12 +99,26 @@ public class ReactivePropertyGenerator : IIncrementalGenerator
         if (fieldSymbol == null)
             return null;
 
-        // Verify the attribute is actually the Reactive attribute we expect
-        var hasReactiveAttribute = fieldSymbol.GetAttributes()
-            .Any(a => a.AttributeClass?.ToDisplayString() == ReactiveAttributeFullName);
+        // Check which attributes the field has
+        var attributes = fieldSymbol.GetAttributes();
+        var hasReactiveAttribute = attributes.Any(a => a.AttributeClass?.ToDisplayString() == ReactiveAttributeFullName);
+        var fromRouteAttribute = attributes.FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == FromRouteAttributeFullName);
+        var hasFromRouteAttribute = fromRouteAttribute != null;
 
-        if (!hasReactiveAttribute)
+        // Must have at least one of the attributes
+        if (!hasReactiveAttribute && !hasFromRouteAttribute)
             return null;
+
+        // Get the explicit route parameter name if specified
+        string? routeParameterName = null;
+        if (fromRouteAttribute != null)
+        {
+            var nameArg = fromRouteAttribute.NamedArguments.FirstOrDefault(a => a.Key == "Name");
+            if (!nameArg.Value.IsNull)
+            {
+                routeParameterName = nameArg.Value.Value as string;
+            }
+        }
 
         // Get field name and type
         var fieldName = fieldSymbol.Name;
@@ -117,7 +144,10 @@ public class ReactivePropertyGenerator : IIncrementalGenerator
             fieldName,
             fieldType,
             initialValue,
-            containingType.ToDisplayString());
+            containingType.ToDisplayString(),
+            hasReactiveAttribute,
+            hasFromRouteAttribute,
+            routeParameterName);
     }
 
     private static void GenerateSource(SourceProductionContext context, ImmutableArray<FieldInfo?> fields)
@@ -139,13 +169,24 @@ public class ReactivePropertyGenerator : IIncrementalGenerator
     private static string GeneratePartialClass(string? namespaceName, string typeName, List<FieldInfo> fields)
     {
         var sb = new StringBuilder();
+        var reactiveFields = fields.Where(f => f.IsReactive).ToList();
+        var fromRouteFields = fields.Where(f => f.IsFromRoute).ToList();
+        var hasFromRouteFields = fromRouteFields.Count > 0;
 
         sb.AppendLine("// <auto-generated />");
         sb.AppendLine("#nullable enable");
         sb.AppendLine();
         sb.AppendLine("using System;");
-        sb.AppendLine("using System.Reactive.Linq;");
-        sb.AppendLine("using System.Reactive.Subjects;");
+        if (reactiveFields.Count > 0)
+        {
+            sb.AppendLine("using System.Reactive.Linq;");
+            sb.AppendLine("using System.Reactive.Subjects;");
+        }
+        if (hasFromRouteFields)
+        {
+            sb.AppendLine("using System.Collections.Generic;");
+            sb.AppendLine("using Termina.Routing;");
+        }
         sb.AppendLine();
 
         if (namespaceName is not null)
@@ -154,12 +195,33 @@ public class ReactivePropertyGenerator : IIncrementalGenerator
             sb.AppendLine();
         }
 
-        sb.AppendLine($"partial class {typeName}");
+        // Add IRouteParameterReceiver interface if needed
+        if (hasFromRouteFields)
+        {
+            sb.AppendLine($"partial class {typeName} : IRouteParameterReceiver");
+        }
+        else
+        {
+            sb.AppendLine($"partial class {typeName}");
+        }
         sb.AppendLine("{");
 
-        foreach (var field in fields)
+        // Generate reactive properties
+        foreach (var field in reactiveFields)
         {
-            GenerateProperty(sb, field);
+            GenerateReactiveProperty(sb, field);
+        }
+
+        // Generate route parameter properties (read-only)
+        foreach (var field in fromRouteFields)
+        {
+            GenerateRouteProperty(sb, field);
+        }
+
+        // Generate IRouteParameterReceiver implementation if needed
+        if (hasFromRouteFields)
+        {
+            GenerateSetRouteParameters(sb, fromRouteFields);
         }
 
         sb.AppendLine("}");
@@ -167,7 +229,7 @@ public class ReactivePropertyGenerator : IIncrementalGenerator
         return sb.ToString();
     }
 
-    private static void GenerateProperty(StringBuilder sb, FieldInfo field)
+    private static void GenerateReactiveProperty(StringBuilder sb, FieldInfo field)
     {
         // Convert field name to property name: _fieldName -> FieldName
         var propertyName = GetPropertyName(field.FieldName);
@@ -186,6 +248,47 @@ public class ReactivePropertyGenerator : IIncrementalGenerator
         sb.AppendLine("    }");
         sb.AppendLine();
         sb.AppendLine($"    public IObservable<{field.FieldType}> {propertyName}Changed => {subjectFieldName}.AsObservable();");
+    }
+
+    private static void GenerateRouteProperty(StringBuilder sb, FieldInfo field)
+    {
+        // Convert field name to property name: _fieldName -> FieldName
+        var propertyName = GetPropertyName(field.FieldName);
+
+        sb.AppendLine();
+        sb.AppendLine($"    public {field.FieldType} {propertyName} => {field.FieldName};");
+    }
+
+    private static void GenerateSetRouteParameters(StringBuilder sb, List<FieldInfo> fromRouteFields)
+    {
+        sb.AppendLine();
+        sb.AppendLine("    void IRouteParameterReceiver.SetRouteParameters(IReadOnlyDictionary<string, object> parameters)");
+        sb.AppendLine("    {");
+
+        foreach (var field in fromRouteFields)
+        {
+            var propertyName = GetPropertyName(field.FieldName);
+            // Use explicit name from attribute if provided, otherwise derive from field name
+            var parameterName = field.RouteParameterName ?? GetRouteParameterName(field.FieldName);
+
+            sb.AppendLine($"        if (parameters.TryGetValue(\"{parameterName}\", out var {field.FieldName}Value))");
+            sb.AppendLine($"            {field.FieldName} = ({field.FieldType}){field.FieldName}Value;");
+        }
+
+        sb.AppendLine("    }");
+    }
+
+    private static string GetRouteParameterName(string fieldName)
+    {
+        // Remove leading underscore and use camelCase for route parameter
+        // _taskId -> taskId
+        if (fieldName.StartsWith("_") && fieldName.Length > 1)
+        {
+            return char.ToLowerInvariant(fieldName[1]) + fieldName.Substring(2);
+        }
+
+        // Just use as-is with lowercase first letter
+        return char.ToLowerInvariant(fieldName[0]) + fieldName.Substring(1);
     }
 
     private static string GetPropertyName(string fieldName)
@@ -224,6 +327,9 @@ public class ReactivePropertyGenerator : IIncrementalGenerator
         public string FieldType { get; }
         public string? InitialValue { get; }
         public string FullTypeName { get; }
+        public bool IsReactive { get; }
+        public bool IsFromRoute { get; }
+        public string? RouteParameterName { get; }
 
         public FieldInfo(
             string? @namespace,
@@ -231,7 +337,10 @@ public class ReactivePropertyGenerator : IIncrementalGenerator
             string fieldName,
             string fieldType,
             string? initialValue,
-            string fullTypeName)
+            string fullTypeName,
+            bool isReactive,
+            bool isFromRoute,
+            string? routeParameterName)
         {
             Namespace = @namespace;
             TypeName = typeName;
@@ -239,6 +348,9 @@ public class ReactivePropertyGenerator : IIncrementalGenerator
             FieldType = fieldType;
             InitialValue = initialValue;
             FullTypeName = fullTypeName;
+            IsReactive = isReactive;
+            IsFromRoute = isFromRoute;
+            RouteParameterName = routeParameterName;
         }
     }
 }

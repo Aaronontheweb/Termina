@@ -9,6 +9,7 @@ using Termina.Input;
 using Termina.Navigation;
 using Termina.Pages;
 using Termina.Reactive;
+using Termina.Routing;
 
 namespace Termina;
 
@@ -36,12 +37,14 @@ public sealed class TerminaApplication
     private readonly IServiceProvider? _serviceProvider;
     private readonly Channel<object> _eventChannel;
     private readonly Subject<IInputEvent> _inputSubject = new();
+    private readonly RouteMatcher _routeMatcher = new();
     private readonly Dictionary<string, ReactivePageRegistration> _pages = new();
     private readonly Dictionary<string, (IPage Page, ReactiveViewModel ViewModel)> _cachedPages = new();
-    private readonly Stack<string> _history = new();
+    private readonly Stack<(string Path, IReadOnlyDictionary<string, object>? Parameters)> _history = new();
     private readonly List<IInputSource> _inputSources = new();
 
-    private string? _currentPageKey;
+    private string? _currentPath;
+    private IReadOnlyDictionary<string, object>? _currentParameters;
     private IPage? _currentPage;
     private ReactiveViewModel? _currentViewModel;
     private ReactivePageRegistration? _currentRegistration;
@@ -75,9 +78,9 @@ public sealed class TerminaApplication
     public IObservable<IInputEvent> Input => _inputSubject.AsObservable();
 
     /// <summary>
-    /// Gets the current page key, if any.
+    /// Gets the current navigation path, if any.
     /// </summary>
-    public string? CurrentPageKey => _currentPageKey;
+    public string? CurrentPath => _currentPath;
 
     /// <summary>
     /// Whether navigation history allows going back.
@@ -96,23 +99,27 @@ public sealed class TerminaApplication
     }
 
     /// <summary>
-    /// Register a reactive page with its ViewModel.
+    /// Register a reactive page with a route template.
     /// </summary>
     /// <typeparam name="TPage">The page type (must implement ReactivePage&lt;TViewModel&gt;).</typeparam>
     /// <typeparam name="TViewModel">The ViewModel type.</typeparam>
-    /// <param name="pageKey">Unique key to identify this page.</param>
+    /// <param name="routeTemplate">Route template (e.g., "/tasks/{id:int}").</param>
     /// <param name="behavior">How the page behaves on navigation.</param>
-    public void RegisterPage<TPage, TViewModel>(
-        string pageKey,
+    public void RegisterRoute<TPage, TViewModel>(
+        string routeTemplate,
         NavigationBehavior behavior = NavigationBehavior.ResetOnNavigation)
         where TPage : ReactivePage<TViewModel>, new()
         where TViewModel : ReactiveViewModel, new()
     {
-        _pages[pageKey] = new ReactivePageRegistration(
-            pageKey,
+        var template = RouteParser.Parse(routeTemplate);
+        var registration = new ReactivePageRegistration(
+            template,
             behavior,
             () => new TPage(),
             () => new TViewModel());
+
+        _pages[template.Template] = registration;
+        _routeMatcher.AddRoute(template, template.Template);
     }
 
     /// <summary>
@@ -120,22 +127,48 @@ public sealed class TerminaApplication
     /// </summary>
     internal void RegisterPageFromDescriptor(ReactivePageRegistrationDescriptor descriptor)
     {
-        _pages[descriptor.PageKey] = new ReactivePageRegistration(
-            descriptor.PageKey,
+        var registration = new ReactivePageRegistration(
+            descriptor.RouteTemplate,
             descriptor.Behavior,
             () => (IPage)descriptor.PageFactory(_serviceProvider!),
             () => descriptor.ViewModelFactory(_serviceProvider!));
+
+        _pages[descriptor.PageKey] = registration;
+        _routeMatcher.AddRoute(descriptor.RouteTemplate, descriptor.PageKey);
     }
 
     /// <summary>
-    /// Navigate to a page by key.
+    /// Navigate to a path (e.g., "/tasks/42").
     /// </summary>
-    /// <param name="pageKey">The key of the page to navigate to.</param>
-    public void NavigateTo(string pageKey)
+    /// <param name="path">The path to navigate to.</param>
+    public void NavigateTo(string path)
     {
-        if (!_pages.TryGetValue(pageKey, out var registration))
+        // Try to match the path against registered routes
+        if (!_routeMatcher.TryMatch(path, out var pageKey, out var parameters))
+            throw new InvalidOperationException($"No route matches path '{path}'.");
+
+        if (!_pages.TryGetValue(pageKey!, out var registration))
             throw new InvalidOperationException($"Page '{pageKey}' is not registered.");
 
+        NavigateToInternal(path, registration, parameters);
+    }
+
+    /// <summary>
+    /// Navigate to a path with route values.
+    /// </summary>
+    /// <param name="routeTemplate">The route template (e.g., "/tasks/{id}").</param>
+    /// <param name="routeValues">The route values to substitute.</param>
+    public void NavigateTo(string routeTemplate, object? routeValues)
+    {
+        var path = RouteMatcher.BuildPath(routeTemplate, routeValues);
+        NavigateTo(path);
+    }
+
+    private void NavigateToInternal(
+        string path,
+        ReactivePageRegistration registration,
+        IReadOnlyDictionary<string, object>? parameters)
+    {
         // Notify current page/ViewModel they're leaving
         if (_currentPage != null && _currentViewModel != null)
         {
@@ -144,25 +177,40 @@ public sealed class TerminaApplication
         }
 
         // Push current page to history (if not going to same page)
-        if (_currentPageKey != null && _currentPageKey != pageKey)
+        if (_currentPath != null && _currentPath != path)
         {
-            _history.Push(_currentPageKey);
+            _history.Push((_currentPath, _currentParameters));
         }
+
+        // Generate a cache key that includes parameters for PreserveState pages
+        var cacheKey = registration.RouteTemplate.Template;
 
         // Get or create page instance
         if (registration.Behavior == NavigationBehavior.PreserveState &&
-            _cachedPages.TryGetValue(pageKey, out var cached))
+            _cachedPages.TryGetValue(cacheKey, out var cached))
         {
             _currentPage = cached.Page;
             _currentViewModel = cached.ViewModel;
+
+            // Still need to inject new parameters if the route has them
+            if (parameters != null && _currentViewModel is IRouteParameterReceiver receiver)
+            {
+                receiver.SetRouteParameters(parameters);
+            }
         }
         else
         {
             _currentPage = registration.PageFactory();
             _currentViewModel = registration.ViewModelFactory();
 
+            // Inject route parameters before wiring up
+            if (parameters != null && _currentViewModel is IRouteParameterReceiver receiver)
+            {
+                receiver.SetRouteParameters(parameters);
+            }
+
             // Wire up ViewModel with navigation and shutdown actions
-            _currentViewModel.WireUp(NavigateTo, Shutdown, Input);
+            _currentViewModel.WireUp(NavigateTo, (t, v) => NavigateTo(t, v), Shutdown, Input);
 
             // Bind page to ViewModel
             BindPageToViewModel(_currentPage, _currentViewModel);
@@ -170,11 +218,12 @@ public sealed class TerminaApplication
             // Cache if PreserveState
             if (registration.Behavior == NavigationBehavior.PreserveState)
             {
-                _cachedPages[pageKey] = (_currentPage, _currentViewModel);
+                _cachedPages[cacheKey] = (_currentPage, _currentViewModel);
             }
         }
 
-        _currentPageKey = pageKey;
+        _currentPath = path;
+        _currentParameters = parameters;
         _currentRegistration = registration;
 
         // Notify new page/ViewModel they're active
@@ -200,9 +249,9 @@ public sealed class TerminaApplication
     {
         if (_history.Count > 0)
         {
-            var previousKey = _history.Pop();
-            _currentPageKey = null; // Prevent pushing to history
-            NavigateTo(previousKey);
+            var (previousPath, _) = _history.Pop();
+            _currentPath = null; // Prevent pushing to history
+            NavigateTo(previousPath);
         }
     }
 
@@ -327,18 +376,18 @@ public sealed class TerminaApplication
 /// </summary>
 internal sealed class ReactivePageRegistration
 {
-    public string PageKey { get; }
+    public RouteTemplate RouteTemplate { get; }
     public NavigationBehavior Behavior { get; }
     public Func<IPage> PageFactory { get; }
     public Func<ReactiveViewModel> ViewModelFactory { get; }
 
     public ReactivePageRegistration(
-        string pageKey,
+        RouteTemplate routeTemplate,
         NavigationBehavior behavior,
         Func<IPage> pageFactory,
         Func<ReactiveViewModel> viewModelFactory)
     {
-        PageKey = pageKey;
+        RouteTemplate = routeTemplate;
         Behavior = behavior;
         PageFactory = pageFactory;
         ViewModelFactory = viewModelFactory;

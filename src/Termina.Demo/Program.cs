@@ -16,11 +16,11 @@ if (testMode)
     builder.Services.AddTerminaVirtualInput(scriptedInput);
 }
 
-// Register Termina with reactive pages
-builder.Services.AddTermina("counter", termina =>
+// Register Termina with reactive pages using route-based navigation
+builder.Services.AddTermina("/counter", termina =>
 {
-    termina.RegisterPage<CounterPage, CounterViewModel>("counter");
-    termina.RegisterPage<TodoListPage, TodoListViewModel>("todo-list");
+    termina.RegisterRoute<CounterPage, CounterViewModel>("/counter");
+    termina.RegisterRoute<TodoListPage, TodoListViewModel>("/todos");
 });
 
 var host = builder.Build();

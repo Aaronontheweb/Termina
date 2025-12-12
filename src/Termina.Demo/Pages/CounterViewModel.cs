@@ -41,7 +41,7 @@ public partial class CounterViewModel : ReactiveViewModel
                 break;
 
             case ConsoleKey.T:
-                Navigate("todo-list");
+                Navigate("/todos");
                 break;
 
             case ConsoleKey.Q:

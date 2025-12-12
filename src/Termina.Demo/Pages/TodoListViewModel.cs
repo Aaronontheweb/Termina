@@ -62,7 +62,7 @@ public partial class TodoListViewModel : ReactiveViewModel
                 break;
 
             case ConsoleKey.C:
-                Navigate("counter");
+                Navigate("/counter");
                 break;
 
             case ConsoleKey.Q:
