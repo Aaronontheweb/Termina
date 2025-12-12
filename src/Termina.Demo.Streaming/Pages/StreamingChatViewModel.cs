@@ -21,9 +21,9 @@ public partial class StreamingChatViewModel : ReactiveViewModel
     private CancellationTokenSource? _generationCts;
 
     /// <summary>
-    /// Chat history component (persisted, scrollable).
+    /// Chat history component - renders all content, uses terminal scrollback for scrolling.
     /// </summary>
-    public StreamingText ChatHistory { get; } = StreamingText.CreatePersisted();
+    public StreamingText ChatHistory { get; } = StreamingText.Create();
 
     /// <summary>
     /// Thinking indicator component (windowed, rolling).
@@ -38,7 +38,8 @@ public partial class StreamingChatViewModel : ReactiveViewModel
         Label = "You",
         Placeholder = "Enter your question...",
         IsFocused = true,
-        FocusedColor = Spectre.Console.Color.Cyan1
+        FocusedColor = Spectre.Console.Color.Cyan1,
+        CursorBlink = true
     };
 
     // Reactive properties for UI state
@@ -50,13 +51,12 @@ public partial class StreamingChatViewModel : ReactiveViewModel
         _llmActorProvider = llmActorProvider;
 
         // Configure streaming components
-        ChatHistory.ViewportHeight = 15;
-        ChatHistory.ViewportWidth = 78;
+        ChatHistory.MaxWidth = 78;
         ChatHistory.Prefix = "  ";
         ChatHistory.PrefixStyle = new Spectre.Console.Style(Spectre.Console.Color.Grey);
 
-        ThinkingIndicator.ViewportHeight = 3;
-        ThinkingIndicator.ViewportWidth = 60;
+        // Thinking indicator uses windowed mode (rolling window of last 3 lines)
+        ThinkingIndicator.MaxWidth = 60;
         ThinkingIndicator.Prefix = "💭 ";
         ThinkingIndicator.PrefixStyle = new Spectre.Console.Style(Spectre.Console.Color.Yellow);
         ThinkingIndicator.TextStyle = new Spectre.Console.Style(Spectre.Console.Color.Grey);
@@ -79,6 +79,11 @@ public partial class StreamingChatViewModel : ReactiveViewModel
             .DisposeWith(Subscriptions);
 
         ThinkingIndicator.ContentChanged
+            .Subscribe(_ => RequestRedraw())
+            .DisposeWith(Subscriptions);
+
+        // Subscribe to text input content changes (for cursor blinking)
+        PromptInput.ContentChanged
             .Subscribe(_ => RequestRedraw())
             .DisposeWith(Subscriptions);
 
@@ -131,22 +136,8 @@ public partial class StreamingChatViewModel : ReactiveViewModel
             return;
         }
 
-        // Scrolling during generation
-        if (_isGenerating)
-        {
-            switch (keyInfo.Key)
-            {
-                case ConsoleKey.UpArrow:
-                    ChatHistory.ScrollUp();
-                    return;
-
-                case ConsoleKey.DownArrow:
-                    ChatHistory.ScrollDown();
-                    return;
-            }
-        }
-
         // When not generating, let the text input handle keys
+        // (Scrolling is handled by terminal's native scrollback)
         if (!_isGenerating)
         {
             PromptInput.HandleKey(keyInfo);
@@ -158,9 +149,6 @@ public partial class StreamingChatViewModel : ReactiveViewModel
         prompt = prompt.Trim();
         if (string.IsNullOrEmpty(prompt))
             return;
-
-        // Scroll to bottom to see new content and re-enable auto-scroll
-        ChatHistory.ScrollToBottom();
 
         // Add user message to chat
         ChatHistory.AppendLine($"👤 You: {prompt}");

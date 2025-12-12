@@ -46,13 +46,12 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
             new Markup("[bold cyan]🤖 Streaming Chat Demo[/] - Simulated LLM with Akka.NET"),
             new Text(""),
 
-            // Chat history panel - rendered directly from ViewModel's component
+            // Chat history panel - grows with content, terminal scrollback handles scrolling
             new Panel(ViewModel.ChatHistory.Render())
             {
                 Header = new PanelHeader("[yellow]Chat History[/]"),
                 Border = BoxBorder.Rounded,
-                Expand = true,
-                Height = 17
+                Expand = true
             }
         };
 

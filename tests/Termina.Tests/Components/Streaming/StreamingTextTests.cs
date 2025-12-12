@@ -38,9 +38,9 @@ public class StreamingTextTests
     }
 
     [Fact]
-    public void CreatePersisted_ReturnsPersistedComponent()
+    public void Create_ReturnsPersistedComponent()
     {
-        var component = StreamingText.CreatePersisted();
+        var component = StreamingText.Create();
 
         Assert.IsType<PersistedStreamBuffer>(component.Buffer);
     }
@@ -54,63 +54,41 @@ public class StreamingTextTests
     }
 
     [Fact]
-    public void ViewportHeight_DefaultValue()
+    public void MaxWidth_DefaultValue()
     {
         var component = new StreamingText();
 
-        Assert.Equal(10, component.ViewportHeight);
+        Assert.Equal(80, component.MaxWidth);
     }
 
     [Fact]
-    public void ViewportHeight_SetValue()
+    public void MaxWidth_SetValue()
     {
         var component = new StreamingText();
 
-        component.ViewportHeight = 20;
+        component.MaxWidth = 120;
 
-        Assert.Equal(20, component.ViewportHeight);
+        Assert.Equal(120, component.MaxWidth);
     }
 
     [Fact]
-    public void ViewportHeight_MinimumIsOne()
+    public void MaxWidth_ZeroDisablesWrapping()
     {
         var component = new StreamingText();
 
-        component.ViewportHeight = 0;
-        Assert.Equal(1, component.ViewportHeight);
+        component.MaxWidth = 0;
 
-        component.ViewportHeight = -5;
-        Assert.Equal(1, component.ViewportHeight);
+        Assert.Equal(0, component.MaxWidth);
     }
 
     [Fact]
-    public void ViewportWidth_DefaultValue()
+    public void MaxWidth_NegativeBecomesZero()
     {
         var component = new StreamingText();
 
-        Assert.Equal(80, component.ViewportWidth);
-    }
+        component.MaxWidth = -5;
 
-    [Fact]
-    public void ViewportWidth_SetValue()
-    {
-        var component = new StreamingText();
-
-        component.ViewportWidth = 120;
-
-        Assert.Equal(120, component.ViewportWidth);
-    }
-
-    [Fact]
-    public void ViewportWidth_MinimumIsTen()
-    {
-        var component = new StreamingText();
-
-        component.ViewportWidth = 5;
-        Assert.Equal(10, component.ViewportWidth);
-
-        component.ViewportWidth = -5;
-        Assert.Equal(10, component.ViewportWidth);
+        Assert.Equal(0, component.MaxWidth);
     }
 
     [Fact]
@@ -145,66 +123,6 @@ public class StreamingTextTests
         component.Clear();
 
         Assert.False(component.Buffer.HasContent);
-    }
-
-    [Fact]
-    public void ScrollUp_WorksForPersistedMode()
-    {
-        var component = new StreamingText(StreamMode.Persisted);
-        for (int i = 0; i < 20; i++)
-            component.AppendLine($"Line {i}");
-
-        component.ScrollUp(5);
-
-        Assert.True(component.IsScrolledUp);
-    }
-
-    [Fact]
-    public void ScrollUp_NoOpForWindowedMode()
-    {
-        var component = new StreamingText(StreamMode.Windowed);
-        for (int i = 0; i < 10; i++)
-            component.AppendLine($"Line {i}");
-
-        component.ScrollUp(5);
-
-        // Should not throw, just no-op
-        Assert.False(component.IsScrolledUp); // Windowed mode never reports scrolled up
-    }
-
-    [Fact]
-    public void ScrollDown_WorksForPersistedMode()
-    {
-        var component = new StreamingText(StreamMode.Persisted);
-        for (int i = 0; i < 20; i++)
-            component.AppendLine($"Line {i}");
-
-        component.ScrollUp(5);
-        component.ScrollDown(3);
-
-        // Still scrolled up (5 - 3 = 2)
-        Assert.True(component.IsScrolledUp);
-    }
-
-    [Fact]
-    public void ScrollToBottom_WorksForPersistedMode()
-    {
-        var component = new StreamingText(StreamMode.Persisted);
-        for (int i = 0; i < 20; i++)
-            component.AppendLine($"Line {i}");
-
-        component.ScrollUp(5);
-        component.ScrollToBottom();
-
-        Assert.False(component.IsScrolledUp);
-    }
-
-    [Fact]
-    public void IsScrolledUp_FalseForWindowedMode()
-    {
-        var component = new StreamingText(StreamMode.Windowed);
-
-        Assert.False(component.IsScrolledUp);
     }
 
     [Fact]
@@ -244,13 +162,32 @@ public class StreamingTextTests
     {
         var component = new StreamingText();
         component.Prefix = ">>> ";
-        component.ViewportWidth = 20;
+        component.MaxWidth = 20;
         component.AppendLine("This is some text that would wrap");
 
         // The prefix takes 4 chars, so effective width is 16
         // Word wrapping should account for this
         var result = component.Render();
         Assert.NotNull(result);
+    }
+
+    [Fact]
+    public void Render_RendersAllContent()
+    {
+        var component = new StreamingText();
+
+        // Add many lines
+        for (int i = 0; i < 100; i++)
+        {
+            component.AppendLine($"Line {i}");
+        }
+
+        // Render should produce all lines (no viewport truncation)
+        var result = component.Render();
+        Assert.NotNull(result);
+
+        // Verify buffer has all lines
+        Assert.Equal(100, component.Buffer.LineCount);
     }
 
     [Fact]
@@ -327,6 +264,26 @@ public class StreamingTextTests
         await component.ConsumeAsync(GenerateChunks());
 
         Assert.False(component.Buffer.HasContent);
+    }
+
+    [Fact]
+    public void WindowedMode_OnlyRetainsWindowSize()
+    {
+        var component = StreamingText.CreateWindowed(windowSize: 3);
+
+        // Add more lines than window size
+        component.AppendLine("Line 1");
+        component.AppendLine("Line 2");
+        component.AppendLine("Line 3");
+        component.AppendLine("Line 4");
+        component.AppendLine("Line 5");
+
+        // Should only have last 3 lines
+        var lines = component.Buffer.GetAllLines();
+        Assert.Equal(3, lines.Count);
+        Assert.Equal("Line 3", lines[0]);
+        Assert.Equal("Line 4", lines[1]);
+        Assert.Equal("Line 5", lines[2]);
     }
 
     private static async IAsyncEnumerable<string> GenerateChunks(params string[] chunks)

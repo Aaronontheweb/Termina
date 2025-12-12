@@ -1,5 +1,6 @@
 using Akka.Hosting;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Termina.Demo.Streaming.Actors;
 using Termina.Demo.Streaming.Pages;
 using Termina.Hosting;
@@ -9,6 +10,9 @@ using Termina.Input;
 var testMode = args.Contains("--test");
 
 var builder = Host.CreateApplicationBuilder(args);
+
+// Configure logging to only show warnings and errors (avoid cluttering TUI output)
+builder.Logging.SetMinimumLevel(LogLevel.Warning);
 
 // Set up input source based on mode
 VirtualInputSource? scriptedInput = null;
@@ -51,12 +55,6 @@ if (testMode && scriptedInput != null)
 
         // Wait for streaming to complete (actor produces tokens over ~3-5 seconds)
         await Task.Delay(6000);
-
-        // Test scrolling in chat history
-        scriptedInput.EnqueueKey(ConsoleKey.UpArrow);
-        scriptedInput.EnqueueKey(ConsoleKey.UpArrow);
-        scriptedInput.EnqueueKey(ConsoleKey.DownArrow);
-        await Task.Delay(200);
 
         // Type another prompt to test second interaction
         scriptedInput.EnqueueString("Test");

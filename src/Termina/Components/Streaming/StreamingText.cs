@@ -5,23 +5,28 @@ namespace Termina.Components.Streaming;
 
 /// <summary>
 /// A component that efficiently renders streaming text content.
-/// Supports both persisted (full history) and windowed (rolling) modes.
+/// Renders ALL content - uses terminal's native scrollback for scrolling.
+/// Use <see cref="StreamMode.Windowed"/> for rolling windows (e.g., thinking indicators).
 /// </summary>
 /// <remarks>
+/// <para>
+/// This component follows composition over inheritance - it handles text buffering and rendering.
+/// For fixed-height scrolling viewports, wrap in a ScrollableViewport component.
+/// </para>
 /// <para>
 /// Usage examples:
 /// </para>
 /// <code>
-/// // Persisted mode for chat/logs (default)
-/// var chat = new StreamingText();
+/// // Default: renders all content (uses terminal scrollback)
+/// var chat = StreamingText.Create();
 /// chat.Append("Hello ");
 /// chat.Append("world!\n");
 ///
-/// // Windowed mode for thinking indicators
-/// var thinking = new StreamingText(StreamMode.Windowed, windowSize: 2);
-/// thinking.Append("Processing step 1...\n");
-/// thinking.Append("Processing step 2...\n");
-/// thinking.Append("Processing step 3...\n"); // Step 1 is now discarded
+/// // Windowed mode for thinking indicators (rolling window)
+/// var thinking = StreamingText.CreateWindowed(windowSize: 3);
+/// thinking.AppendLine("Step 1...");
+/// thinking.AppendLine("Step 2...");
+/// thinking.AppendLine("Step 3..."); // Step 1 is discarded
 /// </code>
 /// <para>
 /// Subscribe to <see cref="Component.ContentChanged"/> to be notified when
@@ -31,8 +36,7 @@ namespace Termina.Components.Streaming;
 public class StreamingText : Component
 {
     private readonly IStreamingTextBuffer _buffer;
-    private int _viewportHeight = 10;
-    private int _viewportWidth = 80;
+    private int _maxWidth = 80;
     private Style _textStyle = Style.Plain;
     private string? _prefix;
     private Style _prefixStyle = new(Color.Grey);
@@ -67,21 +71,13 @@ public class StreamingText : Component
     public IStreamingTextBuffer Buffer => _buffer;
 
     /// <summary>
-    /// Gets or sets the viewport height (visible lines).
+    /// Gets or sets the maximum width for word wrapping.
+    /// Set to 0 to disable word wrapping.
     /// </summary>
-    public int ViewportHeight
+    public int MaxWidth
     {
-        get => _viewportHeight;
-        set => _viewportHeight = Math.Max(1, value);
-    }
-
-    /// <summary>
-    /// Gets or sets the viewport width (for word wrapping).
-    /// </summary>
-    public int ViewportWidth
-    {
-        get => _viewportWidth;
-        set => _viewportWidth = Math.Max(10, value);
+        get => _maxWidth;
+        set => _maxWidth = Math.Max(0, value);
     }
 
     /// <summary>
@@ -168,64 +164,32 @@ public class StreamingText : Component
         MarkDirty();
     }
 
-    /// <summary>
-    /// Scrolls up (for persisted mode).
-    /// </summary>
-    public void ScrollUp(int lines = 1)
-    {
-        if (_buffer is PersistedStreamBuffer persisted)
-        {
-            persisted.ScrollUp(lines, _viewportWidth);
-        }
-    }
-
-    /// <summary>
-    /// Scrolls down (for persisted mode).
-    /// </summary>
-    public void ScrollDown(int lines = 1)
-    {
-        if (_buffer is PersistedStreamBuffer persisted)
-        {
-            persisted.ScrollDown(lines);
-        }
-    }
-
-    /// <summary>
-    /// Scrolls to the bottom (for persisted mode).
-    /// </summary>
-    public void ScrollToBottom()
-    {
-        if (_buffer is PersistedStreamBuffer persisted)
-        {
-            persisted.ScrollToBottom();
-        }
-    }
-
-    /// <summary>
-    /// Gets whether the user has scrolled away from the bottom (persisted mode only).
-    /// </summary>
-    public bool IsScrolledUp =>
-        _buffer is PersistedStreamBuffer persisted && persisted.IsScrolledUp;
-
     /// <inheritdoc />
     public override IRenderable Render()
     {
-        var effectiveWidth = _viewportWidth;
-        if (!string.IsNullOrEmpty(_prefix))
-        {
-            effectiveWidth -= _prefix.Length;
-        }
-
-        var lines = _buffer.GetVisibleLines(_viewportHeight, effectiveWidth);
+        // Get all lines from buffer
+        var lines = _buffer.GetAllLines();
 
         if (lines.Count == 0)
         {
             return new Text("");
         }
 
+        // Apply word wrapping if MaxWidth is set
+        IEnumerable<string> displayLines = lines;
+        if (_maxWidth > 0)
+        {
+            var effectiveWidth = _maxWidth;
+            if (!string.IsNullOrEmpty(_prefix))
+            {
+                effectiveWidth -= _prefix.Length;
+            }
+            displayLines = WordWrapper.WrapLines(lines, effectiveWidth);
+        }
+
         var rows = new List<IRenderable>();
 
-        foreach (var line in lines)
+        foreach (var line in displayLines)
         {
             if (!string.IsNullOrEmpty(_prefix))
             {
@@ -243,12 +207,13 @@ public class StreamingText : Component
     }
 
     /// <summary>
-    /// Creates a persisted streaming text component (full history with scroll).
+    /// Creates a streaming text component. This is the default - renders all content.
     /// </summary>
-    public static StreamingText CreatePersisted() => new(StreamMode.Persisted);
+    public static StreamingText Create() => new(StreamMode.Persisted);
 
     /// <summary>
     /// Creates a windowed streaming text component (rolling window).
+    /// Only retains the last N lines - useful for thinking indicators, progress, etc.
     /// </summary>
     /// <param name="windowSize">Number of lines to retain.</param>
     public static StreamingText CreateWindowed(int windowSize = 3) =>
