@@ -209,8 +209,8 @@ public sealed class TerminaApplication
                 receiver.SetRouteParameters(parameters);
             }
 
-            // Wire up ViewModel with navigation and shutdown actions
-            _currentViewModel.WireUp(NavigateTo, (t, v) => NavigateTo(t, v), Shutdown, Input);
+            // Wire up ViewModel with navigation, shutdown, and redraw actions
+            _currentViewModel.WireUp(NavigateTo, (t, v) => NavigateTo(t, v), Shutdown, RequestRedraw, Input);
 
             // Bind page to ViewModel
             BindPageToViewModel(_currentPage, _currentViewModel);
@@ -261,6 +261,15 @@ public sealed class TerminaApplication
     public void Shutdown()
     {
         _shutdownCts?.Cancel();
+    }
+
+    /// <summary>
+    /// Request a UI redraw. Used by ViewModels when async content changes.
+    /// </summary>
+    public void RequestRedraw()
+    {
+        // Push a redraw event to the event channel - this will trigger re-render
+        _eventChannel.Writer.TryWrite(RedrawRequested.Instance);
     }
 
     /// <summary>

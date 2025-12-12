@@ -41,6 +41,7 @@ public class ReactiveViewModelTests
             navigate: key => navigatedTo = key,
             navigateWithParams: (_, _) => { },
             shutdown: () => { },
+            requestRedraw: () => { },
             input: Observable.Empty<IInputEvent>());
 
         vm.TestNavigate("test-page");
@@ -58,6 +59,7 @@ public class ReactiveViewModelTests
             navigate: _ => { },
             navigateWithParams: (_, _) => { },
             shutdown: () => shutdownCalled = true,
+            requestRedraw: () => { },
             input: Observable.Empty<IInputEvent>());
 
         vm.TestShutdown();
@@ -76,6 +78,7 @@ public class ReactiveViewModelTests
             navigate: _ => { },
             navigateWithParams: (_, _) => { },
             shutdown: () => { },
+            requestRedraw: () => { },
             input: inputSubject);
 
         vm.TestInput.OfType<KeyPressed>()
@@ -94,7 +97,7 @@ public class ReactiveViewModelTests
     public void ReactiveViewModel_OnActivatedCalled()
     {
         var vm = new TestViewModel();
-        vm.WireUp(_ => { }, (_, _) => { }, () => { }, Observable.Empty<IInputEvent>());
+        vm.WireUp(_ => { }, (_, _) => { }, () => { }, () => { }, Observable.Empty<IInputEvent>());
 
         Assert.False(vm.WasActivated);
 
@@ -107,7 +110,7 @@ public class ReactiveViewModelTests
     public void ReactiveViewModel_OnDeactivatingCalled()
     {
         var vm = new TestViewModel();
-        vm.WireUp(_ => { }, (_, _) => { }, () => { }, Observable.Empty<IInputEvent>());
+        vm.WireUp(_ => { }, (_, _) => { }, () => { }, () => { }, Observable.Empty<IInputEvent>());
 
         Assert.False(vm.WasDeactivating);
 
