@@ -71,13 +71,6 @@ public class SelectList : Component
     }
 
     /// <summary>
-    /// Gets or sets whether to interpret Spectre.Console markup in option text.
-    /// When false (default), markup characters are escaped for safety.
-    /// When true, markup like [bold], [red], etc. will be rendered.
-    /// </summary>
-    public bool AllowMarkup { get; set; }
-
-    /// <summary>
     /// Gets the currently selected option, or null if no options exist.
     /// </summary>
     public string? SelectedOption =>
@@ -92,7 +85,7 @@ public class SelectList : Component
     {
         if (_options.Count == 0)
         {
-            var emptyText = new Markup("[dim]No items[/]");
+            var emptyText = new Text("No items", new Style(Color.Grey, decoration: Decoration.Dim));
             return _showBorder
                 ? new Panel(emptyText).Header(_title).Expand()
                 : emptyText;
@@ -104,11 +97,15 @@ public class SelectList : Component
         {
             var option = _options[i];
             var isSelected = i == _selectedIndex;
-            var displayText = AllowMarkup ? option : Markup.Escape(option);
 
-            var text = isSelected
-                ? new Markup($"[bold {_selectedColor}]> {displayText}[/]")
-                : new Markup($"[{_normalColor}]  {displayText}[/]");
+            // Use strongly-typed Style objects instead of markup strings
+            // This avoids issues with Spectre.Console's markup parser
+            var style = isSelected
+                ? new Style(_selectedColor, decoration: Decoration.Bold)
+                : new Style(_normalColor);
+
+            var prefix = isSelected ? "> " : "  ";
+            var text = new Text($"{prefix}{option}", style);
 
             rows.Add(text);
         }

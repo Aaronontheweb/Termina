@@ -13,9 +13,8 @@ public class TodoListPage : ReactivePage<TodoListViewModel>
 {
     private readonly SelectList _todoList = new()
     {
-        Title = "[bold]Todo List[/]",
-        SelectedColor = Color.Green,
-        AllowMarkup = true
+        Title = "Todo List",
+        SelectedColor = Color.Green
     };
 
     private readonly StatusBar _statusBar = new()
@@ -50,10 +49,9 @@ public class TodoListPage : ReactivePage<TodoListViewModel>
     private static string FormatItem(TodoItem item)
     {
         var checkbox = item.IsCompleted ? "[✓]" : "[ ]";
-        var style = item.IsCompleted ? "strikethrough dim" : "";
-        return string.IsNullOrEmpty(style)
-            ? $"{checkbox} {item.Description}"
-            : $"{checkbox} [{style}]{item.Description}[/]";
+        // Note: Using plain text format - strikethrough styling not supported in SelectList
+        // TODO: Add support for per-item styling in SelectList component
+        return $"{checkbox} {item.Description}";
     }
 
     public override IRenderable Render()
