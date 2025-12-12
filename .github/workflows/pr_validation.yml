@@ -53,6 +53,83 @@ jobs:
       - name: "dotnet pack"
         run: dotnet pack -c Release -o ./bin/nuget
 
+  nuget-validation:
+    name: NuGet-Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v6.0.1
+        with:
+          lfs: true
+          fetch-depth: 0
+
+      - name: "Install .NET SDK"
+        uses: actions/setup-dotnet@v5.0.1
+        with:
+          global-json-file: "./global.json"
+
+      - name: "Restore .NET tools"
+        run: dotnet tool restore
+
+      - name: "Update release notes"
+        shell: pwsh
+        run: |
+          ./build.ps1
+
+      - name: "Create NuGet packages"
+        run: dotnet pack -c Release -o ./output
+
+      - name: "Validate NuGet packages"
+        shell: bash
+        run: |
+          echo "=== Checking for NuGet packages ==="
+          ls -la ./output/*.nupkg
+
+          echo ""
+          echo "=== Validating package contents ==="
+          for pkg in ./output/*.nupkg; do
+            echo "--- Checking $pkg ---"
+            unzip -l "$pkg" | head -50
+
+            # Verify icon is present
+            if unzip -l "$pkg" | grep -q "termina-icon.png"; then
+              echo "✓ Package icon found"
+            else
+              echo "✗ Package icon MISSING"
+              exit 1
+            fi
+
+            # Verify README is present
+            if unzip -l "$pkg" | grep -q "README.md"; then
+              echo "✓ README found"
+            else
+              echo "✗ README MISSING"
+              exit 1
+            fi
+
+            # Verify nuspec has required metadata
+            unzip -p "$pkg" "*.nuspec" > /tmp/nuspec.xml
+
+            if grep -q "<description>" /tmp/nuspec.xml; then
+              echo "✓ Description found"
+            else
+              echo "✗ Description MISSING"
+              exit 1
+            fi
+
+            if grep -q "<licenseUrl>\|<license" /tmp/nuspec.xml; then
+              echo "✓ License found"
+            else
+              echo "✗ License MISSING"
+              exit 1
+            fi
+
+            echo ""
+          done
+
+          echo "=== All NuGet validations passed ==="
+
   aot-validation:
     name: AOT-${{matrix.runtime}}
     runs-on: ${{matrix.os}}
