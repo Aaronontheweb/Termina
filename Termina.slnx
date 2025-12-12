@@ -7,9 +7,9 @@
     <File Path="README.md" />
   </Folder>
   <Folder Name="/src/">
-    <Project Path="src/Termina.Demo.Akka/Termina.Demo.Akka.csproj" />
-    <Project Path="src/Termina.Spike/Termina.Spike.csproj" />
     <Project Path="src/Termina/Termina.csproj" />
+    <Project Path="src/Termina.Generators/Termina.Generators.csproj" />
+    <Project Path="src/Termina.Demo/Termina.Demo.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Termina.Tests/Termina.Tests.csproj" />

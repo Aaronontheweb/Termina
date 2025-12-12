@@ -1,122 +1,120 @@
 using Spectre.Console;
 using Spectre.Console.Rendering;
-using Termina.Input;
 
 namespace Termina.Components;
 
-// Business events for SelectList
-
 /// <summary>
-/// Command: Set the available options for the select list.
+/// A list component for selecting from a list of options.
+/// State is managed externally by the ViewModel and set via properties.
 /// </summary>
-public sealed record SetOptions(IReadOnlyList<string> Options);
-
-/// <summary>
-/// Command: Programmatically select a specific option by index.
-/// </summary>
-public sealed record SelectOption(int Index);
-
-/// <summary>
-/// Notification: User selected an option (pressed Enter).
-/// </summary>
-public sealed record OptionSelected(int Index, string Value);
-
-/// <summary>
-/// Notification: User changed the highlighted option (arrow keys).
-/// </summary>
-public sealed record OptionHighlighted(int Index, string Value);
-
-/// <summary>
-/// A selectable list component.
-/// Handles arrow keys internally to navigate, emits business events when user selects.
-/// </summary>
-public sealed class SelectList : Component
+public class SelectList : Component
 {
-    private List<string> _options = new();
-    private int _highlightedIndex = 0;
-    private string _title = "";
+    private IReadOnlyList<string> _options = Array.Empty<string>();
+    private int _selectedIndex;
+    private string _title = string.Empty;
+    private bool _showBorder = true;
+    private Color _selectedColor = Color.Blue;
+    private Color _normalColor = Color.White;
 
-    public SelectList(string title = "")
+    /// <summary>
+    /// Gets or sets the title displayed above the list.
+    /// </summary>
+    public string Title
     {
-        _title = title;
-
-        // Subscribe to business commands
-        Subscribe<SetOptions>(OnSetOptions);
-        Subscribe<SelectOption>(OnSelectOption);
-    }
-
-    private void OnSetOptions(SetOptions evt)
-    {
-        _options = evt.Options.ToList();
-        _highlightedIndex = 0;
-    }
-
-    private void OnSelectOption(SelectOption evt)
-    {
-        if (_options.Count > 0)
-        {
-            _highlightedIndex = Math.Clamp(evt.Index, 0, _options.Count - 1);
-        }
+        get => _title;
+        set => _title = value;
     }
 
     /// <summary>
-    /// Handle keyboard input for navigation.
+    /// Gets or sets the list of options to display.
     /// </summary>
-    public override void HandleInput(KeyPressed key)
+    public IReadOnlyList<string> Options
     {
-        if (_options.Count == 0) return;
-
-        var oldIndex = _highlightedIndex;
-
-        switch (key.KeyInfo.Key)
-        {
-            case ConsoleKey.UpArrow:
-                _highlightedIndex = Math.Max(0, _highlightedIndex - 1);
-                break;
-            case ConsoleKey.DownArrow:
-                _highlightedIndex = Math.Min(_options.Count - 1, _highlightedIndex + 1);
-                break;
-            case ConsoleKey.Enter:
-                Emit(new OptionSelected(_highlightedIndex, _options[_highlightedIndex]));
-                return;
-        }
-
-        // Emit highlight change if index changed
-        if (oldIndex != _highlightedIndex)
-        {
-            Emit(new OptionHighlighted(_highlightedIndex, _options[_highlightedIndex]));
-        }
+        get => _options;
+        set => _options = value ?? Array.Empty<string>();
     }
 
     /// <summary>
-    /// Get the currently highlighted index.
+    /// Gets or sets the currently selected index.
     /// </summary>
-    public int HighlightedIndex => _highlightedIndex;
+    public int SelectedIndex
+    {
+        get => _selectedIndex;
+        set => _selectedIndex = Math.Max(0, Math.Min(value, _options.Count - 1));
+    }
 
     /// <summary>
-    /// Get the currently highlighted value, or null if no options.
+    /// Gets or sets whether to show a border around the list.
     /// </summary>
-    public string? HighlightedValue => _options.Count > 0 ? _options[_highlightedIndex] : null;
+    public bool ShowBorder
+    {
+        get => _showBorder;
+        set => _showBorder = value;
+    }
 
+    /// <summary>
+    /// Gets or sets the color for selected items.
+    /// </summary>
+    public Color SelectedColor
+    {
+        get => _selectedColor;
+        set => _selectedColor = value;
+    }
+
+    /// <summary>
+    /// Gets or sets the color for normal (unselected) items.
+    /// </summary>
+    public Color NormalColor
+    {
+        get => _normalColor;
+        set => _normalColor = value;
+    }
+
+    /// <summary>
+    /// Gets the currently selected option, or null if no options exist.
+    /// </summary>
+    public string? SelectedOption =>
+        _options.Count > 0 && _selectedIndex < _options.Count
+            ? _options[_selectedIndex]
+            : null;
+
+    /// <summary>
+    /// Renders the select list.
+    /// </summary>
     public override IRenderable Render()
     {
         if (_options.Count == 0)
         {
-            return new Markup("[grey](no options)[/]");
+            var emptyText = new Markup("[dim]No items[/]");
+            return _showBorder
+                ? new Panel(emptyText).Header(_title).Expand()
+                : emptyText;
         }
 
-        var rows = _options.Select((opt, i) =>
-            i == _highlightedIndex
-                ? new Markup($"[bold blue]> {Markup.Escape(opt)}[/]")
-                : new Markup($"  {Markup.Escape(opt)}"));
+        var rows = new List<IRenderable>();
 
-        IRenderable content = new Rows(rows.Cast<IRenderable>());
-
-        if (!string.IsNullOrEmpty(_title))
+        for (var i = 0; i < _options.Count; i++)
         {
-            content = new Panel(content)
-                .Header($"[bold]{Markup.Escape(_title)}[/]")
-                .Border(BoxBorder.Rounded);
+            var option = _options[i];
+            var isSelected = i == _selectedIndex;
+
+            var text = isSelected
+                ? new Markup($"[bold {_selectedColor}]> {Markup.Escape(option)}[/]")
+                : new Markup($"[{_normalColor}]  {Markup.Escape(option)}[/]");
+
+            rows.Add(text);
+        }
+
+        var content = new Rows(rows);
+
+        if (_showBorder)
+        {
+            var panel = new Panel(content).Expand();
+            if (!string.IsNullOrEmpty(_title))
+            {
+                panel.Header(_title);
+            }
+            return panel;
         }
 
         return content;

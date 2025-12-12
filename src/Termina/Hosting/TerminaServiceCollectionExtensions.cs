@@ -20,8 +20,8 @@ public static class TerminaServiceCollectionExtensions
     /// <code>
     /// builder.Services.AddTermina(termina =>
     /// {
-    ///     termina.RegisterPage&lt;MainMenuHandler&gt;("main-menu");
-    ///     termina.RegisterPage&lt;SettingsHandler&gt;("settings");
+    ///     termina.RegisterPage&lt;MainMenuPage, MainMenuViewModel&gt;("main-menu");
+    ///     termina.RegisterPage&lt;SettingsPage, SettingsViewModel&gt;("settings");
     /// });
     /// </code>
     /// </example>

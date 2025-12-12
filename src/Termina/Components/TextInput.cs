@@ -1,127 +1,122 @@
 using Spectre.Console;
 using Spectre.Console.Rendering;
-using Termina.Input;
 
 namespace Termina.Components;
 
-// Business events for TextInput
-
 /// <summary>
-/// Command: Set the text content programmatically.
+/// A text input component for entering text.
+/// State is managed externally by the ViewModel and set via properties.
 /// </summary>
-public sealed record SetText(string Text);
-
-/// <summary>
-/// Notification: The text content changed (user typed or deleted).
-/// </summary>
-public sealed record TextChanged(string Text);
-
-/// <summary>
-/// Notification: User submitted the text (pressed Enter).
-/// </summary>
-public sealed record TextSubmitted(string Text);
-
-/// <summary>
-/// A text input component.
-/// Handles character input and backspace internally, emits business events on changes and submit.
-/// </summary>
-public sealed class TextInput : Component
+public class TextInput : Component
 {
-    private string _text = "";
-    private readonly string _placeholder;
-    private readonly string _label;
-    private readonly int _minWidth;
+    private string _text = string.Empty;
+    private string _label = string.Empty;
+    private string _placeholder = string.Empty;
+    private bool _isFocused;
+    private int _cursorPosition;
+    private Color _focusedColor = Color.Blue;
+    private Color _unfocusedColor = Color.Grey;
 
     /// <summary>
-    /// Creates a new text input component.
+    /// Gets or sets the label displayed before the input.
     /// </summary>
-    /// <param name="label">Label displayed above the input.</param>
-    /// <param name="placeholder">Placeholder text shown when empty.</param>
-    /// <param name="minWidth">Minimum width of the input field in characters. Default is 30.</param>
-    public TextInput(string label = "", string placeholder = "", int minWidth = 30)
+    public string Label
     {
-        _label = label;
-        _placeholder = placeholder;
-        _minWidth = minWidth;
-
-        // Subscribe to business commands
-        Subscribe<SetText>(OnSetText);
-    }
-
-    private void OnSetText(SetText evt)
-    {
-        _text = evt.Text;
+        get => _label;
+        set => _label = value ?? string.Empty;
     }
 
     /// <summary>
-    /// Handle keyboard input for text entry.
+    /// Gets or sets the current text value.
     /// </summary>
-    public override void HandleInput(KeyPressed key)
+    public string Text
     {
-        var info = key.KeyInfo;
-
-        // Enter submits
-        if (info.Key == ConsoleKey.Enter)
+        get => _text;
+        set
         {
-            Emit(new TextSubmitted(_text));
-            return;
-        }
-
-        // Backspace deletes last character
-        if (info.Key == ConsoleKey.Backspace && _text.Length > 0)
-        {
-            _text = _text[..^1];
-            Emit(new TextChanged(_text));
-            return;
-        }
-
-        // Regular character input
-        if (!char.IsControl(info.KeyChar))
-        {
-            _text += info.KeyChar;
-            Emit(new TextChanged(_text));
+            _text = value ?? string.Empty;
+            // Keep cursor within valid range
+            _cursorPosition = Math.Min(_cursorPosition, _text.Length);
         }
     }
 
     /// <summary>
-    /// Get the current text value.
+    /// Gets or sets the placeholder text shown when the input is empty.
     /// </summary>
-    public string Text => _text;
+    public string Placeholder
+    {
+        get => _placeholder;
+        set => _placeholder = value ?? string.Empty;
+    }
 
+    /// <summary>
+    /// Gets or sets whether the input is focused.
+    /// </summary>
+    public bool IsFocused
+    {
+        get => _isFocused;
+        set => _isFocused = value;
+    }
+
+    /// <summary>
+    /// Gets or sets the cursor position.
+    /// </summary>
+    public int CursorPosition
+    {
+        get => _cursorPosition;
+        set => _cursorPosition = Math.Max(0, Math.Min(value, _text.Length));
+    }
+
+    /// <summary>
+    /// Gets or sets the color when focused.
+    /// </summary>
+    public Color FocusedColor
+    {
+        get => _focusedColor;
+        set => _focusedColor = value;
+    }
+
+    /// <summary>
+    /// Gets or sets the color when unfocused.
+    /// </summary>
+    public Color UnfocusedColor
+    {
+        get => _unfocusedColor;
+        set => _unfocusedColor = value;
+    }
+
+    /// <summary>
+    /// Renders the text input.
+    /// </summary>
     public override IRenderable Render()
     {
+        var color = _isFocused ? _focusedColor : _unfocusedColor;
+
         string displayText;
         if (string.IsNullOrEmpty(_text))
         {
             displayText = string.IsNullOrEmpty(_placeholder)
-                ? "[blink]|[/]"
-                : $"[grey]{Markup.Escape(_placeholder)}[/][blink]|[/]";
+                ? " "
+                : $"[dim]{Markup.Escape(_placeholder)}[/]";
+        }
+        else if (_isFocused)
+        {
+            // Show cursor position
+            var beforeCursor = _text[.._cursorPosition];
+            var atCursor = _cursorPosition < _text.Length ? _text[_cursorPosition].ToString() : " ";
+            var afterCursor = _cursorPosition < _text.Length ? _text[(_cursorPosition + 1)..] : "";
+
+            displayText = $"{Markup.Escape(beforeCursor)}[invert]{Markup.Escape(atCursor)}[/]{Markup.Escape(afterCursor)}";
         }
         else
         {
-            displayText = $"{Markup.Escape(_text)}[blink]|[/]";
+            displayText = Markup.Escape(_text);
         }
 
-        // Calculate visible text length (without markup)
-        var visibleLength = string.IsNullOrEmpty(_text)
-            ? (_placeholder?.Length ?? 0) + 1 // +1 for cursor
-            : _text.Length + 1; // +1 for cursor
+        var labelPart = string.IsNullOrEmpty(_label)
+            ? ""
+            : $"[{color}]{Markup.Escape(_label)}:[/] ";
 
-        // Pad to minimum width
-        if (visibleLength < _minWidth)
-        {
-            displayText += new string(' ', _minWidth - visibleLength);
-        }
-
-        IRenderable content = new Markup(displayText);
-
-        if (!string.IsNullOrEmpty(_label))
-        {
-            content = new Panel(content)
-                .Header($"[bold]{Markup.Escape(_label)}[/]")
-                .Border(BoxBorder.Rounded);
-        }
-
-        return content;
+        return new Markup($"{labelPart}{displayText}");
     }
 }

@@ -1,3 +1,5 @@
+using System.Reactive.Linq;
+using System.Reactive.Subjects;
 using System.Threading.Channels;
 using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
@@ -6,6 +8,7 @@ using Termina.Hosting;
 using Termina.Input;
 using Termina.Navigation;
 using Termina.Pages;
+using Termina.Reactive;
 
 namespace Termina;
 
@@ -18,14 +21,13 @@ namespace Termina;
 /// </para>
 /// <list type="bullet">
 ///   <item>Owns the event channel infrastructure for input routing</item>
-///   <item>Routes UI events to the current page's handler</item>
+///   <item>Exposes input as IObservable&lt;IInputEvent&gt; for reactive ViewModels</item>
 ///   <item>Manages page registration and navigation</item>
 ///   <item>Controls which page is "active" and can render</item>
 /// </list>
 /// <para>
-/// Handlers are resolved from DI and can inject any services they need.
-/// There is no application bus - handlers communicate with backends directly
-/// via injected services, actors, or other mechanisms.
+/// ViewModels are resolved from DI and can inject any services they need.
+/// ViewModels subscribe to Input observable to handle keyboard events.
 /// </para>
 /// </remarks>
 public sealed class TerminaApplication
@@ -33,22 +35,23 @@ public sealed class TerminaApplication
     private readonly IAnsiConsole _console;
     private readonly IServiceProvider? _serviceProvider;
     private readonly Channel<object> _eventChannel;
-    private readonly Dictionary<string, PageRegistration> _pages = new();
-    private readonly Dictionary<string, (IPage Page, object Handler)> _cachedPages = new();
+    private readonly Subject<IInputEvent> _inputSubject = new();
+    private readonly Dictionary<string, ReactivePageRegistration> _pages = new();
+    private readonly Dictionary<string, (IPage Page, ReactiveViewModel ViewModel)> _cachedPages = new();
     private readonly Stack<string> _history = new();
     private readonly List<IInputSource> _inputSources = new();
 
     private string? _currentPageKey;
     private IPage? _currentPage;
-    private object? _currentHandler;
-    private PageRegistration? _currentRegistration;
+    private ReactiveViewModel? _currentViewModel;
+    private ReactivePageRegistration? _currentRegistration;
     private CancellationTokenSource? _shutdownCts;
 
     /// <summary>
     /// Creates a new Termina application.
     /// </summary>
     /// <param name="console">The Spectre.Console instance for rendering.</param>
-    /// <param name="serviceProvider">Optional service provider for resolving handlers and input sources.</param>
+    /// <param name="serviceProvider">Optional service provider for resolving ViewModels and input sources.</param>
     public TerminaApplication(IAnsiConsole console, IServiceProvider? serviceProvider = null)
     {
         _console = console;
@@ -65,6 +68,11 @@ public sealed class TerminaApplication
             }
         }
     }
+
+    /// <summary>
+    /// Observable stream of input events. ViewModels subscribe to this.
+    /// </summary>
+    public IObservable<IInputEvent> Input => _inputSubject.AsObservable();
 
     /// <summary>
     /// Gets the current page key, if any.
@@ -88,66 +96,35 @@ public sealed class TerminaApplication
     }
 
     /// <summary>
-    /// Register a page with the application using the simplified API.
-    /// Types are inferred from the handler's base class via static abstract members.
+    /// Register a reactive page with its ViewModel.
     /// </summary>
-    /// <typeparam name="THandler">The handler type (must implement IPageHandler).</typeparam>
+    /// <typeparam name="TPage">The page type (must implement ReactivePage&lt;TViewModel&gt;).</typeparam>
+    /// <typeparam name="TViewModel">The ViewModel type.</typeparam>
     /// <param name="pageKey">Unique key to identify this page.</param>
     /// <param name="behavior">How the page behaves on navigation.</param>
-    public void RegisterPage<THandler>(
+    public void RegisterPage<TPage, TViewModel>(
         string pageKey,
         NavigationBehavior behavior = NavigationBehavior.ResetOnNavigation)
-        where THandler : IPageHandler, new()
+        where TPage : ReactivePage<TViewModel>, new()
+        where TViewModel : ReactiveViewModel, new()
     {
-        var registration = THandler.CreateRegistration(pageKey, behavior);
-        _pages[pageKey] = registration with { HandlerFactory = () => new THandler() };
-    }
-
-    /// <summary>
-    /// Register a page with a custom handler factory for dependency injection scenarios.
-    /// </summary>
-    /// <typeparam name="THandler">The handler type (must implement IPageHandler).</typeparam>
-    /// <param name="pageKey">Unique key to identify this page.</param>
-    /// <param name="handlerFactory">Factory function that creates the handler instance.</param>
-    /// <param name="behavior">How the page behaves on navigation.</param>
-    public void RegisterPage<THandler>(
-        string pageKey,
-        Func<THandler> handlerFactory,
-        NavigationBehavior behavior = NavigationBehavior.ResetOnNavigation)
-        where THandler : IPageHandler
-    {
-        var registration = THandler.CreateRegistration(pageKey, behavior);
-        _pages[pageKey] = registration with { HandlerFactory = () => handlerFactory() };
+        _pages[pageKey] = new ReactivePageRegistration(
+            pageKey,
+            behavior,
+            () => new TPage(),
+            () => new TViewModel());
     }
 
     /// <summary>
     /// Register a page from a descriptor (used by TerminaBuilder).
     /// </summary>
-    internal void RegisterPageFromDescriptor(PageRegistrationDescriptor descriptor)
+    internal void RegisterPageFromDescriptor(ReactivePageRegistrationDescriptor descriptor)
     {
-        // We need to call CreateRegistration on the handler type
-        // This requires invoking the static abstract method via reflection or a stored delegate
-        var registration = CreateRegistrationFromType(descriptor.HandlerType, descriptor.PageKey, descriptor.Behavior);
-        _pages[descriptor.PageKey] = registration with
-        {
-            HandlerFactory = () => descriptor.HandlerFactory(_serviceProvider!)
-        };
-    }
-
-    private static PageRegistration CreateRegistrationFromType(Type handlerType, string pageKey, NavigationBehavior behavior)
-    {
-        // Get the CreateRegistration method from IPageHandler
-        var method = handlerType.GetMethod(
-            nameof(IPageHandler.CreateRegistration),
-            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
-
-        if (method == null)
-        {
-            throw new InvalidOperationException(
-                $"Handler type {handlerType.Name} does not implement IPageHandler.CreateRegistration");
-        }
-
-        return (PageRegistration)method.Invoke(null, [pageKey, behavior])!;
+        _pages[descriptor.PageKey] = new ReactivePageRegistration(
+            descriptor.PageKey,
+            descriptor.Behavior,
+            () => (IPage)descriptor.PageFactory(_serviceProvider!),
+            () => descriptor.ViewModelFactory(_serviceProvider!));
     }
 
     /// <summary>
@@ -159,11 +136,11 @@ public sealed class TerminaApplication
         if (!_pages.TryGetValue(pageKey, out var registration))
             throw new InvalidOperationException($"Page '{pageKey}' is not registered.");
 
-        // Notify current page/handler they're leaving
-        if (_currentPage != null && _currentHandler != null && _currentRegistration != null)
+        // Notify current page/ViewModel they're leaving
+        if (_currentPage != null && _currentViewModel != null)
         {
             _currentPage.OnNavigatingFrom();
-            _currentRegistration.InvokeOnNavigatingFrom(_currentHandler);
+            _currentViewModel.OnDeactivating();
         }
 
         // Push current page to history (if not going to same page)
@@ -177,33 +154,45 @@ public sealed class TerminaApplication
             _cachedPages.TryGetValue(pageKey, out var cached))
         {
             _currentPage = cached.Page;
-            _currentHandler = cached.Handler;
+            _currentViewModel = cached.ViewModel;
         }
         else
         {
             _currentPage = registration.PageFactory();
-            _currentHandler = registration.HandlerFactory();
+            _currentViewModel = registration.ViewModelFactory();
 
-            // Wire up handler (no bus needed anymore)
-            registration.WireUpHandler(
-                _currentHandler,
-                _currentPage,
-                NavigateTo,
-                Shutdown);
+            // Wire up ViewModel with navigation and shutdown actions
+            _currentViewModel.WireUp(NavigateTo, Shutdown, Input);
+
+            // Bind page to ViewModel
+            BindPageToViewModel(_currentPage, _currentViewModel);
 
             // Cache if PreserveState
             if (registration.Behavior == NavigationBehavior.PreserveState)
             {
-                _cachedPages[pageKey] = (_currentPage, _currentHandler);
+                _cachedPages[pageKey] = (_currentPage, _currentViewModel);
             }
         }
 
         _currentPageKey = pageKey;
         _currentRegistration = registration;
 
-        // Notify new page/handler they're active
+        // Notify new page/ViewModel they're active
         _currentPage.OnNavigatedTo();
-        registration.InvokeOnNavigatedTo(_currentHandler);
+        _currentViewModel.OnActivated();
+    }
+
+    /// <summary>
+    /// Binds a page to its ViewModel using reflection.
+    /// </summary>
+    private static void BindPageToViewModel(IPage page, ReactiveViewModel viewModel)
+    {
+        // Find the Bind method on the page type
+        var pageType = page.GetType();
+        var bindMethod = pageType.GetMethod("Bind",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+
+        bindMethod?.Invoke(page, [viewModel]);
     }
 
     /// <summary>
@@ -275,6 +264,11 @@ public sealed class TerminaApplication
         {
             // Expected on shutdown
         }
+        finally
+        {
+            // Complete the input subject
+            _inputSubject.OnCompleted();
+        }
 
         // Wait for all input sources to complete
         try
@@ -313,27 +307,11 @@ public sealed class TerminaApplication
                 return;
         }
 
-        // Check if we have an active page
-        if (_currentPage == null || _currentHandler == null || _currentRegistration == null)
-        {
-            // No active page - ignore event
-            return;
-        }
-
-        // Check if this is a raw input event
+        // Route input events to the observable - ViewModels subscribe to this
         if (evt is IInputEvent inputEvent)
         {
-            // Transform to typed UI event
-            var uiEvent = _currentRegistration.TransformInput(_currentPage, inputEvent);
-
-            if (uiEvent != null)
-            {
-                // Route to handler
-                _currentRegistration.InvokeHandleUIEvent(_currentHandler, uiEvent);
-            }
-            // else: page swallowed the event (returned null from MapToUIEvent)
+            _inputSubject.OnNext(inputEvent);
         }
-        // Other event types are ignored - handlers manage their own subscriptions
     }
 
     /// <summary>
@@ -343,5 +321,28 @@ public sealed class TerminaApplication
     {
         return _currentPage?.Render()
             ?? new Text("No page active");
+    }
+}
+
+/// <summary>
+/// Registration information for a reactive page.
+/// </summary>
+internal sealed class ReactivePageRegistration
+{
+    public string PageKey { get; }
+    public NavigationBehavior Behavior { get; }
+    public Func<IPage> PageFactory { get; }
+    public Func<ReactiveViewModel> ViewModelFactory { get; }
+
+    public ReactivePageRegistration(
+        string pageKey,
+        NavigationBehavior behavior,
+        Func<IPage> pageFactory,
+        Func<ReactiveViewModel> viewModelFactory)
+    {
+        PageKey = pageKey;
+        Behavior = behavior;
+        PageFactory = pageFactory;
+        ViewModelFactory = viewModelFactory;
     }
 }

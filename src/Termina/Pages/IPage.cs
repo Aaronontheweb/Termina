@@ -4,15 +4,10 @@ namespace Termina.Pages;
 
 /// <summary>
 /// Represents a page (screen) in the TUI application.
-/// Pages contain components and handle lifecycle events.
+/// Pages render UI and handle lifecycle events.
 /// </summary>
 public interface IPage
 {
-    /// <summary>
-    /// Get all components on this page for event routing and rendering.
-    /// </summary>
-    IEnumerable<Component> Components { get; }
-
     /// <summary>
     /// Called when the page becomes active (navigated to).
     /// Use this to initialize or refresh component state.
