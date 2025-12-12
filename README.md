@@ -1,7 +1,6 @@
 # Termina
 
-[![NuGet Version](https://img.shields.io/nuget/v/Termina.svg)](https://www.nuget.org/packages/Termina)
-[![Build Status](https://github.com/Aaronontheweb/Termina/actions/workflows/pr-validation.yml/badge.svg)](https://github.com/Aaronontheweb/Termina/actions)
+[![NuGet Downloads](https://img.shields.io/nuget/dt/Termina)](https://www.nuget.org/packages/Termina) ![GitHub License](https://img.shields.io/github/license/Aaronontheweb/Termina) ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/Aaronontheweb/Termina/pr_validation.yml) ![GitHub Release](https://img.shields.io/github/v/release/Aaronontheweb/Termina)
 
 **Termina** is a reactive terminal UI (TUI) framework for .NET built on top of [Spectre.Console](https://spectreconsole.net/). It provides an MVVM architecture with source-generated reactive properties, ASP.NET Core-style routing, and seamless integration with Microsoft.Extensions.Hosting.
 
