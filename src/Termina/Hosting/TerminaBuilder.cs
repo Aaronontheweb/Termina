@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
 using Termina.Pages;
 using Termina.Reactive;
@@ -26,7 +27,9 @@ public sealed class TerminaBuilder
     /// <param name="pageKey">Unique key to identify this page for navigation.</param>
     /// <param name="behavior">How the page behaves on navigation (default: ResetOnNavigation).</param>
     /// <returns>This builder for fluent chaining.</returns>
-    public TerminaBuilder RegisterPage<TPage, TViewModel>(
+    public TerminaBuilder RegisterPage<
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TPage,
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TViewModel>(
         string pageKey,
         NavigationBehavior behavior = NavigationBehavior.ResetOnNavigation)
         where TPage : ReactivePage<TViewModel>

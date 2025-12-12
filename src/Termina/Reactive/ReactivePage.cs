@@ -35,7 +35,7 @@ namespace Termina.Reactive;
 /// }
 /// </code>
 /// </example>
-public abstract class ReactivePage<TViewModel> : IPage
+public abstract class ReactivePage<TViewModel> : IBindablePage
     where TViewModel : ReactiveViewModel
 {
     private readonly CompositeDisposable _subscriptions = new();
@@ -62,6 +62,14 @@ public abstract class ReactivePage<TViewModel> : IPage
     /// Render the page as a Spectre.Console renderable.
     /// </summary>
     public abstract IRenderable Render();
+
+    /// <summary>
+    /// Binds the ViewModel to this page (interface implementation for AOT compatibility).
+    /// </summary>
+    void IBindablePage.BindViewModel(ReactiveViewModel viewModel)
+    {
+        Bind((TViewModel)viewModel);
+    }
 
     /// <summary>
     /// Binds the ViewModel to this page.

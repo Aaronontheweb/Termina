@@ -183,16 +183,14 @@ public sealed class TerminaApplication
     }
 
     /// <summary>
-    /// Binds a page to its ViewModel using reflection.
+    /// Binds a page to its ViewModel using the IBindablePage interface (AOT-compatible).
     /// </summary>
     private static void BindPageToViewModel(IPage page, ReactiveViewModel viewModel)
     {
-        // Find the Bind method on the page type
-        var pageType = page.GetType();
-        var bindMethod = pageType.GetMethod("Bind",
-            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-
-        bindMethod?.Invoke(page, [viewModel]);
+        if (page is IBindablePage bindablePage)
+        {
+            bindablePage.BindViewModel(viewModel);
+        }
     }
 
     /// <summary>

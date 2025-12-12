@@ -1,4 +1,5 @@
 using Spectre.Console.Rendering;
+using Termina.Reactive;
 
 namespace Termina.Pages;
 
@@ -24,4 +25,17 @@ public interface IPage
     /// Render the page as a Spectre.Console renderable.
     /// </summary>
     IRenderable Render();
+}
+
+/// <summary>
+/// Internal interface for reactive pages that can be bound to ViewModels.
+/// This allows AOT-compatible binding without reflection.
+/// </summary>
+internal interface IBindablePage : IPage
+{
+    /// <summary>
+    /// Binds a ViewModel to this page.
+    /// </summary>
+    /// <param name="viewModel">The ViewModel to bind.</param>
+    void BindViewModel(ReactiveViewModel viewModel);
 }

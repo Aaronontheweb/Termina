@@ -18,9 +18,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Termina\Termina.csproj" />
+    <!-- Source generator - compile-time only, never publish -->
     <ProjectReference Include="..\Termina.Generators\Termina.Generators.csproj"
                       OutputItemType="Analyzer"
-                      ReferenceOutputAssembly="false" />
+                      ReferenceOutputAssembly="false"
+                      PrivateAssets="all"
+                      Publish="false" />
   </ItemGroup>
 
 </Project>
