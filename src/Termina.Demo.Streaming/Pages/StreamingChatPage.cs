@@ -11,10 +11,15 @@ namespace Termina.Demo.Streaming.Pages;
 /// </summary>
 public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
 {
+    /// <summary>
+    /// Use scrolling mode for chat - natural terminal scrollback instead of fixed layout.
+    /// </summary>
+    public override RenderMode RenderMode => RenderMode.Scrolling;
+
     // Status bar (owned by page for layout)
     private readonly StatusBar _statusBar = new()
     {
-        Hints = "[Enter] Send [↑/↓] Scroll [Esc] Clear/Quit [Ctrl+Q] Quit"
+        Hints = "[Enter] Send [Esc] Clear/Quit [Ctrl+Q] Quit"
     };
 
     protected override void OnBound()
@@ -24,8 +29,8 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
             .Subscribe(isGenerating =>
             {
                 _statusBar.Hints = isGenerating
-                    ? "[Esc] Cancel generation [↑/↓] Scroll [Ctrl+Q] Quit"
-                    : "[Enter] Send [↑/↓] Scroll [←/→] Edit [Esc] Clear/Quit [Ctrl+Q] Quit";
+                    ? "[Esc] Cancel generation [Ctrl+Q] Quit"
+                    : "[Enter] Send [←/→] Edit [Esc] Clear/Quit [Ctrl+Q] Quit";
             })
             .DisposeWith(Subscriptions);
 

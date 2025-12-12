@@ -47,6 +47,19 @@ public abstract class ReactivePage<TViewModel> : IBindablePage
     protected TViewModel ViewModel { get; private set; } = default!;
 
     /// <summary>
+    /// Gets the render mode for this page. Override to change from the default LiveDisplay mode.
+    /// </summary>
+    /// <remarks>
+    /// <list type="bullet">
+    ///   <item><see cref="RenderMode.LiveDisplay"/> (default): Fixed layout, redraws in place.
+    ///   Best for settings, menus, dashboards.</item>
+    ///   <item><see cref="RenderMode.Scrolling"/>: Natural terminal scrolling.
+    ///   Best for chat, logs, streaming content.</item>
+    /// </list>
+    /// </remarks>
+    public virtual RenderMode RenderMode => RenderMode.LiveDisplay;
+
+    /// <summary>
     /// Composite disposable for page subscriptions.
     /// Subscriptions are automatically cleared when navigating away.
     /// </summary>

@@ -295,26 +295,8 @@ public sealed class TerminaApplication
 
         try
         {
-            // Initial render
-            var rootRenderable = RenderCurrentPage();
-
-            await _console.Live(rootRenderable)
-                .AutoClear(false)
-                .StartAsync(async ctx =>
-                {
-                    // Initial render - don't wait for first event
-                    ctx.Refresh();
-
-                    // Single-threaded event loop - all input sources merge here
-                    await foreach (var evt in _eventChannel.Reader.ReadAllAsync(linkedToken))
-                    {
-                        ProcessEvent(evt);
-
-                        // Re-render after event processing
-                        ctx.UpdateTarget(RenderCurrentPage());
-                        ctx.Refresh();
-                    }
-                });
+            // Dispatch to appropriate render loop based on current page's render mode
+            await RunRenderLoopAsync(linkedToken);
         }
         catch (OperationCanceledException)
         {
@@ -339,6 +321,107 @@ public sealed class TerminaApplication
         {
             _shutdownCts.Dispose();
             _shutdownCts = null;
+        }
+    }
+
+    /// <summary>
+    /// Main render loop that dispatches to the appropriate mode-specific loop.
+    /// Handles transitions between render modes during navigation.
+    /// </summary>
+    private async Task RunRenderLoopAsync(CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            var currentMode = _currentPage?.RenderMode ?? RenderMode.LiveDisplay;
+
+            try
+            {
+                if (currentMode == RenderMode.Scrolling)
+                {
+                    await RunScrollingLoopAsync(cancellationToken);
+                }
+                else
+                {
+                    await RunLiveDisplayLoopAsync(cancellationToken);
+                }
+            }
+            catch (RenderModeChangedException)
+            {
+                // Page navigated to a different render mode - restart the loop
+                continue;
+            }
+
+            // If we get here without exception, we're done
+            break;
+        }
+    }
+
+    /// <summary>
+    /// Render loop for LiveDisplay mode - redraws in place.
+    /// </summary>
+    private async Task RunLiveDisplayLoopAsync(CancellationToken cancellationToken)
+    {
+        var initialMode = _currentPage?.RenderMode ?? RenderMode.LiveDisplay;
+        var rootRenderable = RenderCurrentPage();
+
+        await _console.Live(rootRenderable)
+            .AutoClear(false)
+            .StartAsync(async ctx =>
+            {
+                // Initial render - don't wait for first event
+                ctx.Refresh();
+
+                // Single-threaded event loop - all input sources merge here
+                await foreach (var evt in _eventChannel.Reader.ReadAllAsync(cancellationToken))
+                {
+                    ProcessEvent(evt);
+
+                    // Check if render mode changed after event processing
+                    var newMode = _currentPage?.RenderMode ?? RenderMode.LiveDisplay;
+                    if (newMode != initialMode)
+                    {
+                        throw new RenderModeChangedException();
+                    }
+
+                    // Re-render after event processing
+                    ctx.UpdateTarget(RenderCurrentPage());
+                    ctx.Refresh();
+                }
+            });
+    }
+
+    /// <summary>
+    /// Render loop for Scrolling mode - writes to console with natural scrollback.
+    /// </summary>
+    private async Task RunScrollingLoopAsync(CancellationToken cancellationToken)
+    {
+        var initialMode = _currentPage?.RenderMode ?? RenderMode.Scrolling;
+
+        // Initial render
+        _console.Write(RenderCurrentPage());
+
+        // Track what we've rendered to avoid full redraws
+        IRenderable? lastRendered = null;
+
+        await foreach (var evt in _eventChannel.Reader.ReadAllAsync(cancellationToken))
+        {
+            ProcessEvent(evt);
+
+            // Check if render mode changed after event processing
+            var newMode = _currentPage?.RenderMode ?? RenderMode.Scrolling;
+            if (newMode != initialMode)
+            {
+                throw new RenderModeChangedException();
+            }
+
+            // In scrolling mode, we write new content to the console
+            // The page is responsible for only returning new/changed content
+            var renderable = RenderCurrentPage();
+            if (!ReferenceEquals(renderable, lastRendered))
+            {
+                _console.Write(renderable);
+                lastRendered = renderable;
+            }
         }
     }
 
@@ -400,5 +483,16 @@ internal sealed class ReactivePageRegistration
         Behavior = behavior;
         PageFactory = pageFactory;
         ViewModelFactory = viewModelFactory;
+    }
+}
+
+/// <summary>
+/// Internal exception used to signal that the render mode has changed during navigation.
+/// This triggers a restart of the render loop with the new mode.
+/// </summary>
+internal sealed class RenderModeChangedException : Exception
+{
+    public RenderModeChangedException() : base("Render mode changed during navigation")
+    {
     }
 }

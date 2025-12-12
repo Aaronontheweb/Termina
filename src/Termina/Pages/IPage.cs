@@ -10,6 +10,19 @@ namespace Termina.Pages;
 public interface IPage
 {
     /// <summary>
+    /// Gets the render mode for this page.
+    /// </summary>
+    /// <remarks>
+    /// <list type="bullet">
+    ///   <item><see cref="RenderMode.LiveDisplay"/> (default): Fixed layout, redraws in place.
+    ///   Best for settings, menus, dashboards.</item>
+    ///   <item><see cref="RenderMode.Scrolling"/>: Natural terminal scrolling.
+    ///   Best for chat, logs, streaming content.</item>
+    /// </list>
+    /// </remarks>
+    RenderMode RenderMode => RenderMode.LiveDisplay;
+
+    /// <summary>
     /// Called when the page becomes active (navigated to).
     /// Use this to initialize or refresh component state.
     /// </summary>
