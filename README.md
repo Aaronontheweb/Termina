@@ -1,70 +1,241 @@
-# build-system-template
-Akka.NET project build system template that provides standardized build and CI/CD configuration for all Akka.NET projects.
+# Termina
 
-## Build System Overview
-This repository contains our standardized build system setup that can be used across all Akka.NET projects. Here are the key components and practices we follow:
+[![NuGet Version](https://img.shields.io/nuget/v/Termina.svg)](https://www.nuget.org/packages/Termina)
+[![Build Status](https://github.com/Aaronontheweb/Termina/actions/workflows/pr-validation.yml/badge.svg)](https://github.com/Aaronontheweb/Termina/actions)
 
-### CI/CD Configuration
-We primarily use GitHub Actions for our CI/CD pipelines, but also maintain Azure DevOps pipeline examples. You can find the configuration examples in:
-- `.github/workflows/` - GitHub Actions pipeline examples
-- `.azuredevops/` - Azure DevOps pipeline examples
+**Termina** is a reactive terminal UI (TUI) framework for .NET built on top of [Spectre.Console](https://spectreconsole.net/). It provides an MVVM architecture with source-generated reactive properties, ASP.NET Core-style routing, and seamless integration with Microsoft.Extensions.Hosting.
 
-### SDK Version Management
-We use `global.json` to pin the .NET SDK version for both CI/CD environments and local development. This ensures consistent builds across all environments and developers.
+## Features
 
-### .NET Tools
-We use local .NET tools to enhance our build and documentation process. The tools are configured in `.config/dotnet-tools.json` and include:
+- **Reactive MVVM Architecture** - ViewModels with `[Reactive]` attribute for source-generated observable properties
+- **ASP.NET Core-Style Routing** - Route templates with parameters (`/tasks/{id:int}`) and type constraints
+- **Source Generators** - AOT-compatible code generation for reactive properties and route parameter injection
+- **Dependency Injection** - Full integration with `Microsoft.Extensions.DependencyInjection`
+- **Hosting Integration** - Works with `Microsoft.Extensions.Hosting` for clean application lifecycle management
+- **Spectre.Console Rendering** - Beautiful terminal UIs with full Spectre.Console component support
 
-- [Incrementalist](https://github.com/petabridge/Incrementalist) (v1.0.0-beta4) - Used for determining which projects need to be rebuilt based on Git changes
-- [DocFx](https://dotnet.github.io/docfx/) (v2.78.3) - Used for generating documentation
+## Installation
 
-To restore these tools in your local environment, run:
-```powershell
-dotnet tool restore
+```bash
+dotnet add package Termina
 ```
 
-This command is automatically executed in our CI/CD pipelines (both GitHub Actions and Azure DevOps) to ensure tools are available during builds.
+## Quick Start
 
-### Centralized Package and Build Management
-We utilize two key MSBuild files for centralized configuration:
+### 1. Define a ViewModel
 
-1. `Directory.Packages.props` - Implements [Central Package Version Management](https://learn.microsoft.com/nuget/consume-packages/Central-Package-Management) for consistent NuGet package versions across all projects in the solution.
+```csharp
+using Termina.Reactive;
 
-2. `Directory.Build.props` - Defines common build properties, including:
-   - Copyright and author information
-   - Source linking configuration
-   - NuGet package metadata
-   - Common compiler settings
-   - Target framework definitions
+public partial class CounterViewModel : ReactiveViewModel
+{
+    [Reactive] private int _count;
+    [Reactive] private string _message = "Press Up/Down to change count";
 
-### Code Coverage Configuration
-The `coverlet.runsettings` file configures code coverage collection using Coverlet, with settings for:
-- Multiple coverage report formats (JSON, Cobertura, LCOV, TeamCity, OpenCover)
-- Test assembly exclusions
-- Source linking integration
-- Performance optimizations
+    public override void OnActivated()
+    {
+        Input.OfType<KeyPressed>()
+            .Subscribe(HandleKey)
+            .DisposeWith(Subscriptions);
+    }
 
-### Release Management
-Our release process is streamlined through:
-- `RELEASE_NOTES.md` - Contains version history and release notes
-- `build.ps1` - PowerShell script that processes release notes and updates version information
-- Supporting scripts in `/scripts`:
-  - `bumpVersion.ps1` - Updates version numbers
-  - `getReleaseNotes.ps1` - Parses release notes
-
-The build system primarily relies on standard `dotnet` CLI commands, with the PowerShell scripts mainly handling release note processing and version management.
-
-### Solution Format
-We prefer the new `.slnx` XML-based solution format over the traditional `.sln` format. This requires .NET 9 SDK or later. The new format is more concise and easier to work with. You can migrate existing solutions using:
-
-```powershell
-dotnet sln migrate
+    private void HandleKey(KeyPressed key)
+    {
+        switch (key.KeyInfo.Key)
+        {
+            case ConsoleKey.UpArrow:
+                Count++;
+                Message = $"Count: {Count}";
+                break;
+            case ConsoleKey.DownArrow:
+                Count--;
+                Message = $"Count: {Count}";
+                break;
+            case ConsoleKey.Q:
+                Shutdown();
+                break;
+        }
+    }
+}
 ```
 
-For more information about the new `.slnx` format, see the [official announcement](https://devblogs.microsoft.com/dotnet/introducing-slnx-support-dotnet-cli/).
+The `[Reactive]` attribute generates:
+- A `BehaviorSubject<T>` backing field
+- A public property `Count` with get/set
+- An `IObservable<T>` property `CountChanged` for subscriptions
 
-## Getting Started
-1. Ensure you have the correct .NET SDK version installed (check `global.json`)
-2. Clone this repository
-3. Run `dotnet build` to verify the build system
-4. Customize the configuration files for your specific project needs
+### 2. Define a Page
+
+```csharp
+using Spectre.Console;
+using Spectre.Console.Rendering;
+using Termina.Pages;
+
+public class CounterPage : ReactivePage<CounterViewModel>
+{
+    protected override IRenderable Render(CounterViewModel vm)
+    {
+        return new Panel(
+            new Rows(
+                new FigletText(vm.Count.ToString()).Color(Color.Cyan1),
+                new Text(vm.Message)
+            ))
+            .Header("Counter Demo")
+            .Border(BoxBorder.Rounded);
+    }
+}
+```
+
+### 3. Configure and Run
+
+```csharp
+using Microsoft.Extensions.Hosting;
+using Termina.Hosting;
+
+var builder = Host.CreateApplicationBuilder(args);
+
+builder.Services.AddTermina("/counter", termina =>
+{
+    termina.RegisterRoute<CounterPage, CounterViewModel>("/counter");
+    termina.RegisterRoute<TodoListPage, TodoListViewModel>("/todos");
+    termina.RegisterRoute<TodoDetailPage, TodoDetailViewModel>("/todos/{id:int}");
+});
+
+await builder.Build().RunAsync();
+```
+
+## Routing
+
+Termina uses ASP.NET Core-style route templates with parameter support.
+
+### Route Templates
+
+```csharp
+// Simple routes
+termina.RegisterRoute<HomePage, HomeViewModel>("/");
+termina.RegisterRoute<TasksPage, TasksViewModel>("/tasks");
+
+// Routes with parameters
+termina.RegisterRoute<TaskDetailPage, TaskDetailViewModel>("/tasks/{id:int}");
+termina.RegisterRoute<UserPage, UserViewModel>("/users/{name}");
+termina.RegisterRoute<DocumentPage, DocumentViewModel>("/docs/{id:guid}");
+```
+
+### Supported Type Constraints
+
+| Constraint | C# Type | Example |
+|------------|---------|---------|
+| `:int` | `int` | `/tasks/{id:int}` |
+| `:guid` | `Guid` | `/docs/{id:guid}` |
+| `:bool` | `bool` | `/items/{active:bool}` |
+| (none) | `string` | `/users/{name}` |
+
+### Route Parameter Injection
+
+Use `[FromRoute]` to automatically inject route parameters into your ViewModel:
+
+```csharp
+public partial class TaskDetailViewModel : ReactiveViewModel
+{
+    [FromRoute] private int _id;  // Injected from route before OnActivated
+
+    public override void OnActivated()
+    {
+        // Id property is already populated
+        LoadTask(Id);
+    }
+}
+```
+
+### Navigation
+
+```csharp
+// Navigate by path
+Navigate("/tasks/42");
+
+// Navigate with route values (type-safe)
+NavigateWithParams("/tasks/{id}", new { id = 42 });
+
+// Go back
+// (handled by framework when CanGoBack is true)
+```
+
+## Reactive Properties
+
+The `[Reactive]` attribute on private fields generates observable properties:
+
+```csharp
+public partial class MyViewModel : ReactiveViewModel
+{
+    [Reactive] private string _name = "default";
+    [Reactive] private int _count;
+    [Reactive] private IReadOnlyList<Item> _items = Array.Empty<Item>();
+}
+```
+
+Generated code provides:
+- `Name`, `Count`, `Items` - public properties with get/set
+- `NameChanged`, `CountChanged`, `ItemsChanged` - `IObservable<T>` for subscriptions
+
+Pages automatically re-render when any reactive property changes.
+
+## Page Lifecycle
+
+```csharp
+public partial class MyViewModel : ReactiveViewModel
+{
+    public override void OnActivated()
+    {
+        // Called when navigating TO this page
+        // Set up subscriptions here
+    }
+
+    public override void OnDeactivating()
+    {
+        // Called when navigating AWAY from this page
+        // Clean up if needed (Subscriptions auto-dispose)
+    }
+}
+```
+
+## Navigation Behavior
+
+Control how pages behave when navigated to:
+
+```csharp
+// Reset state each time (default)
+termina.RegisterRoute<MyPage, MyViewModel>("/page", NavigationBehavior.ResetOnNavigation);
+
+// Preserve state across navigations
+termina.RegisterRoute<MyPage, MyViewModel>("/page", NavigationBehavior.PreserveState);
+```
+
+## Testing
+
+Termina includes `VirtualInputSource` for automated testing:
+
+```csharp
+var scriptedInput = new VirtualInputSource();
+builder.Services.AddTerminaVirtualInput(scriptedInput);
+
+// Queue up scripted input
+scriptedInput.EnqueueKey(ConsoleKey.UpArrow);
+scriptedInput.EnqueueKey(ConsoleKey.Enter);
+scriptedInput.EnqueueKey(ConsoleKey.Q);
+scriptedInput.Complete();
+
+await host.RunAsync();
+```
+
+## Requirements
+
+- .NET 10.0 or later
+- AOT-compatible (Native AOT publishing supported)
+
+## License
+
+Apache 2.0 - See [LICENSE](LICENSE) for details.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit issues and pull requests.
