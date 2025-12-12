@@ -39,6 +39,7 @@ public class ReactiveViewModelTests
 
         vm.WireUp(
             navigate: key => navigatedTo = key,
+            navigateWithParams: (_, _) => { },
             shutdown: () => { },
             input: Observable.Empty<IInputEvent>());
 
@@ -55,6 +56,7 @@ public class ReactiveViewModelTests
 
         vm.WireUp(
             navigate: _ => { },
+            navigateWithParams: (_, _) => { },
             shutdown: () => shutdownCalled = true,
             input: Observable.Empty<IInputEvent>());
 
@@ -72,6 +74,7 @@ public class ReactiveViewModelTests
 
         vm.WireUp(
             navigate: _ => { },
+            navigateWithParams: (_, _) => { },
             shutdown: () => { },
             input: inputSubject);
 
@@ -91,7 +94,7 @@ public class ReactiveViewModelTests
     public void ReactiveViewModel_OnActivatedCalled()
     {
         var vm = new TestViewModel();
-        vm.WireUp(_ => { }, () => { }, Observable.Empty<IInputEvent>());
+        vm.WireUp(_ => { }, (_, _) => { }, () => { }, Observable.Empty<IInputEvent>());
 
         Assert.False(vm.WasActivated);
 
@@ -104,7 +107,7 @@ public class ReactiveViewModelTests
     public void ReactiveViewModel_OnDeactivatingCalled()
     {
         var vm = new TestViewModel();
-        vm.WireUp(_ => { }, () => { }, Observable.Empty<IInputEvent>());
+        vm.WireUp(_ => { }, (_, _) => { }, () => { }, Observable.Empty<IInputEvent>());
 
         Assert.False(vm.WasDeactivating);
 

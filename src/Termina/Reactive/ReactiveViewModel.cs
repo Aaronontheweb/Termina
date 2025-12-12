@@ -56,10 +56,27 @@ public abstract class ReactiveViewModel : IDisposable
     protected CompositeDisposable Subscriptions => _subscriptions;
 
     /// <summary>
-    /// Navigate to another page by key.
+    /// Navigate to another page by path.
     /// Set by the framework when the ViewModel is bound to a page.
     /// </summary>
+    /// <example>
+    /// <code>
+    /// Navigate("/todos/42");
+    /// Navigate("/");
+    /// </code>
+    /// </example>
     protected Action<string> Navigate { get; private set; } = _ => { };
+
+    /// <summary>
+    /// Navigate to another page using a route template and values.
+    /// Set by the framework when the ViewModel is bound to a page.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// NavigateWithParams("/todos/{id}", new { id = 42 });
+    /// </code>
+    /// </example>
+    protected Action<string, object?> NavigateWithParams { get; private set; } = (_, _) => { };
 
     /// <summary>
     /// Request graceful application shutdown.
@@ -103,9 +120,14 @@ public abstract class ReactiveViewModel : IDisposable
     /// Wires up the navigation, shutdown actions, and input observable.
     /// Called by the framework when binding to a page.
     /// </summary>
-    internal void WireUp(Action<string> navigate, Action shutdown, IObservable<IInputEvent> input)
+    internal void WireUp(
+        Action<string> navigate,
+        Action<string, object?> navigateWithParams,
+        Action shutdown,
+        IObservable<IInputEvent> input)
     {
         Navigate = navigate;
+        NavigateWithParams = navigateWithParams;
         Shutdown = shutdown;
         Input = input;
     }
