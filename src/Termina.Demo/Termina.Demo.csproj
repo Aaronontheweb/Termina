@@ -10,6 +10,9 @@
     <!-- AOT Publishing Support -->
     <PublishAot>true</PublishAot>
     <IsAotCompatible>true</IsAotCompatible>
+
+    <!-- Don't publish demo as NuGet package -->
+    <IsPackable>false</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
