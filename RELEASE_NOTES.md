@@ -1,3 +1,11 @@
-#### 1.0.0 April 10th 2025 ####
+#### 0.1.0 December 11th 2025 ####
 
-Example release notes
+Initial release of Termina - a reactive terminal UI (TUI) framework for .NET.
+
+**Features**:
+- Reactive MVVM architecture with source-generated properties
+- ASP.NET Core-style routing with parameterized routes and type constraints
+- Two-tier event architecture (pages and navigation)
+- Virtualizable input support for large datasets
+- Built on Spectre.Console for rich terminal rendering
+- Full AOT/trimming compatibility

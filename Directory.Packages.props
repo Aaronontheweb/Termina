@@ -1,21 +1,18 @@
 <Project>
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
-    <!-- Nuget package versions -->
+    <!-- NuGet package versions -->
     <SpectreConsoleVersion>0.54.0</SpectreConsoleVersion>
-    <AkkaVersion>1.5.37</AkkaVersion>
     <SystemReactiveVersion>6.1.0</SystemReactiveVersion>
+    <MicrosoftExtensionsVersion>9.0.0</MicrosoftExtensionsVersion>
   </PropertyGroup>
   <!-- App dependencies -->
   <ItemGroup>
-    <PackageVersion Include="Akka.Streams" Version="1.5.57" />
     <PackageVersion Include="Spectre.Console" Version="$(SpectreConsoleVersion)" />
-    <PackageVersion Include="Akka" Version="$(AkkaVersion)" />
-    <PackageVersion Include="Akka.Hosting" Version="$(AkkaVersion)" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="9.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="9.0.0" />
     <PackageVersion Include="System.Reactive" Version="$(SystemReactiveVersion)" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="$(MicrosoftExtensionsVersion)" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="$(MicrosoftExtensionsVersion)" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="$(MicrosoftExtensionsVersion)" />
   </ItemGroup>
   <!-- Test dependencies -->
   <ItemGroup>
@@ -24,7 +21,7 @@
     <PackageVersion Include="xunit" Version="2.9.2" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />
   </ItemGroup>
-  <!-- SourceLink support for all Akka.NET projects -->
+  <!-- SourceLink support -->
   <ItemGroup>
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="8.0.0" />
   </ItemGroup>
