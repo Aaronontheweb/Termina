@@ -14,7 +14,8 @@ public class TodoListPage : ReactivePage<TodoListViewModel>
     private readonly SelectList _todoList = new()
     {
         Title = "[bold]Todo List[/]",
-        SelectedColor = Color.Green
+        SelectedColor = Color.Green,
+        AllowMarkup = true
     };
 
     private readonly StatusBar _statusBar = new()
