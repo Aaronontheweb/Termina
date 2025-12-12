@@ -27,6 +27,17 @@ public sealed class VirtualInputSource : IInputSource
     }
 
     /// <summary>
+    /// Enqueue a key by ConsoleKey with modifiers.
+    /// </summary>
+    public void EnqueueKey(ConsoleKey key, bool shift = false, bool alt = false, bool control = false)
+    {
+        char keyChar = key >= ConsoleKey.A && key <= ConsoleKey.Z
+            ? (char)('a' + (key - ConsoleKey.A))
+            : '\0';
+        EnqueueKey(new ConsoleKeyInfo(keyChar, key, shift, alt, control));
+    }
+
+    /// <summary>
     /// Enqueue a character key.
     /// </summary>
     public void EnqueueChar(char c)

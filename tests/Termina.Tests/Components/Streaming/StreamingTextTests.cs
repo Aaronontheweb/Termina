@@ -274,4 +274,77 @@ public class StreamingTextTests
 
         Assert.Equal(style, component.PrefixStyle);
     }
+
+    [Fact]
+    public async Task ConsumeAsync_AppendsAllChunks()
+    {
+        var component = new StreamingText();
+
+        await component.ConsumeAsync(GenerateChunks("Hello", " ", "World"));
+
+        var content = string.Join("", component.Buffer.GetAllLines());
+        Assert.Contains("Hello World", content);
+    }
+
+    [Fact]
+    public async Task ConsumeAsync_StopsOnCancellation()
+    {
+        var component = new StreamingText();
+        var cts = new CancellationTokenSource();
+
+        // Start consuming with a stream that has delays
+        var consumeTask = component.ConsumeAsync(GenerateChunksWithDelay(), cts.Token);
+
+        // Let it start consuming
+        await Task.Delay(50);
+
+        // Cancel mid-stream
+        await cts.CancelAsync();
+
+        // Should throw OperationCanceledException
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => consumeTask);
+    }
+
+    [Fact]
+    public async Task ConsumeLinesAsync_AppendsAllLines()
+    {
+        var component = new StreamingText();
+
+        await component.ConsumeLinesAsync(GenerateChunks("Line 1", "Line 2", "Line 3"));
+
+        var lines = component.Buffer.GetAllLines();
+        Assert.Equal(3, lines.Count);
+        Assert.Equal("Line 1", lines[0]);
+        Assert.Equal("Line 2", lines[1]);
+        Assert.Equal("Line 3", lines[2]);
+    }
+
+    [Fact]
+    public async Task ConsumeAsync_EmptyStream_DoesNothing()
+    {
+        var component = new StreamingText();
+
+        await component.ConsumeAsync(GenerateChunks());
+
+        Assert.False(component.Buffer.HasContent);
+    }
+
+    private static async IAsyncEnumerable<string> GenerateChunks(params string[] chunks)
+    {
+        foreach (var chunk in chunks)
+        {
+            yield return chunk;
+        }
+        await Task.CompletedTask; // Satisfy async requirement
+    }
+
+    private static async IAsyncEnumerable<string> GenerateChunksWithDelay(
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+    {
+        yield return "First";
+        await Task.Delay(200, ct);
+        yield return "Second";
+        await Task.Delay(200, ct);
+        yield return "Third";
+    }
 }

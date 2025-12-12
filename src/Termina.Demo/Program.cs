@@ -1,6 +1,4 @@
-using Akka.Hosting;
 using Microsoft.Extensions.Hosting;
-using Termina.Demo.Actors;
 using Termina.Demo.Pages;
 using Termina.Hosting;
 using Termina.Input;
@@ -18,20 +16,9 @@ if (testMode)
     builder.Services.AddTerminaVirtualInput(scriptedInput);
 }
 
-// Configure Akka.NET
-builder.Services.AddAkka("termina-demo", configurationBuilder =>
-{
-    configurationBuilder.WithActors((system, registry) =>
-    {
-        var llmActor = system.ActorOf(LlmSimulatorActor.Props(), "llm-simulator");
-        registry.Register<LlmSimulatorActor>(llmActor);
-    });
-});
-
 // Register Termina with reactive pages using route-based navigation
-builder.Services.AddTermina("/chat", termina =>
+builder.Services.AddTermina("/counter", termina =>
 {
-    termina.RegisterRoute<StreamingChatPage, StreamingChatViewModel>("/chat");
     termina.RegisterRoute<CounterPage, CounterViewModel>("/counter");
     termina.RegisterRoute<TodoListPage, TodoListViewModel>("/todos");
 });

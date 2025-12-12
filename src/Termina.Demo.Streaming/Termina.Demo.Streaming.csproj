@@ -7,9 +7,9 @@
     <Nullable>enable</Nullable>
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
 
-    <!-- AOT Publishing Support -->
-    <PublishAot>true</PublishAot>
-    <IsAotCompatible>true</IsAotCompatible>
+    <!-- NOT AOT compatible due to Akka.NET -->
+    <PublishAot>false</PublishAot>
+    <IsAotCompatible>false</IsAotCompatible>
 
     <!-- Don't publish demo as NuGet package -->
     <IsPackable>false</IsPackable>
@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Akka.Hosting" />
   </ItemGroup>
 
   <ItemGroup>

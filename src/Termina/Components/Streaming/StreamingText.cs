@@ -23,6 +23,10 @@ namespace Termina.Components.Streaming;
 /// thinking.Append("Processing step 2...\n");
 /// thinking.Append("Processing step 3...\n"); // Step 1 is now discarded
 /// </code>
+/// <para>
+/// Subscribe to <see cref="Component.ContentChanged"/> to be notified when
+/// streaming content updates and the UI needs to be redrawn.
+/// </para>
 /// </remarks>
 public class StreamingText : Component
 {
@@ -108,19 +112,61 @@ public class StreamingText : Component
     }
 
     /// <summary>
-    /// Appends text to the buffer.
+    /// Appends text to the buffer and marks the component as needing redraw.
     /// </summary>
-    public void Append(string text) => _buffer.Append(text);
+    public void Append(string text)
+    {
+        _buffer.Append(text);
+        MarkDirty();
+    }
 
     /// <summary>
-    /// Appends a line to the buffer.
+    /// Consumes an async stream of text chunks, appending each to the buffer.
+    /// When the stream completes or is cancelled, consumption stops gracefully.
     /// </summary>
-    public void AppendLine(string line) => _buffer.AppendLine(line);
+    /// <param name="stream">The async stream of text chunks to consume.</param>
+    /// <param name="cancellationToken">Cancellation token to stop consumption.</param>
+    /// <returns>A task that completes when the stream is exhausted or cancelled.</returns>
+    public async Task ConsumeAsync(IAsyncEnumerable<string> stream, CancellationToken cancellationToken = default)
+    {
+        await foreach (var chunk in stream.WithCancellation(cancellationToken).ConfigureAwait(false))
+        {
+            Append(chunk);
+        }
+    }
 
     /// <summary>
-    /// Clears all content.
+    /// Consumes an async stream of text lines, appending each as a new line.
+    /// When the stream completes or is cancelled, consumption stops gracefully.
     /// </summary>
-    public void Clear() => _buffer.Clear();
+    /// <param name="stream">The async stream of lines to consume.</param>
+    /// <param name="cancellationToken">Cancellation token to stop consumption.</param>
+    /// <returns>A task that completes when the stream is exhausted or cancelled.</returns>
+    public async Task ConsumeLinesAsync(IAsyncEnumerable<string> stream, CancellationToken cancellationToken = default)
+    {
+        await foreach (var line in stream.WithCancellation(cancellationToken).ConfigureAwait(false))
+        {
+            AppendLine(line);
+        }
+    }
+
+    /// <summary>
+    /// Appends a line to the buffer and marks the component as needing redraw.
+    /// </summary>
+    public void AppendLine(string line)
+    {
+        _buffer.AppendLine(line);
+        MarkDirty();
+    }
+
+    /// <summary>
+    /// Clears all content and marks the component as needing redraw.
+    /// </summary>
+    public void Clear()
+    {
+        _buffer.Clear();
+        MarkDirty();
+    }
 
     /// <summary>
     /// Scrolls up (for persisted mode).

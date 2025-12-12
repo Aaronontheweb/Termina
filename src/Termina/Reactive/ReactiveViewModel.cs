@@ -85,6 +85,12 @@ public abstract class ReactiveViewModel : IDisposable
     protected Action Shutdown { get; private set; } = () => { };
 
     /// <summary>
+    /// Request a UI redraw. Use this when content changes asynchronously
+    /// (e.g., from streaming data) and the display needs to be refreshed.
+    /// </summary>
+    protected Action RequestRedraw { get; private set; } = () => { };
+
+    /// <summary>
     /// Observable stream of input events from the application.
     /// Subscribe to this to handle keyboard input in the ViewModel.
     /// </summary>
@@ -124,11 +130,13 @@ public abstract class ReactiveViewModel : IDisposable
         Action<string> navigate,
         Action<string, object?> navigateWithParams,
         Action shutdown,
+        Action requestRedraw,
         IObservable<IInputEvent> input)
     {
         Navigate = navigate;
         NavigateWithParams = navigateWithParams;
         Shutdown = shutdown;
+        RequestRedraw = requestRedraw;
         Input = input;
     }
 }

@@ -301,6 +301,58 @@ public class PersistedStreamBufferTests
     }
 
     [Fact]
+    public void AutoScroll_StreamingContent_ShowsNewestLines()
+    {
+        // Simulates streaming LLM response - content added incrementally
+        var buffer = new PersistedStreamBuffer { AutoScroll = true };
+
+        // Initial content (lines 1, 2)
+        buffer.AppendLine("User: Hello");          // Line 1
+        buffer.AppendLine("");                      // Line 2
+        buffer.Append("Assistant: ");
+
+        // Simulate streaming response
+        buffer.Append("The ");
+        buffer.Append("actor ");
+        buffer.Append("model ");
+        buffer.AppendLine("is great.");            // Line 3: "Assistant: The actor model is great."
+        buffer.AppendLine("It enables concurrent programming.");  // Line 4
+        buffer.AppendLine("Actors process messages sequentially.");  // Line 5
+        buffer.AppendLine("This prevents race conditions.");  // Line 6
+        buffer.AppendLine("Akka.NET implements this pattern.");  // Line 7
+
+        // Total: 7 lines. With viewport of 3, should show lines 5, 6, 7
+        var visible = buffer.GetVisibleLines(viewportHeight: 3, viewportWidth: 80);
+
+        Assert.Equal(3, visible.Count);
+        Assert.Equal("Actors process messages sequentially.", visible[0]);
+        Assert.Equal("This prevents race conditions.", visible[1]);
+        Assert.Equal("Akka.NET implements this pattern.", visible[2]);
+    }
+
+    [Fact]
+    public void AutoScroll_ContinuousAppend_AlwaysShowsNewest()
+    {
+        var buffer = new PersistedStreamBuffer { AutoScroll = true };
+
+        // Add 20 lines, checking visible after each batch
+        for (int i = 1; i <= 20; i++)
+        {
+            buffer.AppendLine($"Line {i}");
+        }
+
+        var visible = buffer.GetVisibleLines(viewportHeight: 5, viewportWidth: 80);
+
+        // Should show last 5 lines
+        Assert.Equal(5, visible.Count);
+        Assert.Equal("Line 16", visible[0]);
+        Assert.Equal("Line 17", visible[1]);
+        Assert.Equal("Line 18", visible[2]);
+        Assert.Equal("Line 19", visible[3]);
+        Assert.Equal("Line 20", visible[4]);
+    }
+
+    [Fact]
     public void GetAllLines_ReturnsAllContent()
     {
         var buffer = new PersistedStreamBuffer();

@@ -4,8 +4,7 @@ using Spectre.Console.Rendering;
 namespace Termina.Components;
 
 /// <summary>
-/// A text input component for entering text.
-/// State is managed externally by the ViewModel and set via properties.
+/// A text input component that handles its own keyboard input and cursor management.
 /// </summary>
 public class TextInput : Component
 {
@@ -16,6 +15,11 @@ public class TextInput : Component
     private int _cursorPosition;
     private Color _focusedColor = Color.Blue;
     private Color _unfocusedColor = Color.Grey;
+
+    /// <summary>
+    /// Event raised when Enter is pressed.
+    /// </summary>
+    public event Action<string>? OnSubmit;
 
     /// <summary>
     /// Gets or sets the label displayed before the input.
@@ -83,6 +87,76 @@ public class TextInput : Component
     {
         get => _unfocusedColor;
         set => _unfocusedColor = value;
+    }
+
+    /// <summary>
+    /// Handles a key press. Returns true if the key was handled.
+    /// </summary>
+    /// <param name="key">The key info from the console.</param>
+    /// <returns>True if the key was consumed by this component.</returns>
+    public bool HandleKey(ConsoleKeyInfo key)
+    {
+        if (!_isFocused)
+            return false;
+
+        switch (key.Key)
+        {
+            case ConsoleKey.Enter:
+                OnSubmit?.Invoke(_text);
+                return true;
+
+            case ConsoleKey.Backspace:
+                if (_cursorPosition > 0)
+                {
+                    _text = _text.Remove(_cursorPosition - 1, 1);
+                    _cursorPosition--;
+                }
+                return true;
+
+            case ConsoleKey.Delete:
+                if (_cursorPosition < _text.Length)
+                {
+                    _text = _text.Remove(_cursorPosition, 1);
+                }
+                return true;
+
+            case ConsoleKey.LeftArrow:
+                if (_cursorPosition > 0)
+                    _cursorPosition--;
+                return true;
+
+            case ConsoleKey.RightArrow:
+                if (_cursorPosition < _text.Length)
+                    _cursorPosition++;
+                return true;
+
+            case ConsoleKey.Home:
+                _cursorPosition = 0;
+                return true;
+
+            case ConsoleKey.End:
+                _cursorPosition = _text.Length;
+                return true;
+
+            default:
+                // Insert printable character
+                if (key.KeyChar >= 32 && key.KeyChar < 127)
+                {
+                    _text = _text.Insert(_cursorPosition, key.KeyChar.ToString());
+                    _cursorPosition++;
+                    return true;
+                }
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// Clears the input text and resets cursor.
+    /// </summary>
+    public void Clear()
+    {
+        _text = string.Empty;
+        _cursorPosition = 0;
     }
 
     /// <summary>

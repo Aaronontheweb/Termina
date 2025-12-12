@@ -1,7 +1,11 @@
-using Akka.Actor;
+using System.Runtime.CompilerServices;
 using System.Threading.Channels;
+using Akka;
+using Akka.Actor;
+using Akka.Streams;
+using Akka.Streams.Dsl;
 
-namespace Termina.Demo.Actors;
+namespace Termina.Demo.Streaming.Actors;
 
 /// <summary>
 /// Messages for the LLM simulator actor.
@@ -10,40 +14,44 @@ public static class LlmMessages
 {
     /// <summary>
     /// Request to generate a response for a prompt.
+    /// Returns an IAsyncEnumerable of StreamToken via a channel.
     /// </summary>
-    public record GenerateRequest(string Prompt, IActorRef ReplyTo);
+    public record GenerateRequest(string Prompt);
+
+    /// <summary>
+    /// Response containing the async stream of tokens.
+    /// </summary>
+    public record GenerateResponse(IAsyncEnumerable<StreamToken> TokenStream, CancellationTokenSource Cancellation);
+
+    /// <summary>
+    /// A token from the stream (either thinking or text).
+    /// </summary>
+    public abstract record StreamToken;
 
     /// <summary>
     /// A thinking token (intermediate progress).
     /// </summary>
-    public record ThinkingToken(string Text);
+    public record ThinkingToken(string Text) : StreamToken;
 
     /// <summary>
     /// A chunk of generated text.
     /// </summary>
-    public record TextChunk(string Text);
+    public record TextChunk(string Text) : StreamToken;
 
     /// <summary>
-    /// Generation is complete.
+    /// Signal that generation is complete.
     /// </summary>
-    public record GenerationComplete;
-
-    /// <summary>
-    /// Cancel the current generation.
-    /// </summary>
-    public record CancelGeneration;
+    public record GenerationComplete : StreamToken;
 }
 
 /// <summary>
-/// Actor that simulates LLM streaming behavior with thinking tokens and text generation.
+/// Actor that simulates LLM streaming behavior using Akka Streams.
+/// Returns an IAsyncEnumerable via Channel for consumption by StreamingText components.
 /// </summary>
-public class LlmSimulatorActor : ReceiveActor, IWithTimers
+public class LlmSimulatorActor : ReceiveActor
 {
-    public ITimerScheduler Timers { get; set; } = null!;
-
+    private readonly ActorMaterializer _materializer;
     private readonly Random _random = new();
-    private IActorRef? _currentClient;
-    private CancellationTokenSource? _cts;
 
     // Sample responses for simulation
     private static readonly string[] SampleResponses =
@@ -100,83 +108,78 @@ public class LlmSimulatorActor : ReceiveActor, IWithTimers
 
     public LlmSimulatorActor()
     {
+        _materializer = Context.Materializer();
+
         Receive<LlmMessages.GenerateRequest>(HandleGenerateRequest);
-        Receive<LlmMessages.CancelGeneration>(_ => CancelCurrentGeneration());
     }
 
     private void HandleGenerateRequest(LlmMessages.GenerateRequest request)
     {
-        // Cancel any existing generation
-        CancelCurrentGeneration();
+        var cts = new CancellationTokenSource();
+        var channel = Channel.CreateUnbounded<LlmMessages.StreamToken>();
 
-        _currentClient = request.ReplyTo;
-        _cts = new CancellationTokenSource();
+        // Create Akka Stream source that generates tokens
+        var source = CreateTokenSource(request.Prompt, cts.Token);
 
-        // Start async generation
-        var self = Self;
-        _ = Task.Run(async () =>
-        {
-            try
+        // Run the stream, writing to the channel
+        source
+            .RunForeach(token => channel.Writer.TryWrite(token), _materializer)
+            .ContinueWith(_ =>
             {
-                await SimulateGeneration(self, request.ReplyTo, request.Prompt, _cts.Token);
-            }
-            catch (OperationCanceledException)
-            {
-                // Normal cancellation
-            }
-            catch (Exception ex)
-            {
-                Console.Error.WriteLine($"Generation error: {ex.Message}");
-            }
-        }, _cts.Token);
+                channel.Writer.Complete();
+            }, TaskContinuationOptions.ExecuteSynchronously);
+
+        // Return the async enumerable wrapping the channel
+        var asyncEnumerable = ReadFromChannelAsync(channel.Reader, cts.Token);
+        Sender.Tell(new LlmMessages.GenerateResponse(asyncEnumerable, cts));
     }
 
-    private async Task SimulateGeneration(IActorRef self, IActorRef client, string prompt, CancellationToken ct)
+    private Source<LlmMessages.StreamToken, NotUsed> CreateTokenSource(string prompt, CancellationToken ct)
     {
-        // Phase 1: Thinking tokens (windowed display)
         var thinkingCount = _random.Next(3, 8);
-        for (var i = 0; i < thinkingCount; i++)
-        {
-            ct.ThrowIfCancellationRequested();
-            var phrase = ThinkingPhrases[_random.Next(ThinkingPhrases.Length)];
-            client.Tell(new LlmMessages.ThinkingToken(phrase));
-            await Task.Delay(_random.Next(200, 600), ct);
-        }
-
-        // Small pause before main response
-        await Task.Delay(300, ct);
-
-        // Phase 2: Generate response text (persisted display)
         var response = SampleResponses[_random.Next(SampleResponses.Length)];
 
-        // Stream character by character (or small chunks)
+        // Create thinking tokens with delays using Throttle instead of Delay
+        // Throttle ensures elements come out at a specific rate (1 token per 600ms for visibility)
+        var thinkingSource = Source.From(Enumerable.Range(0, thinkingCount))
+            .Select(_ => ThinkingPhrases[_random.Next(ThinkingPhrases.Length)])
+            .Select(text => (LlmMessages.StreamToken)new LlmMessages.ThinkingToken(text))
+            .Throttle(1, TimeSpan.FromMilliseconds(600), 1, ThrottleMode.Shaping);
+
+        // Create text chunks source (character by character with small chunks)
         var chunkSize = _random.Next(1, 4);
+        var chunks = new List<string>();
         for (var i = 0; i < response.Length; i += chunkSize)
         {
-            ct.ThrowIfCancellationRequested();
-            var chunk = response.Substring(i, Math.Min(chunkSize, response.Length - i));
-            client.Tell(new LlmMessages.TextChunk(chunk));
-
-            // Variable delay to simulate typing
-            var delay = chunk.Contains('\n') ? 50 : _random.Next(10, 40);
-            await Task.Delay(delay, ct);
+            chunks.Add(response.Substring(i, Math.Min(chunkSize, response.Length - i)));
         }
 
-        // Signal completion
-        client.Tell(new LlmMessages.GenerationComplete());
+        var textSource = Source.From(chunks)
+            .Select(chunk => (LlmMessages.StreamToken)new LlmMessages.TextChunk(chunk))
+            .Throttle(10, TimeSpan.FromMilliseconds(50), 10, ThrottleMode.Shaping);
+
+        // Completion signal
+        var completionSource = Source.Single((LlmMessages.StreamToken)new LlmMessages.GenerationComplete());
+
+        // Combine: thinking -> text -> complete
+        return thinkingSource
+            .Concat(textSource)
+            .Concat(completionSource);
     }
 
-    private void CancelCurrentGeneration()
+    private static async IAsyncEnumerable<LlmMessages.StreamToken> ReadFromChannelAsync(
+        ChannelReader<LlmMessages.StreamToken> reader,
+        [EnumeratorCancellation] CancellationToken ct = default)
     {
-        _cts?.Cancel();
-        _cts?.Dispose();
-        _cts = null;
-        _currentClient = null;
+        await foreach (var token in reader.ReadAllAsync(ct).ConfigureAwait(false))
+        {
+            yield return token;
+        }
     }
 
     protected override void PostStop()
     {
-        CancelCurrentGeneration();
+        _materializer.Dispose();
         base.PostStop();
     }
 
