@@ -8,12 +8,11 @@ using Termina.Spike.Pages;
 // ==========================================
 //
 // This demonstrates:
-// - TerminaApplication orchestrator with duplex event loop
+// - TerminaApplication orchestrator with event loop
 // - PageBase + PageHandler architecture
-// - Stateless handlers (no mutable state in handlers)
+// - Handlers can inject any services via DI
 // - Typed UI events transformed from raw input
 // - Commands from handler to page for UI updates
-// - Model events from backend to handler (via IApplicationBus)
 // - Navigation with ResetOnNavigation vs PreserveState
 
 // Check for --test flag (used in CI/CD to run scripted test and exit)
@@ -54,13 +53,6 @@ else
     // Normal mode: keyboard input
     app.AddInputSource(new ConsoleInputSource());
 }
-
-// Optional: Subscribe to dead letter events for debugging
-app.Bus.DeadLetter += (evt, reason) =>
-{
-    // In a real app, you'd log this
-    // Console.WriteLine($"[DeadLetter] {evt.GetType().Name}: {reason}");
-};
 
 // Navigate to initial page
 app.NavigateTo("main-menu");

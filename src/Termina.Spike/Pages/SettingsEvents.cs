@@ -1,5 +1,4 @@
 using Termina.Events;
-using Termina.Spike.Services;
 
 namespace Termina.Spike.Pages;
 
@@ -59,7 +58,3 @@ public abstract record SettingsCommand : IUICommand
     /// </summary>
     public sealed record HideLoading() : SettingsCommand;
 }
-
-// Note: The SettingsModelEvent is defined in Services/SettingsService.cs
-// and re-exported here for convenience. The handler uses SettingsModelEvent
-// from the Services namespace.

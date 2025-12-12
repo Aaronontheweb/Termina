@@ -1,3 +1,4 @@
+using Termina.Demo.Akka.Actors;
 using Termina.Events;
 
 namespace Termina.Demo.Akka.Pages;
@@ -11,7 +12,7 @@ public abstract record TaskListUIEvent : IPageUIEvent
     /// <summary>
     /// User wants to add a new task.
     /// </summary>
-    public sealed record AddTaskRequested(string Description) : TaskListUIEvent;
+    public sealed record AddTaskRequested(string Description, TaskPriority Priority) : TaskListUIEvent;
 
     /// <summary>
     /// User wants to remove a task.
@@ -24,6 +25,11 @@ public abstract record TaskListUIEvent : IPageUIEvent
     public sealed record ToggleTaskRequested(int TaskId) : TaskListUIEvent;
 
     /// <summary>
+    /// User wants to change a task's priority.
+    /// </summary>
+    public sealed record ChangePriorityRequested(int TaskId, TaskPriority Priority) : TaskListUIEvent;
+
+    /// <summary>
     /// User wants to start a task's timer.
     /// </summary>
     public sealed record StartTimerRequested(int TaskId) : TaskListUIEvent;
@@ -32,6 +38,11 @@ public abstract record TaskListUIEvent : IPageUIEvent
     /// User wants to stop a task's timer.
     /// </summary>
     public sealed record StopTimerRequested(int TaskId) : TaskListUIEvent;
+
+    /// <summary>
+    /// User wants to view task details.
+    /// </summary>
+    public sealed record ViewDetailRequested(int TaskId) : TaskListUIEvent;
 
     /// <summary>
     /// User pressed escape to go back/exit.
@@ -45,9 +56,9 @@ public abstract record TaskListUIEvent : IPageUIEvent
 public abstract record TaskListCommand : IUICommand
 {
     /// <summary>
-    /// Update the displayed task list.
+    /// Update the displayed task list and statistics.
     /// </summary>
-    public sealed record UpdateTaskList(IReadOnlyList<Actors.TaskItem> Tasks) : TaskListCommand;
+    public sealed record UpdateTaskList(IReadOnlyList<TaskItem> Tasks, TaskStatistics Stats) : TaskListCommand;
 
     /// <summary>
     /// Update a single task's timer display.
@@ -60,12 +71,17 @@ public abstract record TaskListCommand : IUICommand
     public sealed record ShowStatus(string Message) : TaskListCommand;
 
     /// <summary>
-    /// Enter add task mode.
+    /// Enter add task mode with specified priority.
     /// </summary>
-    public sealed record EnterAddTaskMode : TaskListCommand;
+    public sealed record EnterAddTaskMode(TaskPriority DefaultPriority) : TaskListCommand;
 
     /// <summary>
     /// Exit add task mode.
     /// </summary>
     public sealed record ExitAddTaskMode : TaskListCommand;
+
+    /// <summary>
+    /// Navigate to task detail page.
+    /// </summary>
+    public sealed record NavigateToDetail(TaskItem Task) : TaskListCommand;
 }

@@ -3,10 +3,9 @@ using Akka.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Spectre.Console;
-using Termina;
 using Termina.Demo.Akka.Actors;
 using Termina.Demo.Akka.Pages;
+using Termina.Hosting;
 using Termina.Input;
 using Termina.Pages;
 
@@ -19,47 +18,41 @@ var builder = Host.CreateApplicationBuilder(args);
 // Configure logging (disable most for clean TUI output)
 builder.Logging.SetMinimumLevel(LogLevel.Warning);
 
-// Register Termina application (needed before Akka so Bus is available)
-builder.Services.AddSingleton<IAnsiConsole>(AnsiConsole.Console);
-
 // Create virtual input source for test mode
 VirtualInputSource? scriptedInput = testMode ? new VirtualInputSource() : null;
 
-builder.Services.AddSingleton<TerminaApplication>(sp =>
+// Register Akka.NET actor system
+builder.Services.AddAkka("TaskManagerSystem", (akkaBuilder, _) =>
 {
-    var console = sp.GetRequiredService<IAnsiConsole>();
-    var app = new TerminaApplication(console);
-
-    // Set up input source based on mode
-    if (scriptedInput != null)
-    {
-        app.AddInputSource(scriptedInput);
-    }
-    else
-    {
-        app.AddInputSource(new ConsoleInputSource());
-    }
-
-    return app;
-});
-
-// Register Akka.NET actor system using Akka.Hosting
-builder.Services.AddAkka("TaskManagerSystem", (akkaBuilder, sp) =>
-{
-    var terminaApp = sp.GetRequiredService<TerminaApplication>();
-
-    // Create TaskManagerActor with IApplicationBus injected
+    // Create TaskManagerActor (no longer needs IApplicationBus)
     akkaBuilder.WithActors((system, registry) =>
     {
         var taskManager = system.ActorOf(
-            Props.Create(() => new TaskManagerActor(terminaApp.Bus)),
+            Props.Create(() => new TaskManagerActor()),
             "task-manager");
         registry.Register<TaskManagerActor>(taskManager);
     });
 });
 
-// Register hosted service to run Termina
-builder.Services.AddHostedService<TerminaHostedService>();
+// Register Termina with pages using the new DI pattern
+builder.Services.AddTermina("tasks", termina =>
+{
+    // Task list page - PreserveState so we don't lose selection
+    termina.RegisterPage<TaskListHandler>("tasks", NavigationBehavior.PreserveState);
+
+    // Task detail page - Reset each time we view a different task
+    termina.RegisterPage<TaskDetailHandler>("task-detail", NavigationBehavior.ResetOnNavigation);
+});
+
+// Add input sources
+if (scriptedInput != null)
+{
+    builder.Services.AddTerminaVirtualInput(scriptedInput);
+}
+else
+{
+    builder.Services.AddTerminaConsoleInput();
+}
 
 var host = builder.Build();
 
@@ -68,42 +61,65 @@ if (testMode && scriptedInput != null)
 {
     _ = Task.Run(async () =>
     {
-        await Task.Delay(500); // Wait for initial render
+        await Task.Delay(500); // Wait for initial render with pre-stocked tasks
 
-        // Add a task
+        // Navigate through pre-stocked tasks (there are 6)
+        scriptedInput.EnqueueKey(ConsoleKey.DownArrow);
+        scriptedInput.EnqueueKey(ConsoleKey.DownArrow);
+        await Task.Delay(200);
+
+        // Change priority on current task (P cycles through priorities)
+        scriptedInput.EnqueueKey(ConsoleKey.P);
+        await Task.Delay(200);
+        scriptedInput.EnqueueKey(ConsoleKey.P);
+        await Task.Delay(200);
+
+        // View task detail (Enter)
+        scriptedInput.EnqueueKey(ConsoleKey.Enter);
+        await Task.Delay(500); // View detail page
+
+        // Toggle timer on detail page
+        scriptedInput.EnqueueKey(ConsoleKey.S);
+        await Task.Delay(300);
+
+        // Change priority on detail page
+        scriptedInput.EnqueueKey(ConsoleKey.P);
+        await Task.Delay(200);
+
+        // Go back to list
+        scriptedInput.EnqueueKey(ConsoleKey.Escape);
+        await Task.Delay(300);
+
+        // Add a new high-priority task
         scriptedInput.EnqueueKey(ConsoleKey.A);           // Enter add mode
-        scriptedInput.EnqueueString("Test task from CI");  // Type description
+        scriptedInput.EnqueueKey(ConsoleKey.Tab);          // Cycle priority to High
+        scriptedInput.EnqueueKey(ConsoleKey.Tab);          // Cycle priority to Critical
+        scriptedInput.EnqueueString("CI Test Task");
         scriptedInput.EnqueueKey(ConsoleKey.Enter);        // Confirm add
+        await Task.Delay(300);
 
-        await Task.Delay(300); // Wait for task to be added
-
-        // Start timer on the task
+        // Start timer on the new task (should be at top due to critical priority)
+        scriptedInput.EnqueueKey(ConsoleKey.Home);         // Go to top (if supported)
+        scriptedInput.EnqueueKey(ConsoleKey.UpArrow);      // Navigate up
+        scriptedInput.EnqueueKey(ConsoleKey.UpArrow);
+        scriptedInput.EnqueueKey(ConsoleKey.UpArrow);
+        scriptedInput.EnqueueKey(ConsoleKey.UpArrow);
+        scriptedInput.EnqueueKey(ConsoleKey.UpArrow);
+        scriptedInput.EnqueueKey(ConsoleKey.UpArrow);
         scriptedInput.EnqueueKey(ConsoleKey.S);            // Start timer
-
-        await Task.Delay(1000); // Let timer run for a second
+        await Task.Delay(500);
 
         // Stop timer
-        scriptedInput.EnqueueKey(ConsoleKey.S);            // Stop timer
-
-        await Task.Delay(300);
+        scriptedInput.EnqueueKey(ConsoleKey.S);
+        await Task.Delay(200);
 
         // Toggle complete
-        scriptedInput.EnqueueKey(ConsoleKey.Spacebar);     // Mark complete
+        scriptedInput.EnqueueKey(ConsoleKey.Spacebar);
+        await Task.Delay(200);
 
-        await Task.Delay(300);
-
-        // Add another task
-        scriptedInput.EnqueueKey(ConsoleKey.A);
-        scriptedInput.EnqueueString("Second task");
-        scriptedInput.EnqueueKey(ConsoleKey.Enter);
-
-        await Task.Delay(300);
-
-        // Navigate down and delete
-        scriptedInput.EnqueueKey(ConsoleKey.DownArrow);
-        scriptedInput.EnqueueKey(ConsoleKey.D);            // Delete task
-
-        await Task.Delay(300);
+        // Delete the task
+        scriptedInput.EnqueueKey(ConsoleKey.D);
+        await Task.Delay(200);
 
         // Exit
         scriptedInput.EnqueueKey(ConsoleKey.Q);
@@ -113,90 +129,3 @@ if (testMode && scriptedInput != null)
 
 // Run the host
 await host.RunAsync();
-
-/// <summary>
-/// Hosted service that runs the Termina TUI application.
-/// Coordinates between Akka.NET actors and the Termina UI.
-/// </summary>
-public sealed class TerminaHostedService : IHostedService
-{
-    private readonly TerminaApplication _app;
-    private readonly IRequiredActor<TaskManagerActor> _taskManagerProvider;
-    private readonly IHostApplicationLifetime _lifetime;
-    private readonly ILogger<TerminaHostedService> _logger;
-    private Task? _runTask;
-
-    public TerminaHostedService(
-        TerminaApplication app,
-        IRequiredActor<TaskManagerActor> taskManagerProvider,
-        IHostApplicationLifetime lifetime,
-        ILogger<TerminaHostedService> logger)
-    {
-        _app = app;
-        _taskManagerProvider = taskManagerProvider;
-        _lifetime = lifetime;
-        _logger = logger;
-    }
-
-    public Task StartAsync(CancellationToken cancellationToken)
-    {
-        _logger.LogInformation("Starting Termina Task Manager demo");
-
-        // Get the task manager actor from the registry
-        var taskManager = _taskManagerProvider.ActorRef;
-
-        // Register pages with custom handler factory for DI
-        _app.RegisterPage<TaskListHandler>("tasks", () =>
-        {
-            var handler = new TaskListHandler();
-            handler.SetTaskManager(taskManager);
-            return handler;
-        }, NavigationBehavior.PreserveState);
-
-        // Navigate to the task list page
-        _app.NavigateTo("tasks");
-
-        // Run Termina in a background task
-        _runTask = Task.Run(async () =>
-        {
-            try
-            {
-                await _app.RunAsync(cancellationToken);
-            }
-            catch (OperationCanceledException)
-            {
-                // Expected on shutdown
-            }
-            finally
-            {
-                // Signal the host to stop when Termina exits
-                _lifetime.StopApplication();
-            }
-        }, cancellationToken);
-
-        return Task.CompletedTask;
-    }
-
-    public async Task StopAsync(CancellationToken cancellationToken)
-    {
-        _logger.LogInformation("Stopping Termina Task Manager demo");
-
-        // Shutdown Termina
-        _app.Shutdown();
-
-        // Wait for Termina to finish
-        if (_runTask != null)
-        {
-            try
-            {
-                await _runTask.WaitAsync(cancellationToken);
-            }
-            catch (OperationCanceledException)
-            {
-                // Expected during shutdown
-            }
-        }
-
-        // Actor system shutdown is handled by Akka.Hosting
-    }
-}

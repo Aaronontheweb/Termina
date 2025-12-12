@@ -5,30 +5,24 @@ namespace Termina.Pages;
 
 /// <summary>
 /// Base class for page handlers in the Termina two-tier event architecture.
-/// Handlers are stateless event transformers that process both frontend and backend events.
+/// Handlers process UI events from pages and can inject any services they need.
 /// </summary>
 /// <typeparam name="TPage">The page type this handler controls.</typeparam>
 /// <remarks>
 /// <para>
-/// <b>IMPORTANT: Handlers must be STATELESS.</b> Do not add fields to store state.
-/// All state lives in the Model layer (actors, services) or in page components.
-/// </para>
-/// <para>
-/// Handlers are pure event transformers:
+/// Handlers receive UI events from the page and react by:
 /// </para>
 /// <list type="bullet">
-///   <item>Receive UI events from the page → Send commands and/or publish model events</item>
-///   <item>Receive model events from backend → Send commands to update UI</item>
+///   <item>Sending commands to update the page UI</item>
+///   <item>Calling injected services (actors, APIs, etc.) directly</item>
+///   <item>Navigating to other pages</item>
+///   <item>Requesting application shutdown</item>
 /// </list>
 /// <para>
-/// Available methods in handlers:
+/// Handlers are resolved from DI and can inject any services they need.
+/// The framework only requires handlers to implement <see cref="IPageHandler"/>
+/// and respond to UI events via HandleUIEvent.
 /// </para>
-/// <list type="bullet">
-///   <item><see cref="Send"/> - Push a command to the page (triggers re-render)</item>
-///   <item><see cref="Publish{T}"/> - Push an event to the application bus (for model layer)</item>
-///   <item><see cref="Navigate"/> - Request navigation to another page</item>
-///   <item><see cref="Shutdown"/> - Request application shutdown</item>
-/// </list>
 /// </remarks>
 public abstract class PageHandler<TPage>
     where TPage : IPage
@@ -38,12 +32,6 @@ public abstract class PageHandler<TPage>
     /// Set by the framework when the handler is attached to a page.
     /// </summary>
     internal TPage Page { get; set; } = default!;
-
-    /// <summary>
-    /// The application bus for publishing model events.
-    /// Set by the framework.
-    /// </summary>
-    internal IApplicationBus Bus { get; set; } = default!;
 
     /// <summary>
     /// Action to navigate to another page.
@@ -65,17 +53,9 @@ public abstract class PageHandler<TPage>
 
     /// <summary>
     /// Called when the page is about to become inactive (navigating away).
-    /// Override to perform cleanup or publish cancellation events.
+    /// Override to perform cleanup logic.
     /// </summary>
     protected virtual void OnNavigatingFrom() { }
-
-    /// <summary>
-    /// Publish an event to the application bus.
-    /// Model layer actors/services can subscribe to these events.
-    /// </summary>
-    /// <typeparam name="T">The event type (must implement IModelEvent).</typeparam>
-    /// <param name="evt">The event to publish.</param>
-    protected void Publish<T>(T evt) where T : IModelEvent => Bus.Publish(evt);
 
     /// <summary>
     /// Navigate to another page by key.
@@ -106,10 +86,21 @@ public abstract class PageHandler<TPage>
 /// <typeparam name="TUIEvent">The typed UI event type (user interactions).</typeparam>
 /// <typeparam name="TCommand">The command type sent to the page.</typeparam>
 /// <remarks>
+/// <para>
+/// Handlers are resolved from DI and can inject any services they need.
+/// Use constructor injection to get actors, services, or other dependencies.
+/// </para>
 /// <example>
 /// <code>
 /// public class SettingsHandler : PageHandler&lt;SettingsPage, SettingsUIEvent, SettingsCommand&gt;
 /// {
+///     private readonly ISettingsService _settings;
+///
+///     public SettingsHandler(ISettingsService settings)
+///     {
+///         _settings = settings;
+///     }
+///
 ///     protected override void HandleUIEvent(SettingsUIEvent evt) { ... }
 /// }
 /// </code>
@@ -129,11 +120,10 @@ public abstract class PageHandler<TPage, TUIEvent, TCommand>
             PageFactory = () => new TPage(),
             HandlerFactory = null!, // Filled in by TerminaApplication.RegisterPage
             Behavior = behavior,
-            WireUpHandler = (handler, page, bus, navigate, shutdown) =>
+            WireUpHandler = (handler, page, navigate, shutdown) =>
             {
                 var typedHandler = (PageHandler<TPage, TUIEvent, TCommand>)handler;
                 typedHandler.Page = (TPage)page;
-                typedHandler.Bus = bus;
                 typedHandler.NavigateAction = navigate;
                 typedHandler.ShutdownAction = shutdown;
             },
@@ -141,11 +131,6 @@ public abstract class PageHandler<TPage, TUIEvent, TCommand>
             {
                 var typedHandler = (PageHandler<TPage, TUIEvent, TCommand>)handler;
                 typedHandler.InvokeHandleUIEvent((TUIEvent)evt);
-            },
-            InvokeHandleModelEvent = (handler, evt) =>
-            {
-                var typedHandler = (PageHandler<TPage, TUIEvent, TCommand>)handler;
-                typedHandler.InvokeHandleModelEvent(evt);
             },
             InvokeOnNavigatedTo = handler =>
             {
@@ -172,15 +157,6 @@ public abstract class PageHandler<TPage, TUIEvent, TCommand>
     protected abstract void HandleUIEvent(TUIEvent evt);
 
     /// <summary>
-    /// Handle a model event from the backend (state change notification).
-    /// </summary>
-    /// <param name="evt">The model event from the backend.</param>
-    protected virtual void HandleModelEvent(IModelEvent evt)
-    {
-        // Default: ignore model events. Override to handle specific events.
-    }
-
-    /// <summary>
     /// Send a command to the page to update UI state.
     /// </summary>
     /// <param name="command">The command to send.</param>
@@ -190,9 +166,4 @@ public abstract class PageHandler<TPage, TUIEvent, TCommand>
     /// Internal method called by the framework to handle frontend events.
     /// </summary>
     internal void InvokeHandleUIEvent(TUIEvent evt) => HandleUIEvent(evt);
-
-    /// <summary>
-    /// Internal method called by the framework to handle backend events.
-    /// </summary>
-    internal void InvokeHandleModelEvent(IModelEvent evt) => HandleModelEvent(evt);
 }

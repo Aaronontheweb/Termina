@@ -1,7 +1,8 @@
 using System.Threading.Channels;
+using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
 using Spectre.Console.Rendering;
-using Termina.Events;
+using Termina.Hosting;
 using Termina.Input;
 using Termina.Navigation;
 using Termina.Pages;
@@ -10,26 +11,28 @@ namespace Termina;
 
 /// <summary>
 /// The main application orchestrator for Termina TUI applications.
-/// Implements the two-tier duplex event loop architecture.
 /// </summary>
 /// <remarks>
 /// <para>
 /// TerminaApplication is the "app host" that:
 /// </para>
 /// <list type="bullet">
-///   <item>Owns the event bus / channel infrastructure</item>
-///   <item>Routes model events to appropriate handler(s)</item>
+///   <item>Owns the event channel infrastructure for input routing</item>
 ///   <item>Routes UI events to the current page's handler</item>
 ///   <item>Manages page registration and navigation</item>
-///   <item>Dead letter logging for unhandled events</item>
 ///   <item>Controls which page is "active" and can render</item>
 /// </list>
+/// <para>
+/// Handlers are resolved from DI and can inject any services they need.
+/// There is no application bus - handlers communicate with backends directly
+/// via injected services, actors, or other mechanisms.
+/// </para>
 /// </remarks>
 public sealed class TerminaApplication
 {
     private readonly IAnsiConsole _console;
+    private readonly IServiceProvider? _serviceProvider;
     private readonly Channel<object> _eventChannel;
-    private readonly ApplicationBus _bus;
     private readonly Dictionary<string, PageRegistration> _pages = new();
     private readonly Dictionary<string, (IPage Page, object Handler)> _cachedPages = new();
     private readonly Stack<string> _history = new();
@@ -45,18 +48,23 @@ public sealed class TerminaApplication
     /// Creates a new Termina application.
     /// </summary>
     /// <param name="console">The Spectre.Console instance for rendering.</param>
-    public TerminaApplication(IAnsiConsole console)
+    /// <param name="serviceProvider">Optional service provider for resolving handlers and input sources.</param>
+    public TerminaApplication(IAnsiConsole console, IServiceProvider? serviceProvider = null)
     {
         _console = console;
+        _serviceProvider = serviceProvider;
         _eventChannel = Channel.CreateUnbounded<object>();
-        _bus = new ApplicationBus(_eventChannel);
-    }
 
-    /// <summary>
-    /// Gets the application bus for Model layer integration.
-    /// Actors and services can publish events and subscribe to events through this bus.
-    /// </summary>
-    public IApplicationBus Bus => _bus;
+        // If using DI, check for registered input sources
+        if (serviceProvider != null)
+        {
+            var inputSources = serviceProvider.GetServices<IInputSource>();
+            foreach (var source in inputSources)
+            {
+                _inputSources.Add(source);
+            }
+        }
+    }
 
     /// <summary>
     /// Gets the current page key, if any.
@@ -86,12 +94,6 @@ public sealed class TerminaApplication
     /// <typeparam name="THandler">The handler type (must implement IPageHandler).</typeparam>
     /// <param name="pageKey">Unique key to identify this page.</param>
     /// <param name="behavior">How the page behaves on navigation.</param>
-    /// <example>
-    /// <code>
-    /// app.RegisterPage&lt;MainMenuHandler&gt;("main-menu");
-    /// app.RegisterPage&lt;SettingsHandler&gt;("settings", NavigationBehavior.PreserveState);
-    /// </code>
-    /// </example>
     public void RegisterPage<THandler>(
         string pageKey,
         NavigationBehavior behavior = NavigationBehavior.ResetOnNavigation)
@@ -108,17 +110,6 @@ public sealed class TerminaApplication
     /// <param name="pageKey">Unique key to identify this page.</param>
     /// <param name="handlerFactory">Factory function that creates the handler instance.</param>
     /// <param name="behavior">How the page behaves on navigation.</param>
-    /// <example>
-    /// <code>
-    /// // With dependency injection
-    /// app.RegisterPage&lt;TaskListHandler&gt;("tasks", () =>
-    /// {
-    ///     var handler = new TaskListHandler();
-    ///     handler.SetTaskManager(taskManagerActor);
-    ///     return handler;
-    /// });
-    /// </code>
-    /// </example>
     public void RegisterPage<THandler>(
         string pageKey,
         Func<THandler> handlerFactory,
@@ -127,6 +118,36 @@ public sealed class TerminaApplication
     {
         var registration = THandler.CreateRegistration(pageKey, behavior);
         _pages[pageKey] = registration with { HandlerFactory = () => handlerFactory() };
+    }
+
+    /// <summary>
+    /// Register a page from a descriptor (used by TerminaBuilder).
+    /// </summary>
+    internal void RegisterPageFromDescriptor(PageRegistrationDescriptor descriptor)
+    {
+        // We need to call CreateRegistration on the handler type
+        // This requires invoking the static abstract method via reflection or a stored delegate
+        var registration = CreateRegistrationFromType(descriptor.HandlerType, descriptor.PageKey, descriptor.Behavior);
+        _pages[descriptor.PageKey] = registration with
+        {
+            HandlerFactory = () => descriptor.HandlerFactory(_serviceProvider!)
+        };
+    }
+
+    private static PageRegistration CreateRegistrationFromType(Type handlerType, string pageKey, NavigationBehavior behavior)
+    {
+        // Get the CreateRegistration method from IPageHandler
+        var method = handlerType.GetMethod(
+            nameof(IPageHandler.CreateRegistration),
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+
+        if (method == null)
+        {
+            throw new InvalidOperationException(
+                $"Handler type {handlerType.Name} does not implement IPageHandler.CreateRegistration");
+        }
+
+        return (PageRegistration)method.Invoke(null, [pageKey, behavior])!;
     }
 
     /// <summary>
@@ -163,11 +184,10 @@ public sealed class TerminaApplication
             _currentPage = registration.PageFactory();
             _currentHandler = registration.HandlerFactory();
 
-            // Wire up handler
+            // Wire up handler (no bus needed anymore)
             registration.WireUpHandler(
                 _currentHandler,
                 _currentPage,
-                _bus,
                 NavigateTo,
                 Shutdown);
 
@@ -194,7 +214,6 @@ public sealed class TerminaApplication
         if (_history.Count > 0)
         {
             var previousKey = _history.Pop();
-            var currentKey = _currentPageKey;
             _currentPageKey = null; // Prevent pushing to history
             NavigateTo(previousKey);
         }
@@ -297,15 +316,7 @@ public sealed class TerminaApplication
         // Check if we have an active page
         if (_currentPage == null || _currentHandler == null || _currentRegistration == null)
         {
-            _bus.RaiseDeadLetter(evt, "No active page");
-            return;
-        }
-
-        // Check if this is a model event
-        if (evt is IModelEvent modelEvent)
-        {
-            // Route to handler - it will pattern match on the event type
-            _currentRegistration.InvokeHandleModelEvent(_currentHandler, modelEvent);
+            // No active page - ignore event
             return;
         }
 
@@ -321,11 +332,8 @@ public sealed class TerminaApplication
                 _currentRegistration.InvokeHandleUIEvent(_currentHandler, uiEvent);
             }
             // else: page swallowed the event (returned null from MapToUIEvent)
-            return;
         }
-
-        // Unknown event type
-        _bus.RaiseDeadLetter(evt, $"Unknown event type: {evt.GetType().Name}");
+        // Other event types are ignored - handlers manage their own subscriptions
     }
 
     /// <summary>

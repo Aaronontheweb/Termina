@@ -1,10 +1,9 @@
-using Termina.Events;
 using Termina.Input;
 
 namespace Termina.Pages;
 
 /// <summary>
-/// Registration info for a page in the two-tier architecture.
+/// Registration info for a page.
 /// Contains factories and delegates for creating and wiring up page/handler pairs.
 /// All type information is captured in the delegate closures at compile time.
 /// </summary>
@@ -26,19 +25,14 @@ public sealed record PageRegistration
     public required NavigationBehavior Behavior { get; init; }
 
     /// <summary>
-    /// Wires up the handler to the page, bus, and navigation actions.
+    /// Wires up the handler to the page and navigation actions.
     /// </summary>
-    public required Action<object, IPage, IApplicationBus, Action<string>, Action> WireUpHandler { get; init; }
+    public required Action<object, IPage, Action<string>, Action> WireUpHandler { get; init; }
 
     /// <summary>
     /// Invokes HandleUIEvent on the handler with a UI event.
     /// </summary>
     public required Action<object, object> InvokeHandleUIEvent { get; init; }
-
-    /// <summary>
-    /// Invokes HandleModelEvent on the handler with a model event.
-    /// </summary>
-    public required Action<object, IModelEvent> InvokeHandleModelEvent { get; init; }
 
     /// <summary>
     /// Invokes OnNavigatedTo on the handler.
