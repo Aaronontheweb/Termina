@@ -236,5 +236,22 @@ public sealed class Panel : IRenderable
         }
 
         public void Clear() => Fill(0, 0, Width, Height, ' ');
+
+        public IRenderContext CreateSubContext(Layout.Rect bounds)
+        {
+            var clippedX = Math.Max(0, bounds.X);
+            var clippedY = Math.Max(0, bounds.Y);
+            var clippedRight = Math.Min(Width, bounds.Right);
+            var clippedBottom = Math.Min(Height, bounds.Bottom);
+            var clippedWidth = Math.Max(0, clippedRight - clippedX);
+            var clippedHeight = Math.Max(0, clippedBottom - clippedY);
+
+            return new InteriorRenderContext(
+                _parent,
+                _offsetX + clippedX,
+                _offsetY + clippedY,
+                clippedWidth,
+                clippedHeight);
+        }
     }
 }

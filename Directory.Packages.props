@@ -2,13 +2,11 @@
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <!-- NuGet package versions -->
-    <SpectreConsoleVersion>0.54.0</SpectreConsoleVersion>
     <SystemReactiveVersion>6.1.0</SystemReactiveVersion>
     <MicrosoftExtensionsVersion>9.0.0</MicrosoftExtensionsVersion>
   </PropertyGroup>
   <!-- App dependencies -->
   <ItemGroup>
-    <PackageVersion Include="Spectre.Console" Version="$(SpectreConsoleVersion)" />
     <PackageVersion Include="System.Reactive" Version="$(SystemReactiveVersion)" />
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="$(MicrosoftExtensionsVersion)" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="$(MicrosoftExtensionsVersion)" />

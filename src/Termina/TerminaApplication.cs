@@ -1,15 +1,19 @@
+// Copyright (c) Petabridge, LLC. All rights reserved.
+// Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
+
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Threading.Channels;
 using Microsoft.Extensions.DependencyInjection;
-using Spectre.Console;
-using Spectre.Console.Rendering;
 using Termina.Hosting;
 using Termina.Input;
+using Termina.Layout;
 using Termina.Navigation;
 using Termina.Pages;
 using Termina.Reactive;
+using Termina.Rendering;
 using Termina.Routing;
+using Termina.Terminal;
 
 namespace Termina;
 
@@ -33,7 +37,7 @@ namespace Termina;
 /// </remarks>
 public sealed class TerminaApplication
 {
-    private readonly IAnsiConsole _console;
+    private readonly IAnsiTerminal _terminal;
     private readonly IServiceProvider? _serviceProvider;
     private readonly Channel<object> _eventChannel;
     private readonly Subject<IInputEvent> _inputSubject = new();
@@ -53,11 +57,11 @@ public sealed class TerminaApplication
     /// <summary>
     /// Creates a new Termina application.
     /// </summary>
-    /// <param name="console">The Spectre.Console instance for rendering.</param>
+    /// <param name="terminal">The ANSI terminal for rendering.</param>
     /// <param name="serviceProvider">Optional service provider for resolving ViewModels and input sources.</param>
-    public TerminaApplication(IAnsiConsole console, IServiceProvider? serviceProvider = null)
+    public TerminaApplication(IAnsiTerminal terminal, IServiceProvider? serviceProvider = null)
     {
-        _console = console;
+        _terminal = terminal;
         _serviceProvider = serviceProvider;
         _eventChannel = Channel.CreateUnbounded<object>();
 
@@ -295,26 +299,21 @@ public sealed class TerminaApplication
 
         try
         {
+            // Enter alternate screen and hide cursor
+            _terminal.EnterAlternateScreen();
+            _terminal.SetCursorVisible(false);
+
             // Initial render
-            var rootRenderable = RenderCurrentPage();
+            RenderCurrentPage();
 
-            await _console.Live(rootRenderable)
-                .AutoClear(false)
-                .StartAsync(async ctx =>
-                {
-                    // Initial render - don't wait for first event
-                    ctx.Refresh();
+            // Single-threaded event loop - all input sources merge here
+            await foreach (var evt in _eventChannel.Reader.ReadAllAsync(linkedToken))
+            {
+                ProcessEvent(evt);
 
-                    // Single-threaded event loop - all input sources merge here
-                    await foreach (var evt in _eventChannel.Reader.ReadAllAsync(linkedToken))
-                    {
-                        ProcessEvent(evt);
-
-                        // Re-render after event processing
-                        ctx.UpdateTarget(RenderCurrentPage());
-                        ctx.Refresh();
-                    }
-                });
+                // Re-render after event processing
+                RenderCurrentPage();
+            }
         }
         catch (OperationCanceledException)
         {
@@ -322,6 +321,10 @@ public sealed class TerminaApplication
         }
         finally
         {
+            // Restore terminal
+            _terminal.SetCursorVisible(true);
+            _terminal.ExitAlternateScreen();
+
             // Complete the input subject
             _inputSubject.OnCompleted();
         }
@@ -361,6 +364,10 @@ public sealed class TerminaApplication
             case NavigationBackRequested:
                 GoBack();
                 return;
+
+            case ResizeEvent:
+                // Just re-render on resize
+                return;
         }
 
         // Route input events to the observable - ViewModels subscribe to this
@@ -371,12 +378,54 @@ public sealed class TerminaApplication
     }
 
     /// <summary>
-    /// Renders the current page.
+    /// Renders the current page directly to the terminal.
     /// </summary>
-    private IRenderable RenderCurrentPage()
+    private void RenderCurrentPage()
     {
-        return _currentPage?.Render()
-            ?? new Text("No page active");
+        var layoutRoot = GetCurrentLayoutRoot() ?? new TextNode("No page active");
+
+        // Clear the screen
+        _terminal.ClearScreen();
+
+        // Measure and render the layout
+        var available = new Size(_terminal.Width, _terminal.Height);
+        var measured = layoutRoot.Measure(available);
+
+        // Create a full-screen render context
+        var context = new RegionRenderContext(_terminal, 0, 0, _terminal.Width, _terminal.Height);
+        var bounds = new Rect(0, 0, _terminal.Width, _terminal.Height);
+
+        layoutRoot.Render(context, bounds);
+
+        // Flush output
+        _terminal.Flush();
+    }
+
+    /// <summary>
+    /// Gets the layout root from the current page.
+    /// </summary>
+    private ILayoutNode? GetCurrentLayoutRoot()
+    {
+        if (_currentPage == null)
+            return null;
+
+        // If it's a ReactivePage, get the cached layout root
+        if (_currentPage is IBindablePage bindable)
+        {
+            // Access via reflection-free pattern
+            var pageType = _currentPage.GetType();
+            var layoutRootProp = pageType.GetProperty("LayoutRoot",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            if (layoutRootProp != null)
+            {
+                var layoutRoot = layoutRootProp.GetValue(_currentPage) as ILayoutNode;
+                if (layoutRoot != null)
+                    return layoutRoot;
+            }
+        }
+
+        // Fall back to building the layout fresh
+        return _currentPage.BuildLayout();
     }
 }
 

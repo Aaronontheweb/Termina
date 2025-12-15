@@ -1,50 +1,44 @@
-using Spectre.Console;
-using Spectre.Console.Rendering;
-using Termina.Components;
+// Copyright (c) Petabridge, LLC. All rights reserved.
+// Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
+
+using System.Reactive.Linq;
+using Termina.Extensions;
+using Termina.Layout;
 using Termina.Reactive;
+using Termina.Rendering;
+using Termina.Terminal;
 
 namespace Termina.Demo.Pages;
 
 /// <summary>
 /// Page for the counter demo.
-/// Demonstrates subscribing to ViewModel properties.
+/// Demonstrates the new declarative layout API.
 /// </summary>
 public class CounterPage : ReactivePage<CounterViewModel>
 {
-    private readonly StatusBar _statusBar = new()
+    public override ILayoutNode BuildLayout()
     {
-        Hints = "[↑] Increment [↓] Decrement [R] Reset [T] Todos [Q] Quit"
-    };
-
-    private int _currentCount;
-
-    protected override void OnBound()
-    {
-        // Subscribe to count changes
-        ViewModel.CountChanged
-            .Subscribe(count => _currentCount = count)
-            .DisposeWith(Subscriptions);
-
-        // Subscribe to status message changes
-        ViewModel.StatusMessageChanged
-            .Subscribe(msg => _statusBar.Message = msg)
-            .DisposeWith(Subscriptions);
-    }
-
-    public override IRenderable Render()
-    {
-        var counterDisplay = new Panel(
-            new FigletText(_currentCount.ToString())
-                .Centered()
-                .Color(Color.Cyan1))
-            .Header("[bold]Counter Demo[/]")
-            .Expand()
-            .Border(BoxBorder.Double)
-            .BorderColor(Color.Blue);
-
-        return new Rows(
-            counterDisplay,
-            _statusBar.Render()
-        );
+        return Layouts.Vertical()
+            .WithChild(
+                new PanelNode()
+                    .WithTitle("Counter Demo")
+                    .WithBorder(BorderStyle.Double)
+                    .WithBorderColor(Color.Blue)
+                    .WithContent(
+                        ViewModel.CountChanged
+                            .Select(count => new TextNode($"\n  Count: {count}\n")
+                                .WithForeground(Color.Cyan)
+                                .Bold())
+                            .AsLayout())
+                    .Fill())
+            .WithChild(
+                new TextNode("[↑] Increment [↓] Decrement [R] Reset [T] Todos [Q] Quit")
+                    .WithForeground(Color.BrightBlack)
+                    .Height(1))
+            .WithChild(
+                ViewModel.StatusMessageChanged
+                    .Select(msg => new TextNode(msg).WithForeground(Color.White))
+                    .AsLayout()
+                    .Height(1));
     }
 }

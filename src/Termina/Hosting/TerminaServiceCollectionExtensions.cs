@@ -1,7 +1,10 @@
+// Copyright (c) Petabridge, LLC. All rights reserved.
+// Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Spectre.Console;
 using Termina.Input;
+using Termina.Terminal;
 
 namespace Termina.Hosting;
 
@@ -47,14 +50,14 @@ public static class TerminaServiceCollectionExtensions
         var builder = new TerminaBuilder(services);
         configure(builder);
 
-        // Register IAnsiConsole if not already registered
-        services.TryAddSingleton<IAnsiConsole>(AnsiConsole.Console);
+        // Register IAnsiTerminal if not already registered
+        services.TryAddSingleton<IAnsiTerminal, AnsiTerminal>();
 
         // Register TerminaApplication
         services.AddSingleton<TerminaApplication>(sp =>
         {
-            var console = sp.GetRequiredService<IAnsiConsole>();
-            var app = new TerminaApplication(console, sp);
+            var terminal = sp.GetRequiredService<IAnsiTerminal>();
+            var app = new TerminaApplication(terminal, sp);
 
             // Register all pages from the builder
             foreach (var descriptor in builder.PageDescriptors)

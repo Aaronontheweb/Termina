@@ -93,6 +93,11 @@ public readonly struct Color : IEquatable<Color>
     public static Color BrightCyan => FromIndex(14);
     public static Color BrightWhite => FromIndex(15);
 
+    // Extended grayscale (from 256-color palette)
+    public static Color Gray => FromIndex(244);       // Medium gray
+    public static Color DarkGray => FromIndex(240);   // Darker gray
+    public static Color LightGray => FromIndex(248);  // Lighter gray
+
     /// <summary>
     /// Get the ANSI escape sequence for this color as a foreground color.
     /// </summary>

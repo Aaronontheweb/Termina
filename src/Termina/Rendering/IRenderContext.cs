@@ -69,4 +69,12 @@ public interface IRenderContext
     /// Clear the entire region (fill with spaces).
     /// </summary>
     void Clear();
+
+    /// <summary>
+    /// Create a sub-context with an offset and clipped bounds.
+    /// The sub-context's (0,0) is at the specified offset in the parent context.
+    /// </summary>
+    /// <param name="bounds">The bounds for the sub-context relative to this context.</param>
+    /// <returns>A new render context clipped to the specified bounds.</returns>
+    IRenderContext CreateSubContext(Layout.Rect bounds);
 }

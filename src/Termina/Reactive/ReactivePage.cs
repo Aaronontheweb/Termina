@@ -1,5 +1,8 @@
+// Copyright (c) Petabridge, LLC. All rights reserved.
+// Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
+
 using System.Reactive.Disposables;
-using Spectre.Console.Rendering;
+using Termina.Layout;
 using Termina.Pages;
 
 namespace Termina.Reactive;
@@ -14,9 +17,8 @@ namespace Termina.Reactive;
 /// ReactivePage is the "View" in MVVM pattern. It:
 /// </para>
 /// <list type="bullet">
-///   <item>Subscribes to ViewModel property changes in <see cref="OnBound"/></item>
-///   <item>Updates component state when properties change</item>
-///   <item>Renders components via Spectre.Console</item>
+///   <item>Builds a declarative layout tree in <see cref="BuildLayout"/></item>
+///   <item>Uses observable bindings to automatically update when ViewModel changes</item>
 ///   <item>Manages subscription lifecycle automatically</item>
 /// </list>
 /// </remarks>
@@ -24,14 +26,12 @@ namespace Termina.Reactive;
 /// <code>
 /// public class CounterPage : ReactivePage&lt;CounterViewModel&gt;
 /// {
-///     protected override void OnBound()
+///     public override ILayoutNode BuildLayout()
 ///     {
-///         ViewModel.CountChanged
-///             .Subscribe(count => _display.Text = $"Count: {count}")
-///             .DisposeWith(Subscriptions);
+///         return Layout.Vertical()
+///             .WithChild(ViewModel.CountChanged.Select(c => $"Count: {c}").AsLayout())
+///             .WithChild(new TextNode("[+] Increment  [-] Decrement  [Q] Quit"));
 ///     }
-///
-///     public override IRenderable Render() => _display.Render();
 /// }
 /// </code>
 /// </example>
@@ -39,6 +39,7 @@ public abstract class ReactivePage<TViewModel> : IBindablePage
     where TViewModel : ReactiveViewModel
 {
     private readonly CompositeDisposable _subscriptions = new();
+    private ILayoutNode? _layoutRoot;
 
     /// <summary>
     /// The ViewModel this page is bound to.
@@ -53,15 +54,19 @@ public abstract class ReactivePage<TViewModel> : IBindablePage
     protected CompositeDisposable Subscriptions => _subscriptions;
 
     /// <summary>
-    /// Called when the ViewModel is bound to this page.
-    /// Set up subscriptions to ViewModel properties here.
+    /// Build the layout tree for this page.
+    /// Override this to compose your page's UI declaratively.
     /// </summary>
-    protected abstract void OnBound();
+    public abstract ILayoutNode BuildLayout();
 
     /// <summary>
-    /// Render the page as a Spectre.Console renderable.
+    /// Called when the ViewModel is bound to this page.
+    /// Override to perform additional setup after binding.
     /// </summary>
-    public abstract IRenderable Render();
+    protected virtual void OnBound()
+    {
+        // Override in derived classes if needed
+    }
 
     /// <summary>
     /// Binds the ViewModel to this page (interface implementation for AOT compatibility).
@@ -87,7 +92,9 @@ public abstract class ReactivePage<TViewModel> : IBindablePage
     /// </summary>
     public virtual void OnNavigatedTo()
     {
-        // Override in derived classes if needed
+        // Build the layout tree when the page becomes active
+        _layoutRoot?.Dispose();
+        _layoutRoot = BuildLayout();
     }
 
     /// <summary>
@@ -97,5 +104,12 @@ public abstract class ReactivePage<TViewModel> : IBindablePage
     public virtual void OnNavigatingFrom()
     {
         _subscriptions.Clear();
+        _layoutRoot?.Dispose();
+        _layoutRoot = null;
     }
+
+    /// <summary>
+    /// Gets the current layout root for rendering.
+    /// </summary>
+    internal ILayoutNode? LayoutRoot => _layoutRoot;
 }

@@ -1,12 +1,15 @@
+// Copyright (c) Petabridge, LLC. All rights reserved.
+// Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
+
 using System.Reactive;
 using System.Reactive.Subjects;
-using Spectre.Console.Rendering;
+using Termina.Layout;
 
 namespace Termina;
 
 /// <summary>
 /// Base class for all UI components in Termina.
-/// Components are simple, reusable building blocks that render Spectre.Console widgets.
+/// Components are simple, reusable building blocks that render to the layout tree.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -21,9 +24,6 @@ namespace Termina;
 /// Components that receive asynchronous updates (e.g., streaming data) should call
 /// <see cref="MarkDirty"/> to signal that a redraw is needed. ViewModels subscribe
 /// to <see cref="ContentChanged"/> and forward to the application's RequestRedraw.
-/// </para>
-/// <para>
-/// For complex components that need reactive state, extend ReactiveComponent instead.
 /// </para>
 /// </remarks>
 public abstract class Component
@@ -51,8 +51,8 @@ public abstract class Component
     }
 
     /// <summary>
-    /// Render this component as a Spectre.Console renderable.
+    /// Render this component as a layout node.
     /// Called after state changes to update the display.
     /// </summary>
-    public abstract IRenderable Render();
+    public abstract ILayoutNode Render();
 }

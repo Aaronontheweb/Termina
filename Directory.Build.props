@@ -3,8 +3,8 @@
     <Copyright>Copyright © 2025-$([System.DateTime]::Now.Year) Aaron Stannard</Copyright>
     <Authors>Aaron Stannard</Authors>
     <Product>Termina</Product>
-    <Description>Reactive terminal UI (TUI) framework for .NET built on Spectre.Console with MVVM architecture, source-generated reactive properties, and ASP.NET Core-style routing.</Description>
-    <Tags>tui;terminal;console;spectre;reactive;mvvm;cli</Tags>
+    <Description>Reactive terminal UI (TUI) framework for .NET with custom ANSI rendering, MVVM architecture, source-generated reactive properties, and ASP.NET Core-style routing.</Description>
+    <Tags>tui;terminal;console;ansi;reactive;mvvm;cli</Tags>
     <NoWarn>$(NoWarn);CS1591;CS0169;CS0414</NoWarn>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
@@ -17,7 +17,7 @@
 - ASP.NET Core-style routing with parameterized routes and type constraints
 - Two-tier event architecture (pages and navigation)
 - Virtualizable input support for large datasets
-- Built on Spectre.Console for rich terminal rendering
+- Custom ANSI terminal rendering with surgical region-based updates
 - Full AOT/trimming compatibility</PackageReleaseNotes>
   </PropertyGroup>
   <PropertyGroup>
@@ -37,7 +37,7 @@
   </ItemGroup>
   <!-- NuGet .nupkg options -->
   <PropertyGroup>
-    <PackageTags>tui;terminal;console;spectre;reactive;mvvm;cli;dotnet</PackageTags>
+    <PackageTags>tui;terminal;console;ansi;reactive;mvvm;cli;dotnet</PackageTags>
     <PackageProjectUrl>https://github.com/Aaronontheweb/Termina</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Aaronontheweb/Termina</RepositoryUrl>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
