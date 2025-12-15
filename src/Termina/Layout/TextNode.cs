@@ -116,11 +116,14 @@ public sealed class TextNode : LayoutNode
         if (!bounds.HasArea)
             return;
 
+        // Create a sub-context for this node's bounds so all coordinates are relative
+        var textContext = context.CreateSubContext(bounds);
+
         // Apply colors
         if (Foreground.HasValue)
-            context.SetForeground(Foreground.Value);
+            textContext.SetForeground(Foreground.Value);
         if (Background.HasValue)
-            context.SetBackground(Background.Value);
+            textContext.SetBackground(Background.Value);
 
         // Render each line
         for (var i = 0; i < _lines.Length && i < bounds.Height; i++)
@@ -130,12 +133,12 @@ public sealed class TextNode : LayoutNode
                 ? line[..bounds.Width]
                 : line;
 
-            context.WriteAt(0, i, displayLine);
+            textContext.WriteAt(0, i, displayLine);
         }
 
         // Reset colors
         if (Foreground.HasValue || Background.HasValue)
-            context.ResetColors();
+            textContext.ResetColors();
     }
 }
 

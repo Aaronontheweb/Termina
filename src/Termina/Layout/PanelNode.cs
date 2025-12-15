@@ -133,17 +133,20 @@ public sealed class PanelNode : LayoutNode
         if (!bounds.HasArea)
             return;
 
+        // Create a sub-context for this panel's bounds so all coordinates are relative to the panel
+        var panelContext = context.CreateSubContext(bounds);
+
         var hasBorder = Border != BorderStyle.None;
         var borderChars = GetBorderChars(Border);
 
         // Set border color
         if (BorderColor.HasValue)
-            context.SetForeground(BorderColor.Value);
+            panelContext.SetForeground(BorderColor.Value);
 
         if (hasBorder && bounds.Height >= 2 && bounds.Width >= 2)
         {
             // Top border with title
-            context.WriteAt(0, 0, borderChars.TopLeft.ToString());
+            panelContext.WriteAt(0, 0, borderChars.TopLeft.ToString());
 
             var titleStart = 2;
             var titleEnd = titleStart;
@@ -154,16 +157,16 @@ public sealed class PanelNode : LayoutNode
                 var displayTitle = Title.Length > maxTitleLen ? Title[..maxTitleLen] : Title;
 
                 // Write border before title
-                context.WriteAt(1, 0, new string(borderChars.Horizontal, 1));
+                panelContext.WriteAt(1, 0, new string(borderChars.Horizontal, 1));
 
                 // Write title
                 if (TitleColor.HasValue)
-                    context.SetForeground(TitleColor.Value);
-                context.WriteAt(2, 0, displayTitle);
+                    panelContext.SetForeground(TitleColor.Value);
+                panelContext.WriteAt(2, 0, displayTitle);
                 if (BorderColor.HasValue)
-                    context.SetForeground(BorderColor.Value);
+                    panelContext.SetForeground(BorderColor.Value);
                 else if (TitleColor.HasValue)
-                    context.ResetColors();
+                    panelContext.ResetColors();
 
                 titleEnd = 2 + displayTitle.Length;
             }
@@ -171,38 +174,38 @@ public sealed class PanelNode : LayoutNode
             // Rest of top border
             var remainingTop = bounds.Width - titleEnd - 1;
             if (remainingTop > 0)
-                context.WriteAt(titleEnd, 0, new string(borderChars.Horizontal, remainingTop));
-            context.WriteAt(bounds.Width - 1, 0, borderChars.TopRight.ToString());
+                panelContext.WriteAt(titleEnd, 0, new string(borderChars.Horizontal, remainingTop));
+            panelContext.WriteAt(bounds.Width - 1, 0, borderChars.TopRight.ToString());
 
             // Side borders
             for (var y = 1; y < bounds.Height - 1; y++)
             {
-                context.WriteAt(0, y, borderChars.Vertical.ToString());
-                context.WriteAt(bounds.Width - 1, y, borderChars.Vertical.ToString());
+                panelContext.WriteAt(0, y, borderChars.Vertical.ToString());
+                panelContext.WriteAt(bounds.Width - 1, y, borderChars.Vertical.ToString());
             }
 
             // Bottom border
-            context.WriteAt(0, bounds.Height - 1, borderChars.BottomLeft.ToString());
-            context.WriteAt(1, bounds.Height - 1, new string(borderChars.Horizontal, bounds.Width - 2));
-            context.WriteAt(bounds.Width - 1, bounds.Height - 1, borderChars.BottomRight.ToString());
+            panelContext.WriteAt(0, bounds.Height - 1, borderChars.BottomLeft.ToString());
+            panelContext.WriteAt(1, bounds.Height - 1, new string(borderChars.Horizontal, bounds.Width - 2));
+            panelContext.WriteAt(bounds.Width - 1, bounds.Height - 1, borderChars.BottomRight.ToString());
         }
 
         // Reset colors before content
         if (BorderColor.HasValue)
-            context.ResetColors();
+            panelContext.ResetColors();
 
         // Render content inside border
         var borderOffset = hasBorder ? 1 : 0;
-        var contentBounds = bounds.Inset(
+        var contentBounds = new Rect(
             borderOffset + Padding,
             borderOffset + Padding,
-            borderOffset + Padding,
-            borderOffset + Padding);
+            bounds.Width - 2 * (borderOffset + Padding),
+            bounds.Height - 2 * (borderOffset + Padding));
 
         if (contentBounds.HasArea)
         {
             // Create a sub-context for the content area
-            var contentContext = context.CreateSubContext(contentBounds);
+            var contentContext = panelContext.CreateSubContext(contentBounds);
             var innerBounds = new Rect(0, 0, contentBounds.Width, contentBounds.Height);
             _content.Render(contentContext, innerBounds);
         }

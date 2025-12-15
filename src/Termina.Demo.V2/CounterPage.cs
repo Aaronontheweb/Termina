@@ -6,94 +6,74 @@ using Termina.Extensions;
 using Termina.Layout;
 using Termina.Reactive;
 using Termina.Rendering;
+using Termina.Terminal;
 
 namespace Termina.Demo.V2;
 
 /// <summary>
 /// Page for the counter demo.
-/// Demonstrates reactive page binding with v2 rendering infrastructure.
+/// Demonstrates the tree-based declarative layout API with reactive bindings.
 /// </summary>
-public class CounterPage : ReactivePageBase<CounterViewModel>
+public class CounterPage : ReactivePage<CounterViewModel>
 {
-    public override IEnumerable<Region> GetRegions()
+    public override ILayoutNode BuildLayout()
     {
-        // Header panel at the top
-        yield return Region.TopRow("header", 3);
-
-        // Counter display in the middle
-        yield return new Region("counter",
-            new LayoutConstraint.Fixed(0),
-            new LayoutConstraint.Fixed(3),
-            new LayoutConstraint.Remaining(),
-            new LayoutConstraint.Fixed(3));
-
-        // Input region
-        yield return new Region("input",
-            new LayoutConstraint.Fixed(0),
-            new LayoutConstraint.Fixed(6),
-            new LayoutConstraint.Remaining(),
-            new LayoutConstraint.Fixed(3));
-
-        // Messages area
-        yield return new Region("messages",
-            new LayoutConstraint.Fixed(0),
-            new LayoutConstraint.Fixed(9),
-            new LayoutConstraint.Remaining(),
-            new LayoutConstraint.Fixed(10));
-
-        // Status bar at the bottom
-        yield return Region.BottomRow("status", 1);
-    }
-
-    protected override void OnBound(RenderCoordinator coordinator)
-    {
-        // Header - static content
-        coordinator.RenderRegion("header", new Panel
-        {
-            Title = "Termina v2 Demo",
-            Border = BorderStyle.Double,
-            Content = new Text("Reactive Region-Based Rendering")
-        });
-
-        // Counter display - bound to CountChanged observable
-        ViewModel.CountChanged
-            .Select(count => new Panel
-            {
-                Title = "Counter",
-                Border = BorderStyle.Single,
-                Content = new Text($"Count: {count}")
-            })
-            .RenderTo(coordinator, "counter")
-            .DisposeWith(Subscriptions);
-
-        // Input field - bound to InputTextChanged observable
-        ViewModel.InputTextChanged
-            .Select(text => new Panel
-            {
-                Title = "Input",
-                Border = BorderStyle.Single,
-                Content = new Text($"> {text}_")
-            })
-            .RenderTo(coordinator, "input")
-            .DisposeWith(Subscriptions);
-
-        // Messages list - bound to MessagesChanged observable
-        ViewModel.MessagesChanged
-            .Select(messages => new Panel
-            {
-                Title = "Messages",
-                Border = BorderStyle.Single,
-                Content = new Text(messages.Count > 0
-                    ? string.Join("\n", messages)
-                    : "(no messages yet)")
-            })
-            .RenderTo(coordinator, "messages")
-            .DisposeWith(Subscriptions);
-
-        // Status bar - bound to StatusMessageChanged observable
-        ViewModel.StatusMessageChanged
-            .Select(status => new Text(status))
-            .RenderTo(coordinator, "status")
-            .DisposeWith(Subscriptions);
+        return Layouts.Vertical()
+            // Header panel
+            .WithChild(
+                new PanelNode()
+                    .WithTitle("Termina v2 Demo")
+                    .WithBorder(BorderStyle.Double)
+                    .WithBorderColor(Color.Blue)
+                    .WithTitleColor(Color.BrightCyan)
+                    .WithContent(
+                        new TextNode("Reactive Region-Based Rendering")
+                            .WithForeground(Color.Cyan))
+                    .Height(3))
+            // Counter display - reactive binding
+            .WithChild(
+                new PanelNode()
+                    .WithTitle("Counter")
+                    .WithBorder(BorderStyle.Single)
+                    .WithBorderColor(Color.Green)
+                    .WithContent(
+                        ViewModel.CountChanged
+                            .Select(count => new TextNode($"Count: {count}")
+                                .WithForeground(Color.BrightCyan))
+                            .AsLayout())
+                    .Height(3))
+            // Input panel - reactive binding
+            .WithChild(
+                new PanelNode()
+                    .WithTitle("Input")
+                    .WithBorder(BorderStyle.Single)
+                    .WithBorderColor(Color.Yellow)
+                    .WithContent(
+                        ViewModel.InputTextChanged
+                            .Select(text => new TextNode($"> {text}_")
+                                .WithForeground(Color.White))
+                            .AsLayout())
+                    .Height(3))
+            // Messages panel - reactive binding
+            .WithChild(
+                new PanelNode()
+                    .WithTitle("Messages")
+                    .WithBorder(BorderStyle.Single)
+                    .WithBorderColor(Color.Magenta)
+                    .WithContent(
+                        ViewModel.MessagesChanged
+                            .Select(messages => new TextNode(messages.Count > 0
+                                ? string.Join("\n", messages)
+                                : "(no messages yet)")
+                                .WithForeground(Color.Gray))
+                            .AsLayout())
+                    .Fill())
+            // Status bar at the bottom - reactive binding
+            .WithChild(
+                ViewModel.StatusMessageChanged
+                    .Select(status => new TextNode(status)
+                        .WithForeground(Color.BrightYellow))
+                    .AsLayout()
+                    .Height(1));
     }
 }

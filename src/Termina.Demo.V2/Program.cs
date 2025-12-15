@@ -1,35 +1,31 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
-using Termina.App;
+using Microsoft.Extensions.Hosting;
 using Termina.Demo.V2;
+using Termina.Hosting;
 using Termina.Input;
-using Termina.Terminal;
 
 // Check for --test flag (used in CI/CD to run scripted test and exit)
 var testMode = args.Contains("--test");
 
-// Create app - headless for testing, console for interactive
-ReactiveTerminaApp app;
-VirtualInputSource? scriptedInput = null;
+var builder = Host.CreateApplicationBuilder(args);
 
+// Set up input source based on mode
+VirtualInputSource? scriptedInput = null;
 if (testMode)
 {
-    var terminal = new VirtualTerminal(80, 24);
     scriptedInput = new VirtualInputSource();
-    app = ReactiveTerminaApp.CreateHeadless(terminal, scriptedInput);
+    builder.Services.AddTerminaVirtualInput(scriptedInput);
 }
-else
+
+// Register Termina with the tree-based reactive page
+builder.Services.AddTermina("/counter", termina =>
 {
-    app = ReactiveTerminaApp.CreateConsole();
-}
+    termina.RegisterRoute<CounterPage, CounterViewModel>("/counter");
+});
 
-// Create page and view model
-var viewModel = new CounterViewModel();
-var page = new CounterPage();
-
-// Set up the page with ViewModel
-app.SetPage(page, viewModel);
+var host = builder.Build();
 
 // Test mode - queue up scripted input then quit
 if (testMode && scriptedInput != null)
@@ -65,17 +61,4 @@ if (testMode && scriptedInput != null)
     });
 }
 
-// Run the app
-await app.RunAsync();
-
-// Print final state for test verification
-if (testMode)
-{
-    Console.WriteLine($"\n--- Test Results ---");
-    Console.WriteLine($"Counter: {viewModel.Count}");
-    Console.WriteLine($"Messages: {viewModel.Messages.Count}");
-    foreach (var msg in viewModel.Messages)
-        Console.WriteLine($"  {msg}");
-}
-
-await app.DisposeAsync();
+await host.RunAsync();
