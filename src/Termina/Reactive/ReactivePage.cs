@@ -111,5 +111,5 @@ public abstract class ReactivePage<TViewModel> : IBindablePage
     /// <summary>
     /// Gets the current layout root for rendering.
     /// </summary>
-    internal ILayoutNode? LayoutRoot => _layoutRoot;
+    ILayoutNode? IBindablePage.LayoutRoot => _layoutRoot;
 }

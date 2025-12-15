@@ -412,16 +412,9 @@ public sealed class TerminaApplication
         // If it's a ReactivePage, get the cached layout root
         if (_currentPage is IBindablePage bindable)
         {
-            // Access via reflection-free pattern
-            var pageType = _currentPage.GetType();
-            var layoutRootProp = pageType.GetProperty("LayoutRoot",
-                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-            if (layoutRootProp != null)
-            {
-                var layoutRoot = layoutRootProp.GetValue(_currentPage) as ILayoutNode;
-                if (layoutRoot != null)
-                    return layoutRoot;
-            }
+            var layoutRoot = bindable.LayoutRoot;
+            if (layoutRoot != null)
+                return layoutRoot;
         }
 
         // Fall back to building the layout fresh

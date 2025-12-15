@@ -41,4 +41,9 @@ internal interface IBindablePage : IPage
     /// </summary>
     /// <param name="viewModel">The ViewModel to bind.</param>
     void BindViewModel(ReactiveViewModel viewModel);
+
+    /// <summary>
+    /// Gets the current cached layout root, if any.
+    /// </summary>
+    ILayoutNode? LayoutRoot { get; }
 }
