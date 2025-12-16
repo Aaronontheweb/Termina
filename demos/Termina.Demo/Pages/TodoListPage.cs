@@ -43,24 +43,25 @@ public class TodoListPage : ReactivePage<TodoListViewModel>
 
         // Build the layer with modal overlays
         // The stack layout renders children in order, with later children on top
+        //
+        // We use Layouts.Deferred() because modals are created in OnActivated (which runs
+        // after BuildLayout) and we don't want the modal to be disposed when hidden.
         return Layouts.Stack()
             .WithChild(mainContent)
             .WithChild(
                 // Show add modal when IsAddingItem is true and ShowPriorityModal is false
                 ViewModel.IsAddingItemChanged
-                    .CombineLatest(ViewModel.ShowPriorityModalChanged, (adding, showPriority) => (adding, showPriority))
-                    .Select(state =>
-                        state.adding && !state.showPriority && ViewModel.AddModal != null
-                            ? (ILayoutNode)ViewModel.AddModal
-                            : Layouts.Empty())
+                    .CombineLatest(ViewModel.ShowPriorityModalChanged, (adding, showPriority) => adding && !showPriority)
+                    .Select(showModal => showModal
+                        ? Layouts.Deferred(() => ViewModel.AddModal)
+                        : (ILayoutNode)Layouts.Empty())
                     .AsLayout())
             .WithChild(
                 // Show priority selection modal when ShowPriorityModal is true
                 ViewModel.ShowPriorityModalChanged
-                    .Select(showPriority =>
-                        showPriority && ViewModel.PriorityModal != null
-                            ? (ILayoutNode)ViewModel.PriorityModal
-                            : Layouts.Empty())
+                    .Select(showPriority => showPriority
+                        ? Layouts.Deferred(() => ViewModel.PriorityModal)
+                        : (ILayoutNode)Layouts.Empty())
                     .AsLayout());
     }
 

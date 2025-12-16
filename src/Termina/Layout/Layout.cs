@@ -63,4 +63,15 @@ public static class Layouts
     /// <param name="items">The string items to display.</param>
     public static SelectionListNode<string> SelectionList(IEnumerable<string> items) =>
         new(items, s => s);
+
+    /// <summary>
+    /// Create a deferred node that delegates to a lazily-obtained node without owning it.
+    /// </summary>
+    /// <remarks>
+    /// Use this when you need to render a node owned elsewhere (like a ViewModel) that should
+    /// not be disposed when the layout changes. Useful for modals and overlays that need to
+    /// be shown/hidden without being recreated.
+    /// </remarks>
+    /// <param name="getNode">A function that returns the node to render, or null for no content.</param>
+    public static DeferredNode Deferred(Func<ILayoutNode?> getNode) => new(getNode);
 }

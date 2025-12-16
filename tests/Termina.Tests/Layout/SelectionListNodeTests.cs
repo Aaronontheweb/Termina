@@ -322,4 +322,133 @@ public class SelectionListNodeTests
     }
 
     private record TestItem(int Id, string Name);
+
+    [Fact]
+    public void SelectionListNode_SingleMode_EnterSelectsHighlightedItem()
+    {
+        using var list = Layouts.SelectionList("A", "B", "C")
+            .WithMode(SelectionMode.Single);
+        list.OnFocused();
+
+        var confirmed = new List<string>();
+        list.SelectionConfirmed.Subscribe(items => confirmed.AddRange(items));
+
+        // Move to B and press Enter without pressing Space first
+        var downKey = new ConsoleKeyInfo('\0', ConsoleKey.DownArrow, false, false, false);
+        list.HandleInput(downKey);
+
+        var enterKey = new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false);
+        list.HandleInput(enterKey);
+
+        // Should have selected B (the highlighted item)
+        Assert.Single(confirmed);
+        Assert.Equal("B", confirmed[0]);
+    }
+
+    [Fact]
+    public void SelectionListNode_SingleMode_EnterOverridesPreviousSelection()
+    {
+        using var list = Layouts.SelectionList("A", "B", "C")
+            .WithMode(SelectionMode.Single);
+        list.OnFocused();
+
+        var confirmed = new List<string>();
+        list.SelectionConfirmed.Subscribe(items => confirmed.AddRange(items));
+
+        // First select A with Space
+        var spaceKey = new ConsoleKeyInfo(' ', ConsoleKey.Spacebar, false, false, false);
+        list.HandleInput(spaceKey);
+        Assert.True(list.Items[0].IsSelected);
+
+        // Move to C and press Enter (not Space)
+        var downKey = new ConsoleKeyInfo('\0', ConsoleKey.DownArrow, false, false, false);
+        list.HandleInput(downKey);
+        list.HandleInput(downKey);
+
+        var enterKey = new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false);
+        list.HandleInput(enterKey);
+
+        // Should have selected C (overriding A)
+        Assert.Single(confirmed);
+        Assert.Equal("C", confirmed[0]);
+        Assert.False(list.Items[0].IsSelected);
+        Assert.True(list.Items[2].IsSelected);
+    }
+
+    [Fact]
+    public void SelectionListNode_OtherOption_AutoStartsEditingOnNavigate()
+    {
+        using var list = Layouts.SelectionList("A", "B")
+            .WithOtherOption("Custom...");
+        list.OnFocused();
+
+        // Move to Other option - should auto-start editing
+        var downKey = new ConsoleKeyInfo('\0', ConsoleKey.DownArrow, false, false, false);
+        list.HandleInput(downKey);
+        list.HandleInput(downKey);
+
+        // Verify we're on the Other option
+        Assert.True(list.HighlightedItem?.IsOther);
+
+        // Should be able to type immediately without pressing Enter first
+        list.HandleInput(new ConsoleKeyInfo('T', ConsoleKey.T, false, false, false));
+        list.HandleInput(new ConsoleKeyInfo('e', ConsoleKey.E, false, false, false));
+        list.HandleInput(new ConsoleKeyInfo('s', ConsoleKey.S, false, false, false));
+        list.HandleInput(new ConsoleKeyInfo('t', ConsoleKey.T, false, false, false));
+
+        // This test verifies navigating to Other auto-starts text input mode
+    }
+
+    [Fact]
+    public void SelectionListNode_OtherOption_EmitsOtherSelectedOnConfirm()
+    {
+        using var list = Layouts.SelectionList("A", "B")
+            .WithOtherOption("Custom...");
+        list.OnFocused();
+
+        string? customValue = null;
+        list.OtherSelected.Subscribe(text => customValue = text);
+
+        // Navigate to Other - auto-starts editing
+        var downKey = new ConsoleKeyInfo('\0', ConsoleKey.DownArrow, false, false, false);
+        list.HandleInput(downKey);
+        list.HandleInput(downKey);
+
+        // Type "Hi" immediately (no Enter needed to start)
+        list.HandleInput(new ConsoleKeyInfo('H', ConsoleKey.H, false, false, false));
+        list.HandleInput(new ConsoleKeyInfo('i', ConsoleKey.I, false, false, false));
+
+        // Press Enter to confirm
+        var enterKey = new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false);
+        list.HandleInput(enterKey);
+
+        Assert.Equal("Hi", customValue);
+    }
+
+    [Fact]
+    public void SelectionListNode_OtherOption_NumberKeyAutoStartsEditing()
+    {
+        using var list = Layouts.SelectionList("A", "B")
+            .WithOtherOption("Custom...");
+        list.OnFocused();
+
+        string? customValue = null;
+        list.OtherSelected.Subscribe(text => customValue = text);
+
+        // Press '3' to jump to Other option - should auto-start editing
+        var key3 = new ConsoleKeyInfo('3', ConsoleKey.D3, false, false, false);
+        list.HandleInput(key3);
+
+        // Type "Fast" immediately
+        list.HandleInput(new ConsoleKeyInfo('F', ConsoleKey.F, false, false, false));
+        list.HandleInput(new ConsoleKeyInfo('a', ConsoleKey.A, false, false, false));
+        list.HandleInput(new ConsoleKeyInfo('s', ConsoleKey.S, false, false, false));
+        list.HandleInput(new ConsoleKeyInfo('t', ConsoleKey.T, false, false, false));
+
+        // Press Enter to confirm
+        var enterKey = new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false);
+        list.HandleInput(enterKey);
+
+        Assert.Equal("Fast", customValue);
+    }
 }

@@ -277,7 +277,14 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode
                 if (index < _items.Count)
                 {
                     _highlightedIndex = index;
-                    if (_mode == SelectionMode.Single)
+                    var selectedItem = _items[index];
+
+                    // If selecting "Other", start text input immediately
+                    if (selectedItem.IsOther)
+                    {
+                        StartOtherInput();
+                    }
+                    else if (_mode == SelectionMode.Single)
                     {
                         // In single mode, number key confirms immediately
                         SelectItem(index);
@@ -303,7 +310,17 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode
 
         _highlightedIndex = Math.Clamp(_highlightedIndex + delta, 0, _items.Count - 1);
         EnsureVisible();
-        Invalidate();
+
+        // Auto-start text input when navigating to "Other" option
+        var item = _items[_highlightedIndex];
+        if (item.IsOther && !_isEditingOther)
+        {
+            StartOtherInput();
+        }
+        else
+        {
+            Invalidate();
+        }
     }
 
     private void EnsureVisible()
@@ -380,9 +397,12 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode
                 return;
             }
 
-            // In single mode, select the highlighted item if nothing is selected
-            if (_mode == SelectionMode.Single && !_items.Any(i => i.IsSelected && !i.IsOther))
+            // In single mode, always select the highlighted item on Enter
+            if (_mode == SelectionMode.Single)
             {
+                // Clear other selections first
+                foreach (var i in _items)
+                    i.IsSelected = false;
                 item.IsSelected = true;
             }
         }
@@ -399,8 +419,6 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode
     public Size Measure(Size available)
     {
         var height = Math.Min(_items.Count, _visibleRows);
-        if (_isEditingOther)
-            height++; // Extra row for text input
 
         // Calculate width based on content
         var maxItemWidth = _items.Count > 0
@@ -458,9 +476,17 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode
                 break;
 
             var item = _items[itemIndex];
-            var isHighlighted = itemIndex == _highlightedIndex && _hasFocus && !_isEditingOther;
 
-            RenderItem(context, item, itemIndex, row, contentWidth, isHighlighted);
+            // If this is the "Other" item and we're editing, render the text input instead
+            if (item.IsOther && _isEditingOther && _otherInput != null)
+            {
+                RenderOtherInput(context, row, contentWidth, itemIndex);
+            }
+            else
+            {
+                var isHighlighted = itemIndex == _highlightedIndex && _hasFocus && !_isEditingOther;
+                RenderItem(context, item, itemIndex, row, contentWidth, isHighlighted);
+            }
         }
 
         // Render scrollbar if needed
@@ -468,17 +494,29 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode
         {
             RenderScrollbar(context, bounds.Width - 1, visibleCount);
         }
+    }
 
-        // Render "Other" text input below the list
-        if (_isEditingOther && _otherInput != null)
+    private void RenderOtherInput(IRenderContext context, int row, int width, int itemIndex)
+    {
+        if (_otherInput == null)
+            return;
+
+        // Render the number prefix (e.g., "4. ") in dimmed color
+        var prefix = _showNumbers && itemIndex < 9 ? $"{itemIndex + 1}. " : "";
+        if (prefix.Length > 0)
         {
-            var inputY = Math.Min(visibleCount, bounds.Height - 1);
-            if (inputY < bounds.Height)
-            {
-                var inputBounds = new Rect(0, inputY, bounds.Width, 1);
-                _otherInput.Render(context, inputBounds);
-            }
+            context.SetForeground(Color.BrightBlack);
+            context.WriteAt(0, row, prefix);
+            context.ResetColors();
         }
+
+        // Render the text input after the prefix
+        var inputX = prefix.Length;
+        var inputWidth = Math.Max(1, width - inputX);
+        var inputBounds = new Rect(inputX, row, inputWidth, 1);
+        var inputContext = context.CreateSubContext(inputBounds);
+        var innerBounds = new Rect(0, 0, inputWidth, 1);
+        _otherInput.Render(inputContext, innerBounds);
     }
 
     private void RenderItem(IRenderContext context, SelectionItem<T> item, int index, int row,
