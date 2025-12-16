@@ -1,6 +1,7 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
+using Termina.Components.Streaming;
 using Termina.Rendering;
 using Termina.Terminal;
 
@@ -42,6 +43,12 @@ public sealed class TextNode : LayoutNode
     /// Whether text is underlined.
     /// </summary>
     public bool IsUnderline { get; private set; }
+
+    /// <summary>
+    /// Whether text should wrap to multiple lines when it exceeds the available width.
+    /// Default is true.
+    /// </summary>
+    public bool WordWrap { get; private set; } = true;
 
     public TextNode(string content)
     {
@@ -98,13 +105,33 @@ public sealed class TextNode : LayoutNode
         return this;
     }
 
+    /// <summary>
+    /// Disable word wrapping (text will be truncated instead of wrapped).
+    /// </summary>
+    public TextNode NoWrap()
+    {
+        WordWrap = false;
+        return this;
+    }
+
     /// <inheritdoc />
     public override Size Measure(Size available)
     {
         var maxLineWidth = _lines.Max(l => l.Length);
-        var height = _lines.Length;
-
         var width = WidthConstraint.Compute(available.Width, maxLineWidth, available.Width);
+
+        // Calculate height based on whether word wrap is enabled
+        int height;
+        if (WordWrap && width > 0)
+        {
+            // Calculate total wrapped line count
+            height = WordWrapper.CalculateTotalWrappedLineCount(_lines, width);
+        }
+        else
+        {
+            height = _lines.Length;
+        }
+
         var measuredHeight = HeightConstraint.Compute(available.Height, height, available.Height);
 
         return new Size(width, measuredHeight);
@@ -125,10 +152,16 @@ public sealed class TextNode : LayoutNode
         if (Background.HasValue)
             textContext.SetBackground(Background.Value);
 
+        // Get lines to render (wrapped or original)
+        var linesToRender = WordWrap && bounds.Width > 0
+            ? WordWrapper.WrapLines(_lines, bounds.Width)
+            : _lines.ToList();
+
         // Render each line
-        for (var i = 0; i < _lines.Length && i < bounds.Height; i++)
+        for (var i = 0; i < linesToRender.Count && i < bounds.Height; i++)
         {
-            var line = _lines[i];
+            var line = linesToRender[i];
+            // Truncate if still too long (shouldn't happen with wrapping, but safety check)
             var displayLine = line.Length > bounds.Width
                 ? line[..bounds.Width]
                 : line;
