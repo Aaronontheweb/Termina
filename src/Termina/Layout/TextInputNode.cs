@@ -19,7 +19,7 @@ namespace Termina.Layout;
 /// which can decide whether to enable history, how many entries to keep, and whether to
 /// persist it across sessions.
 /// </remarks>
-public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
+public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode, IFocusable
 {
     private readonly Timer _cursorTimer;
     private readonly Subject<Unit> _invalidated = new();
@@ -30,6 +30,7 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     private int _selectionStart = -1;
     private int _scrollOffset;
     private bool _cursorVisible = true;
+    private bool _hasFocus;
     private bool _disposed;
 
     /// <inheritdoc />
@@ -47,6 +48,34 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
 
     /// <inheritdoc />
     public bool IsAnimating { get; private set; }
+
+    /// <inheritdoc />
+    public bool CanFocus => true;
+
+    /// <inheritdoc />
+    public bool HasFocus => _hasFocus;
+
+    /// <summary>
+    /// Text input has low-medium priority (lower than modal and selection list).
+    /// </summary>
+    public int FocusPriority => 5;
+
+    /// <inheritdoc />
+    public void OnFocused()
+    {
+        _hasFocus = true;
+        _cursorVisible = true;
+        Start(); // Ensure cursor is blinking
+        _invalidated.OnNext(Unit.Default);
+    }
+
+    /// <inheritdoc />
+    public void OnBlurred()
+    {
+        _hasFocus = false;
+        Stop(); // Stop cursor blinking when not focused
+        _invalidated.OnNext(Unit.Default);
+    }
 
     /// <summary>
     /// Gets or sets the current text value.

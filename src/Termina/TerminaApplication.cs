@@ -46,6 +46,7 @@ public sealed class TerminaApplication
     private readonly Dictionary<string, (IPage Page, ReactiveViewModel ViewModel)> _cachedPages = new();
     private readonly Stack<(string Path, IReadOnlyDictionary<string, object>? Parameters)> _history = new();
     private readonly List<IInputSource> _inputSources = new();
+    private readonly FocusManager _focusManager = new();
 
     private string? _currentPath;
     private IReadOnlyDictionary<string, object>? _currentParameters;
@@ -80,6 +81,11 @@ public sealed class TerminaApplication
     /// Observable stream of input events. ViewModels subscribe to this.
     /// </summary>
     public IObservable<IInputEvent> Input => _inputSubject.AsObservable();
+
+    /// <summary>
+    /// Gets the focus manager for routing input to focused components.
+    /// </summary>
+    public IFocusManager Focus => _focusManager;
 
     /// <summary>
     /// Gets the current navigation path, if any.
@@ -213,8 +219,8 @@ public sealed class TerminaApplication
                 receiver.SetRouteParameters(parameters);
             }
 
-            // Wire up ViewModel with navigation, shutdown, and redraw actions
-            _currentViewModel.WireUp(NavigateTo, (t, v) => NavigateTo(t, v), Shutdown, RequestRedraw, Input);
+            // Wire up ViewModel with navigation, shutdown, redraw, and focus manager
+            _currentViewModel.WireUp(NavigateTo, (t, v) => NavigateTo(t, v), Shutdown, RequestRedraw, Input, _focusManager);
 
             // Bind page to ViewModel
             BindPageToViewModel(_currentPage, _currentViewModel);
@@ -370,9 +376,17 @@ public sealed class TerminaApplication
                 return;
         }
 
-        // Route input events to the observable - ViewModels subscribe to this
+        // Route input events through the focus manager first, then to ViewModel
         if (evt is IInputEvent inputEvent)
         {
+            // For key presses, give focused components first chance to handle
+            if (inputEvent is KeyPressed keyPressed)
+            {
+                if (_focusManager.RouteInput(keyPressed.KeyInfo))
+                    return; // Input was consumed by focused component
+            }
+
+            // If not consumed, route to ViewModel via observable
             _inputSubject.OnNext(inputEvent);
         }
     }

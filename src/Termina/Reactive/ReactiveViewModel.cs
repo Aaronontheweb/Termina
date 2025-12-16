@@ -107,6 +107,12 @@ public abstract class ReactiveViewModel : IDisposable
     protected IObservable<IInputEvent> Input { get; private set; } = null!;
 
     /// <summary>
+    /// The focus manager for managing keyboard focus between interactive components.
+    /// Use this to push/pop focus for modals or set focus to specific controls.
+    /// </summary>
+    protected IFocusManager Focus { get; private set; } = null!;
+
+    /// <summary>
     /// Called when the page becomes active (navigated to).
     /// Override to perform initialization that should happen each time the page is shown.
     /// </summary>
@@ -142,7 +148,7 @@ public abstract class ReactiveViewModel : IDisposable
     }
 
     /// <summary>
-    /// Wires up the navigation, shutdown actions, and input observable.
+    /// Wires up the navigation, shutdown actions, input observable, and focus manager.
     /// Called by the framework when binding to a page.
     /// </summary>
     internal void WireUp(
@@ -150,12 +156,14 @@ public abstract class ReactiveViewModel : IDisposable
         Action<string, object?> navigateWithParams,
         Action shutdown,
         Action requestRedraw,
-        IObservable<IInputEvent> input)
+        IObservable<IInputEvent> input,
+        IFocusManager focusManager)
     {
         Navigate = navigate;
         NavigateWithParams = navigateWithParams;
         Shutdown = shutdown;
         RequestRedraw = requestRedraw;
         Input = input;
+        Focus = focusManager;
     }
 }

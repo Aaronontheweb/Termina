@@ -16,6 +16,7 @@ Termina provides a set of built-in layout nodes (components) for building termin
 | Component | Description |
 |-----------|-------------|
 | [TextInputNode](/components/text-input-node) | Single-line text input with cursor |
+| [SelectionListNode](/components/selection-list-node) | Interactive list selection with keyboard navigation |
 
 ## Container Components
 
@@ -23,6 +24,7 @@ Termina provides a set of built-in layout nodes (components) for building termin
 |-----------|-------------|
 | [ScrollableContainer](/components/scrollable-container) | Vertical scrolling container |
 | [StackLayout](/components/stack-layout) | Overlapping children (z-stack) |
+| [ModalNode](/components/modal-node) | Modal overlay with backdrop |
 
 ## Reactive Components
 
@@ -36,6 +38,7 @@ Termina provides a set of built-in layout nodes (components) for building termin
 | Component | Description |
 |-----------|-------------|
 | [EmptyNode](/components/empty-node) | Placeholder that renders nothing |
+| [DeferredNode](/components/deferred-node) | Delegates to node without owning it |
 
 ## Common Patterns
 
