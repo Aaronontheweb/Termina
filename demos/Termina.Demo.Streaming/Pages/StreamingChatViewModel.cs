@@ -1,21 +1,30 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
+using System.Reactive;
 using System.Reactive.Linq;
+using System.Reactive.Subjects;
 using Akka.Actor;
 using Akka.Hosting;
 using Termina.Demo.Streaming.Actors;
-using Termina.Input;
-using Termina.Layout;
 using Termina.Reactive;
 using Termina.Terminal;
 
 namespace Termina.Demo.Streaming.Pages;
 
 /// <summary>
+/// Represents a styled text segment for chat display.
+/// </summary>
+public readonly record struct ChatTextSegment(
+    string Text,
+    Color? Foreground = null,
+    TextDecoration Decoration = TextDecoration.None,
+    bool IsNewLine = false);
+
+/// <summary>
 /// ViewModel for the streaming chat demo.
-/// Uses the new StreamingTextNode and TextInputNode for rendering.
-/// Uses IAsyncEnumerable from Akka Streams for token consumption.
+/// Contains only state and business logic - no UI concerns.
+/// Exposes observables for chat content that the Page subscribes to.
 /// </summary>
 public partial class StreamingChatViewModel : ReactiveViewModel
 {
@@ -25,25 +34,31 @@ public partial class StreamingChatViewModel : ReactiveViewModel
     private IActorRef? _llmActor;
     private CancellationTokenSource? _generationCts;
 
-    /// <summary>
-    /// Chat history component - renders all content with scrolling.
-    /// </summary>
-    public StreamingTextNode ChatHistory { get; } = StreamingTextNode.Create()
-        .WithPrefix("  ", Color.Gray);
+    // Subjects for chat output - Page subscribes to these
+    private readonly Subject<ChatTextSegment> _chatOutput = new();
+    private readonly Subject<ChatTextSegment> _thinkingOutput = new();
+    private readonly Subject<Unit> _clearThinking = new();
+    private readonly Subject<string> _promptTextChanged = new();
 
     /// <summary>
-    /// Thinking indicator component (windowed, rolling).
+    /// Observable for chat history content.
     /// </summary>
-    public StreamingTextNode ThinkingIndicator { get; } = StreamingTextNode.CreateWindowed(windowSize: 3)
-        .WithPrefix("💭 ", Color.Yellow)
-        .WithForeground(Color.Gray);
+    public IObservable<ChatTextSegment> ChatOutput => _chatOutput.AsObservable();
 
     /// <summary>
-    /// Text input component - handles its own keyboard input.
+    /// Observable for thinking indicator content.
     /// </summary>
-    public TextInputNode PromptInput { get; } = new TextInputNode()
-        .WithPlaceholder("Enter your question...")
-        .WithForeground(Color.Cyan);
+    public IObservable<ChatTextSegment> ThinkingOutput => _thinkingOutput.AsObservable();
+
+    /// <summary>
+    /// Observable that fires when thinking indicator should be cleared.
+    /// </summary>
+    public IObservable<Unit> ClearThinking => _clearThinking.AsObservable();
+
+    /// <summary>
+    /// Observable for prompt text changes (for history navigation).
+    /// </summary>
+    public IObservable<string> PromptTextChanged => _promptTextChanged.AsObservable();
 
     // Reactive properties for UI state
     [Reactive] private bool _isGenerating = false;
@@ -52,109 +67,34 @@ public partial class StreamingChatViewModel : ReactiveViewModel
     public StreamingChatViewModel(IRequiredActor<LlmSimulatorActor> llmActorProvider)
     {
         _llmActorProvider = llmActorProvider;
+    }
 
-        // Add initial welcome message with styled text
-        ChatHistory.Append("🤖 ", foreground: Color.Yellow);
-        ChatHistory.Append("Assistant: ", foreground: Color.Green, decoration: TextDecoration.Bold);
-        ChatHistory.AppendLine("Hello! I'm a simulated LLM demo.", foreground: Color.White);
-        ChatHistory.AppendLine("   Ask me anything and watch the streaming response!", foreground: Color.BrightBlack);
-        ChatHistory.AppendLine("");
-
-        // Wire up submit observable from the text input component
-        PromptInput.Submitted
-            .Subscribe(HandleSubmit)
-            .DisposeWith(Subscriptions);
+    /// <summary>
+    /// Emits the initial welcome message.
+    /// </summary>
+    public void EmitWelcomeMessage()
+    {
+        _chatOutput.OnNext(new ChatTextSegment("🤖 ", Color.Yellow));
+        _chatOutput.OnNext(new ChatTextSegment("Assistant: ", Color.Green, TextDecoration.Bold));
+        _chatOutput.OnNext(new ChatTextSegment("Hello! I'm a simulated LLM demo.", Color.White, IsNewLine: true));
+        _chatOutput.OnNext(new ChatTextSegment("   Ask me anything and watch the streaming response!", Color.BrightBlack, IsNewLine: true));
+        _chatOutput.OnNext(new ChatTextSegment("", IsNewLine: true));
     }
 
     public override void OnActivated()
     {
-        // Subscribe to component content changes to trigger UI redraws
-        // This is the marshalling mechanism for async backend updates to the UI
-        ChatHistory.ContentChanged
-            .Subscribe(_ => RequestRedraw())
-            .DisposeWith(Subscriptions);
-
-        ThinkingIndicator.ContentChanged
-            .Subscribe(_ => RequestRedraw())
-            .DisposeWith(Subscriptions);
-
-        // Wait for the actor to be available, then subscribe to input
         _ = InitializeAsync();
     }
 
     private async Task InitializeAsync()
     {
-        // Wait for the LLM actor to be registered by Akka.Hosting
         _llmActor = await _llmActorProvider.GetAsync();
-
-        // Subscribe to keyboard input
-        Input.OfType<KeyPressed>()
-            .Subscribe(HandleKeyPress)
-            .DisposeWith(Subscriptions);
     }
 
-    private void HandleKeyPress(KeyPressed key)
-    {
-        var keyInfo = key.KeyInfo;
-
-        // Ctrl+Q always quits
-        if (keyInfo.Key == ConsoleKey.Q && keyInfo.Modifiers.HasFlag(ConsoleModifiers.Control))
-        {
-            Shutdown();
-            return;
-        }
-
-        // Escape handling
-        if (keyInfo.Key == ConsoleKey.Escape)
-        {
-            if (IsGenerating)
-            {
-                CancelGeneration();
-            }
-            else
-            {
-                // When not generating, Escape clears input or quits if input is empty
-                if (string.IsNullOrEmpty(PromptInput.Text))
-                {
-                    Shutdown();
-                }
-                else
-                {
-                    PromptInput.Text = "";
-                    StatusMessage = "Input cleared. Press Esc again to quit.";
-                }
-            }
-            return;
-        }
-
-        // Page Up/Down always scroll chat history (works during generation too)
-        // Use reasonable defaults for viewport (scrolls ~10 lines per page)
-        if (ChatHistory.HandleInput(keyInfo, viewportHeight: 10, viewportWidth: 80))
-        {
-            return;
-        }
-
-        // When not generating, handle input
-        if (!IsGenerating)
-        {
-            // Handle history navigation (Up/Down arrows)
-            if (keyInfo.Key == ConsoleKey.UpArrow)
-            {
-                NavigateHistoryUp();
-                return;
-            }
-            if (keyInfo.Key == ConsoleKey.DownArrow)
-            {
-                NavigateHistoryDown();
-                return;
-            }
-
-            // Let the text input handle other keys
-            PromptInput.HandleInput(keyInfo);
-        }
-    }
-
-    private void NavigateHistoryUp()
+    /// <summary>
+    /// Navigate up through prompt history.
+    /// </summary>
+    public void NavigateHistoryUp()
     {
         if (_promptHistory.Count == 0)
             return;
@@ -168,10 +108,13 @@ public partial class StreamingChatViewModel : ReactiveViewModel
             _historyIndex--;
         }
 
-        PromptInput.Text = _promptHistory[_historyIndex];
+        _promptTextChanged.OnNext(_promptHistory[_historyIndex]);
     }
 
-    private void NavigateHistoryDown()
+    /// <summary>
+    /// Navigate down through prompt history.
+    /// </summary>
+    public void NavigateHistoryDown()
     {
         if (_historyIndex < 0)
             return;
@@ -179,16 +122,30 @@ public partial class StreamingChatViewModel : ReactiveViewModel
         if (_historyIndex < _promptHistory.Count - 1)
         {
             _historyIndex++;
-            PromptInput.Text = _promptHistory[_historyIndex];
+            _promptTextChanged.OnNext(_promptHistory[_historyIndex]);
         }
         else
         {
             _historyIndex = -1;
-            PromptInput.Text = "";
+            _promptTextChanged.OnNext("");
         }
     }
 
-    private void HandleSubmit(string prompt)
+    /// <summary>
+    /// Cancel the current generation.
+    /// </summary>
+    public void CancelGeneration()
+    {
+        _generationCts?.Cancel();
+        _chatOutput.OnNext(new ChatTextSegment(" [cancelled]", Color.Yellow, TextDecoration.Italic, IsNewLine: true));
+        CleanupGeneration();
+        StatusMessage = "Generation cancelled.";
+    }
+
+    /// <summary>
+    /// Handle prompt submission.
+    /// </summary>
+    public void HandleSubmit(string prompt)
     {
         prompt = prompt.Trim();
         if (string.IsNullOrEmpty(prompt))
@@ -198,22 +155,18 @@ public partial class StreamingChatViewModel : ReactiveViewModel
         _promptHistory.Add(prompt);
         _historyIndex = -1;
 
-        // Clear the input
-        PromptInput.Clear();
-
-        // Add user message to chat with styled text
-        ChatHistory.Append("👤 ", foreground: Color.Cyan);
-        ChatHistory.Append("You: ", foreground: Color.Cyan, decoration: TextDecoration.Bold);
-        ChatHistory.AppendLine(prompt, foreground: Color.White);
-        ChatHistory.AppendLine("");
-        ChatHistory.Append("🤖 ", foreground: Color.Yellow);
-        ChatHistory.Append("Assistant: ", foreground: Color.Green, decoration: TextDecoration.Bold);
+        // Add user message to chat
+        _chatOutput.OnNext(new ChatTextSegment("👤 ", Color.Cyan));
+        _chatOutput.OnNext(new ChatTextSegment("You: ", Color.Cyan, TextDecoration.Bold));
+        _chatOutput.OnNext(new ChatTextSegment(prompt, Color.White, IsNewLine: true));
+        _chatOutput.OnNext(new ChatTextSegment("", IsNewLine: true));
+        _chatOutput.OnNext(new ChatTextSegment("🤖 ", Color.Yellow));
+        _chatOutput.OnNext(new ChatTextSegment("Assistant: ", Color.Green, TextDecoration.Bold));
 
         // Start generation
         IsGenerating = true;
         StatusMessage = "Generating response...";
 
-        // Request stream from actor and consume it
         _ = ConsumeResponseStreamAsync(prompt);
     }
 
@@ -229,29 +182,23 @@ public partial class StreamingChatViewModel : ReactiveViewModel
         var completedNormally = false;
         try
         {
-            // Ask actor for the stream
             var response = await _llmActor.Ask<LlmMessages.GenerateResponse>(
                 new LlmMessages.GenerateRequest(prompt),
                 TimeSpan.FromSeconds(30));
 
             _generationCts = response.Cancellation;
 
-            // Consume the IAsyncEnumerable from the actor
             await foreach (var token in response.TokenStream.WithCancellation(_generationCts.Token))
             {
                 switch (token)
                 {
                     case LlmMessages.ThinkingToken thinking:
-                        ThinkingIndicator.AppendLine(thinking.Text, foreground: Color.BrightBlack, decoration: TextDecoration.Italic);
+                        _thinkingOutput.OnNext(new ChatTextSegment(thinking.Text, Color.BrightBlack, TextDecoration.Italic, IsNewLine: true));
                         break;
 
                     case LlmMessages.TextChunk chunk:
-                        // Clear thinking when text starts
-                        if (ThinkingIndicator.Buffer.HasContent)
-                        {
-                            ThinkingIndicator.Clear();
-                        }
-                        ChatHistory.Append(chunk.Text);
+                        _clearThinking.OnNext(Unit.Default);
+                        _chatOutput.OnNext(new ChatTextSegment(chunk.Text));
                         break;
 
                     case LlmMessages.GenerationComplete:
@@ -264,16 +211,18 @@ public partial class StreamingChatViewModel : ReactiveViewModel
         }
         catch (OperationCanceledException)
         {
-            // Normal cancellation - already handled in CancelGeneration
+            // Normal cancellation
         }
         catch (Exception ex)
         {
-            CleanupGenerationWithError(ex.Message);
+            _chatOutput.OnNext(new ChatTextSegment(" [error: ", Color.Red));
+            _chatOutput.OnNext(new ChatTextSegment(ex.Message, Color.Red, TextDecoration.Bold));
+            _chatOutput.OnNext(new ChatTextSegment("]", Color.Red, IsNewLine: true));
+            CleanupGeneration();
             StatusMessage = $"Error: {ex.Message}";
         }
         finally
         {
-            // Ensure IsGenerating is always reset, even if stream ends unexpectedly
             if (!completedNormally && IsGenerating)
             {
                 CleanupGeneration();
@@ -282,30 +231,22 @@ public partial class StreamingChatViewModel : ReactiveViewModel
         }
     }
 
-    private void CancelGeneration()
-    {
-        _generationCts?.Cancel();
-        ChatHistory.AppendLine(" [cancelled]", foreground: Color.Yellow, decoration: TextDecoration.Italic);
-        CleanupGeneration();
-        StatusMessage = "Generation cancelled.";
-    }
-
-    private void CleanupGenerationWithError(string errorMessage)
-    {
-        ChatHistory.Append(" [error: ", foreground: Color.Red);
-        ChatHistory.Append(errorMessage, foreground: Color.Red, decoration: TextDecoration.Bold);
-        ChatHistory.AppendLine("]", foreground: Color.Red);
-        CleanupGeneration();
-    }
-
     private void CleanupGeneration()
     {
-        ChatHistory.AppendLine("");
-
-        ThinkingIndicator.Clear();
+        _chatOutput.OnNext(new ChatTextSegment("", IsNewLine: true));
+        _clearThinking.OnNext(Unit.Default);
         IsGenerating = false;
-
         _generationCts?.Dispose();
         _generationCts = null;
+    }
+
+    public override void Dispose()
+    {
+        _chatOutput.Dispose();
+        _thinkingOutput.Dispose();
+        _clearThinking.Dispose();
+        _promptTextChanged.Dispose();
+        DisposeReactiveFields();
+        base.Dispose();
     }
 }

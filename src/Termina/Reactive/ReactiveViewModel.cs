@@ -102,15 +102,21 @@ public abstract class ReactiveViewModel : IDisposable
 
     /// <summary>
     /// Observable stream of input events from the application.
-    /// Subscribe to this to handle keyboard input in the ViewModel.
+    /// Subscribe to this in the ViewModel to handle keyboard input,
+    /// or access from the Page to route input to interactive layout nodes.
     /// </summary>
-    protected IObservable<IInputEvent> Input { get; private set; } = null!;
+    public IObservable<IInputEvent> Input { get; private set; } = null!;
 
     /// <summary>
-    /// The focus manager for managing keyboard focus between interactive components.
-    /// Use this to push/pop focus for modals or set focus to specific controls.
+    /// Request graceful application shutdown.
+    /// Called by Pages in response to user input (e.g., Ctrl+Q, Escape).
     /// </summary>
-    protected IFocusManager Focus { get; private set; } = null!;
+    /// <remarks>
+    /// Override this method to add custom shutdown behavior such as
+    /// confirmation dialogs, saving state, or cleanup operations.
+    /// The default implementation calls <see cref="Shutdown"/> directly.
+    /// </remarks>
+    public virtual void RequestShutdown() => Shutdown();
 
     /// <summary>
     /// Called when the page becomes active (navigated to).
@@ -148,7 +154,7 @@ public abstract class ReactiveViewModel : IDisposable
     }
 
     /// <summary>
-    /// Wires up the navigation, shutdown actions, input observable, and focus manager.
+    /// Wires up the navigation, shutdown actions, and input observable.
     /// Called by the framework when binding to a page.
     /// </summary>
     internal void WireUp(
@@ -156,14 +162,12 @@ public abstract class ReactiveViewModel : IDisposable
         Action<string, object?> navigateWithParams,
         Action shutdown,
         Action requestRedraw,
-        IObservable<IInputEvent> input,
-        IFocusManager focusManager)
+        IObservable<IInputEvent> input)
     {
         Navigate = navigate;
         NavigateWithParams = navigateWithParams;
         Shutdown = shutdown;
         RequestRedraw = requestRedraw;
         Input = input;
-        Focus = focusManager;
     }
 }

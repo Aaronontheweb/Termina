@@ -3,6 +3,7 @@
 
 using System.Reactive.Linq;
 using Termina.Extensions;
+using Termina.Input;
 using Termina.Layout;
 using Termina.Reactive;
 using Termina.Rendering;
@@ -12,10 +13,126 @@ namespace Termina.Demo.Streaming.Pages;
 
 /// <summary>
 /// Demo page showing streaming text components with LLM simulation.
-/// Uses the new declarative layout API.
+/// Handles all UI concerns including layout nodes, focus, and input routing.
 /// </summary>
 public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
 {
+    // Layout nodes owned by the Page
+    private StreamingTextNode _chatHistory = null!;
+    private StreamingTextNode _thinkingIndicator = null!;
+    private TextInputNode _promptInput = null!;
+
+    protected override void OnBound()
+    {
+        // Create layout nodes
+        _chatHistory = StreamingTextNode.Create()
+            .WithPrefix("  ", Color.Gray);
+
+        _thinkingIndicator = StreamingTextNode.CreateWindowed(windowSize: 3)
+            .WithPrefix("💭 ", Color.Yellow)
+            .WithForeground(Color.Gray);
+
+        _promptInput = new TextInputNode()
+            .WithPlaceholder("Enter your question...")
+            .WithForeground(Color.Cyan);
+
+        // Subscribe to ViewModel chat output and update nodes
+        ViewModel.ChatOutput
+            .Subscribe(segment =>
+            {
+                if (segment.IsNewLine)
+                    _chatHistory.AppendLine(segment.Text, segment.Foreground, null, segment.Decoration);
+                else
+                    _chatHistory.Append(segment.Text, segment.Foreground, null, segment.Decoration);
+            })
+            .DisposeWith(Subscriptions);
+
+        ViewModel.ThinkingOutput
+            .Subscribe(segment =>
+            {
+                if (segment.IsNewLine)
+                    _thinkingIndicator.AppendLine(segment.Text, segment.Foreground, null, segment.Decoration);
+                else
+                    _thinkingIndicator.Append(segment.Text, segment.Foreground, null, segment.Decoration);
+            })
+            .DisposeWith(Subscriptions);
+
+        ViewModel.ClearThinking
+            .Subscribe(_ => _thinkingIndicator.Clear())
+            .DisposeWith(Subscriptions);
+
+        ViewModel.PromptTextChanged
+            .Subscribe(text => _promptInput.Text = text)
+            .DisposeWith(Subscriptions);
+
+        // Subscribe to prompt input submission
+        _promptInput.Submitted
+            .Subscribe(text =>
+            {
+                ViewModel.HandleSubmit(text);
+                _promptInput.Clear();
+            })
+            .DisposeWith(Subscriptions);
+
+        // Handle keyboard input - Page routes to interactive layout nodes
+        ViewModel.Input.OfType<KeyPressed>()
+            .Subscribe(HandleKeyPress)
+            .DisposeWith(Subscriptions);
+
+        // Emit welcome message
+        ViewModel.EmitWelcomeMessage();
+    }
+
+    private void HandleKeyPress(KeyPressed key)
+    {
+        var keyInfo = key.KeyInfo;
+
+        // Ctrl+Q always quits
+        if (keyInfo.Key == ConsoleKey.Q && keyInfo.Modifiers.HasFlag(ConsoleModifiers.Control))
+        {
+            ViewModel.RequestShutdown();
+            return;
+        }
+
+        // Escape handling
+        if (keyInfo.Key == ConsoleKey.Escape)
+        {
+            if (ViewModel.IsGenerating)
+            {
+                ViewModel.CancelGeneration();
+            }
+            else
+            {
+                ViewModel.RequestShutdown();
+            }
+            return;
+        }
+
+        // Page Up/Down scroll chat history
+        if (_chatHistory.HandleInput(keyInfo, viewportHeight: 10, viewportWidth: 80))
+        {
+            return;
+        }
+
+        // When not generating, handle other input
+        if (!ViewModel.IsGenerating)
+        {
+            if (keyInfo.Key == ConsoleKey.UpArrow)
+            {
+                ViewModel.NavigateHistoryUp();
+                return;
+            }
+            if (keyInfo.Key == ConsoleKey.DownArrow)
+            {
+                ViewModel.NavigateHistoryDown();
+                return;
+            }
+
+            // Let the text input handle other keys
+            _promptInput.HandleInput(keyInfo);
+        }
+    }
+
     public override ILayoutNode BuildLayout()
     {
         return Layouts.Vertical()
@@ -33,26 +150,26 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
                     .WithTitleColor(Color.Yellow)
                     .WithBorder(BorderStyle.Rounded)
                     .WithBorderColor(Color.Gray)
-                    .WithContent(ViewModel.ChatHistory)
+                    .WithContent(_chatHistory)
                     .Fill())
             // Thinking indicator - conditionally shown
             .WithChild(
                 ViewModel.IsGeneratingChanged
-                    .Select(isGenerating => isGenerating && ViewModel.ThinkingIndicator.Buffer.HasContent
+                    .Select(isGenerating => isGenerating && _thinkingIndicator.Buffer.HasContent
                         ? BuildThinkingPanel()
                         : (ILayoutNode)new EmptyNode())
                     .AsLayout())
             .WithChild(new EmptyNode().Height(1))
-            // Input panel - NOT reactive to avoid disposing the shared TextInputNode
+            // Input panel
             .WithChild(
                 new PanelNode()
                     .WithTitle("Your Prompt")
                     .WithTitleColor(Color.Cyan)
                     .WithBorder(BorderStyle.Rounded)
                     .WithBorderColor(Color.Cyan)
-                    .WithContent(ViewModel.PromptInput)
+                    .WithContent(_promptInput)
                     .Height(3))
-            // Status bar with dynamic hints
+            // Status bar
             .WithChild(
                 ViewModel.IsGeneratingChanged
                     .Select(isGenerating => new TextNode(
@@ -80,8 +197,7 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
                     .WithTitleColor(Color.Yellow)
                     .WithBorder(BorderStyle.Rounded)
                     .WithBorderColor(Color.Yellow)
-                    .WithContent(ViewModel.ThinkingIndicator)
+                    .WithContent(_thinkingIndicator)
                     .Height(5));
     }
-
 }

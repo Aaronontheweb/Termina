@@ -2,7 +2,6 @@ using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using Termina.Input;
-using Termina.Layout;
 using Termina.Reactive;
 
 namespace Termina.Tests;
@@ -43,8 +42,7 @@ public class ReactiveViewModelTests
             navigateWithParams: (_, _) => { },
             shutdown: () => { },
             requestRedraw: () => { },
-            input: Observable.Empty<IInputEvent>(),
-            focusManager: new StubFocusManager());
+            input: Observable.Empty<IInputEvent>());
 
         vm.TestNavigate("test-page");
 
@@ -62,8 +60,7 @@ public class ReactiveViewModelTests
             navigateWithParams: (_, _) => { },
             shutdown: () => shutdownCalled = true,
             requestRedraw: () => { },
-            input: Observable.Empty<IInputEvent>(),
-            focusManager: new StubFocusManager());
+            input: Observable.Empty<IInputEvent>());
 
         vm.TestShutdown();
 
@@ -82,8 +79,7 @@ public class ReactiveViewModelTests
             navigateWithParams: (_, _) => { },
             shutdown: () => { },
             requestRedraw: () => { },
-            input: inputSubject,
-            focusManager: new StubFocusManager());
+            input: inputSubject);
 
         vm.TestInput.OfType<KeyPressed>()
             .Subscribe(k => receivedKeys.Add(k.KeyInfo.Key))
@@ -101,7 +97,7 @@ public class ReactiveViewModelTests
     public void ReactiveViewModel_OnActivatedCalled()
     {
         var vm = new TestViewModel();
-        vm.WireUp(_ => { }, (_, _) => { }, () => { }, () => { }, Observable.Empty<IInputEvent>(), new StubFocusManager());
+        vm.WireUp(_ => { }, (_, _) => { }, () => { }, () => { }, Observable.Empty<IInputEvent>());
 
         Assert.False(vm.WasActivated);
 
@@ -114,7 +110,7 @@ public class ReactiveViewModelTests
     public void ReactiveViewModel_OnDeactivatingCalled()
     {
         var vm = new TestViewModel();
-        vm.WireUp(_ => { }, (_, _) => { }, () => { }, () => { }, Observable.Empty<IInputEvent>(), new StubFocusManager());
+        vm.WireUp(_ => { }, (_, _) => { }, () => { }, () => { }, Observable.Empty<IInputEvent>());
 
         Assert.False(vm.WasDeactivating);
 
@@ -254,16 +250,3 @@ public partial class TestReactiveViewModelWithCustomDispose : ReactiveViewModel
     }
 }
 
-/// <summary>
-/// Stub implementation of IFocusManager for testing.
-/// </summary>
-internal class StubFocusManager : IFocusManager
-{
-    public IObservable<IFocusable?> FocusChanged => Observable.Empty<IFocusable?>();
-    public IFocusable? CurrentFocus => null;
-    public void PushFocus(IFocusable focusable) { }
-    public void PopFocus() { }
-    public void SetFocus(IFocusable focusable) { }
-    public void ClearFocus() { }
-    public bool RouteInput(ConsoleKeyInfo key) => false;
-}

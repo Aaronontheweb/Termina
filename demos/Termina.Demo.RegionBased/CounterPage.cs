@@ -12,7 +12,7 @@ namespace Termina.Demo.RegionBased;
 
 /// <summary>
 /// Page for the counter demo.
-/// Demonstrates the tree-based declarative layout API with reactive bindings.
+/// Demonstrates the declarative layout API with reactive bindings.
 /// </summary>
 public class CounterPage : ReactivePage<CounterViewModel>
 {
