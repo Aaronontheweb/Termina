@@ -31,14 +31,33 @@ public class TodoListPage : ReactivePage<TodoListViewModel>
                             .AsLayout())
                     .Fill())
             .WithChild(
-                new TextNode("[↑/↓] Navigate [Space] Toggle [A] Add [D] Delete [C] Counter [Q] Quit")
-                    .WithForeground(Color.BrightBlack)
+                // Show text input row when adding, otherwise show help text
+                ViewModel.IsAddingItemChanged
+                    .CombineLatest(ViewModel.NewItemTextChanged, (isAdding, text) => (isAdding, text))
+                    .Select(tuple => tuple.isAdding
+                        ? BuildTextInputRow(tuple.text)
+                        : new TextNode("[↑/↓] Navigate [Space] Toggle [A] Add [D] Delete [C] Counter [Q] Quit")
+                            .WithForeground(Color.BrightBlack))
+                    .AsLayout()
                     .Height(1))
             .WithChild(
                 ViewModel.StatusMessageChanged
                     .Select(msg => new TextNode(msg).WithForeground(Color.White))
                     .AsLayout()
                     .Height(1));
+    }
+
+    private static ILayoutNode BuildTextInputRow(string text)
+    {
+        return Layouts.Horizontal()
+            .WithChild(
+                new TextNode("New task: ")
+                    .WithForeground(Color.Yellow)
+                    .Width(11))
+            .WithChild(
+                new TextNode(text + "▌")
+                    .WithForeground(Color.White)
+                    .Fill());
     }
 
     private static ILayoutNode BuildTodoList(IReadOnlyList<TodoItem> items, int selectedIndex)

@@ -46,13 +46,23 @@ namespace Termina.Reactive;
 /// </example>
 public abstract class ReactiveViewModel : IDisposable
 {
-    private readonly CompositeDisposable _subscriptions = new();
+    private CompositeDisposable _subscriptions = new();
 
     /// <summary>
     /// Composite disposable for managing subscriptions.
     /// Use <see cref="RxExtensions.DisposeWith{T}"/> to add subscriptions.
-    /// All subscriptions are disposed when the ViewModel is disposed.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Subscriptions added in <see cref="OnActivated"/> are automatically disposed when
+    /// <see cref="OnDeactivating"/> is called. This prevents duplicate subscriptions when using
+    /// <see cref="Pages.NavigationBehavior.PreserveState"/>.
+    /// </para>
+    /// <para>
+    /// For subscriptions that should persist across activations (e.g., subscriptions created in
+    /// the constructor), store the disposable manually and dispose it in <see cref="Dispose"/>.
+    /// </para>
+    /// </remarks>
     protected CompositeDisposable Subscriptions => _subscriptions;
 
     /// <summary>
@@ -108,8 +118,17 @@ public abstract class ReactiveViewModel : IDisposable
     /// Called when the page is being deactivated (navigating away).
     /// Override to perform cleanup or state saving.
     /// </summary>
+    /// <remarks>
+    /// The base implementation disposes all <see cref="Subscriptions"/> to prevent
+    /// duplicate subscriptions when using <see cref="Pages.NavigationBehavior.PreserveState"/>.
+    /// If you override this method, always call the base implementation.
+    /// </remarks>
     public virtual void OnDeactivating()
     {
+        // Dispose subscriptions and create a new container for next activation
+        // This prevents duplicate subscriptions with PreserveState navigation
+        _subscriptions.Dispose();
+        _subscriptions = new CompositeDisposable();
     }
 
     /// <summary>
