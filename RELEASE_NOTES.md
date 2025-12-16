@@ -1,3 +1,67 @@
+#### 0.2.0 December 16th 2025 ####
+
+**Breaking Changes**:
+- **Pure reactive architecture** ([#50](https://github.com/Aaronontheweb/Termina/pull/50))
+  - All .NET events migrated to `IObservable<T>` for consistency with System.Reactive
+  - `IInvalidatingNode.Invalidated`: `event Action?` → `IObservable<Unit>`
+  - `TextInputNode`: `Submitted`, `TextChanged`, `Invalidated` now use observables
+  - Other components (`SpinnerNode`, `ConditionalNode`, `ReactiveLayoutNode`, `ScrollableContainerNode`, `StreamingTextNode`) migrated to observables
+  - Rendering layer events migrated: `OnSubmit` → `Submitted`, `OnDirty` → `Dirty`
+  - **Migration required**: Replace event subscriptions (`+=`) with observable subscriptions (`.Subscribe()`)
+  - Use `.DisposeWith()` for automatic subscription cleanup in ViewModels
+
+**New Features**:
+- **Focus management system** ([#51](https://github.com/Aaronontheweb/Termina/pull/51))
+  - Stack-based focus management for interactive components
+  - `IFocusable` interface for components that can receive keyboard focus
+  - `IFocusManager` with priority-based focus routing
+  - `TerminaApplication` now routes keyboard input through focus manager
+  - `ReactiveViewModel` exposes `Focus` property for managing focus state
+- **ModalNode component** ([#51](https://github.com/Aaronontheweb/Termina/pull/51))
+  - Overlay component for modal dialogs and selection prompts
+  - Configurable backdrop styles: Transparent, Dim, Solid
+  - Positioning options: Center, Top, Bottom
+  - Escape key dismissal support
+  - Integrates with focus management system
+  - Created via `Layouts.Modal()` factory method
+- **SelectionListNode component** ([#51](https://github.com/Aaronontheweb/Termina/pull/51))
+  - Keyboard-navigable selection lists with single/multi-select modes
+  - Number key shortcuts (1-9) for quick selection
+  - Home/End navigation and automatic scrolling
+  - Optional "Other" option for custom text input
+  - Typed items support with `SelectionListNode<T>`
+  - Created via `Layouts.SelectionList()` factory methods
+  - Exposes `SelectionConfirmed` and `SelectionCancelled` observables
+- **DeferredNode component** ([#51](https://github.com/Aaronontheweb/Termina/pull/51))
+  - Non-owning node delegation pattern for reactive layouts
+  - Prevents `ObjectDisposedException` when conditionally showing/hiding nodes
+  - Useful for modal dialogs that shouldn't be disposed when hidden
+  - Created via `Layouts.Deferred()` factory method
+- **Inline styled text support** ([#48](https://github.com/Aaronontheweb/Termina/pull/48))
+  - Structured API for colored and decorated text in `StreamingTextNode`
+  - `TextDecoration` flags: Bold, Dim, Italic, Underline, Strikethrough
+  - `TextStyle` record combining foreground, background, and decorations
+  - `StyledSegment` and `StyledLine` for composing styled text
+  - `StyledWordWrapper` preserves styles across word wrap boundaries
+  - New styled `Append`/`AppendLine` overloads on `StreamingTextNode`
+  - Avoids escaping issues with LLM output and user content
+
+**Bug Fixes**:
+- **Fix auto-disposal of reactive fields** ([#49](https://github.com/Aaronontheweb/Termina/pull/49))
+  - Source generator now creates `DisposeReactiveFields()` method for classes with `[Reactive]` fields
+  - Auto-generates `Dispose()` override for `ReactiveViewModel` subclasses
+  - Added TERMINA001 compiler error when custom `Dispose()` doesn't call `DisposeReactiveFields()`
+  - Prevents `BehaviorSubject` backing field leaks
+
+**Improvements**:
+- Updated documentation with new components (ModalNode, SelectionListNode, DeferredNode)
+- Added `WithChild()` method to `StackLayout` for fluent API consistency
+- `TextInputNode` now implements `IFocusable` for modal integration
+- Enhanced Todo demo showcasing modal dialogs and two-step input flows
+- 48 new unit tests covering focus management, modals, and selection lists
+
+---
+
 #### 0.1.0 December 15th 2025 ####
 
 First stable release of Termina - a reactive terminal UI (TUI) framework for .NET.
