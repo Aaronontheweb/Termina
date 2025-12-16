@@ -37,6 +37,29 @@ features:
     details: Custom terminal rendering with surgical region-based updates. No external dependencies for rendering.
 ---
 
+## Quick Install
+
+::: code-group
+
+```shell [.NET CLI]
+dotnet add package Termina
+```
+
+```xml [PackageReference]
+<PackageReference Include="Termina" Version="0.2.*" />
+```
+
+:::
+
+<div style="margin-top: 1rem;">
+  <a href="https://www.nuget.org/packages/Termina" target="_blank">
+    <img src="https://img.shields.io/nuget/v/Termina?style=flat-square&logo=nuget&label=NuGet" alt="NuGet" />
+  </a>
+  <a href="https://www.nuget.org/packages/Termina" target="_blank" style="margin-left: 0.5rem;">
+    <img src="https://img.shields.io/nuget/dt/Termina?style=flat-square&logo=nuget&label=Downloads" alt="Downloads" />
+  </a>
+</div>
+
 ## Quick Example
 
 ```csharp
