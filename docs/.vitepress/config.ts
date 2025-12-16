@@ -49,7 +49,7 @@ export default defineConfig({
         { text: 'SelectionListNode', link: '/components/selection-list-node' },
         { text: 'SpinnerNode', link: '/components/spinner-node' },
         { text: 'StreamingTextNode', link: '/components/streaming-text-node' },
-        { text: 'ScrollableContainer', link: '/components/scrollable-container' },
+        { text: 'ScrollableContainerNode', link: '/components/scrollable-container' },
         { text: 'StackLayout', link: '/components/stack-layout' },
         { text: 'ModalNode', link: '/components/modal-node' },
         { text: 'ReactiveLayoutNode', link: '/components/reactive-layout' },

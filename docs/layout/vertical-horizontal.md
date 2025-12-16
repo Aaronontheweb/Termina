@@ -227,3 +227,16 @@ Layouts.Vertical()
 | Status bar sections | Horizontal |
 | Stacked panels | Vertical |
 | Tab bar | Horizontal |
+
+## Need Z-Axis Layering?
+
+`VerticalLayout` and `HorizontalLayout` arrange children along a single axis. For **overlapping content** where children render on top of each other (like modals, tooltips, or floating panels), use [StackLayout](/components/stack-layout).
+
+```csharp
+// Children render in order - later children appear on top
+new StackLayout()
+    .WithChild(backgroundContent)
+    .WithChild(floatingPanel);
+```
+
+See [StackLayout](/components/stack-layout) for details on z-axis composition.
