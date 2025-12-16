@@ -157,7 +157,7 @@ public class StreamingTextNodeStyledTests
     {
         var node = StreamingTextNode.Create();
         var fired = false;
-        node.Invalidated += () => fired = true;
+        node.Invalidated.Subscribe(_ => fired = true);
 
         node.Append("Hello", foreground: Color.Red);
 

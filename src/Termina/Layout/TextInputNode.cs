@@ -1,6 +1,8 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
+using System.Reactive;
+using System.Reactive.Subjects;
 using System.Timers;
 using Termina.Rendering;
 using Termina.Terminal;
@@ -20,6 +22,9 @@ namespace Termina.Layout;
 public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
 {
     private readonly Timer _cursorTimer;
+    private readonly Subject<Unit> _invalidated = new();
+    private readonly Subject<string> _textChanged = new();
+    private readonly Subject<string> _submitted = new();
     private string _text = "";
     private int _cursorPosition;
     private int _selectionStart = -1;
@@ -28,17 +33,17 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     private bool _disposed;
 
     /// <inheritdoc />
-    public event Action? Invalidated;
+    public IObservable<Unit> Invalidated => _invalidated;
 
     /// <summary>
-    /// Event raised when the text value changes.
+    /// Observable that emits when the text value changes.
     /// </summary>
-    public event Action<string>? TextChanged;
+    public IObservable<string> TextChanged => _textChanged;
 
     /// <summary>
-    /// Event raised when Enter is pressed.
+    /// Observable that emits when Enter is pressed.
     /// </summary>
-    public event Action<string>? Submitted;
+    public IObservable<string> Submitted => _submitted;
 
     /// <inheritdoc />
     public bool IsAnimating { get; private set; }
@@ -56,8 +61,8 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
                 _text = value ?? "";
                 _cursorPosition = Math.Min(_cursorPosition, _text.Length);
                 _selectionStart = -1;
-                TextChanged?.Invoke(_text);
-                Invalidated?.Invoke();
+                _textChanged.OnNext(_text);
+                _invalidated.OnNext(Unit.Default);
             }
         }
     }
@@ -204,14 +209,14 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
             _cursorTimer.Stop();
             IsAnimating = false;
             _cursorVisible = false;
-            Invalidated?.Invoke();
+            _invalidated.OnNext(Unit.Default);
         }
     }
 
     private void OnCursorBlink(object? sender, ElapsedEventArgs e)
     {
         _cursorVisible = !_cursorVisible;
-        Invalidated?.Invoke();
+        _invalidated.OnNext(Unit.Default);
     }
 
     /// <summary>
@@ -246,7 +251,7 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
 
         if (handled)
         {
-            Invalidated?.Invoke();
+            _invalidated.OnNext(Unit.Default);
         }
 
         return handled;
@@ -289,7 +294,7 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
         // Insert character
         _text = _text.Insert(_cursorPosition, c.ToString());
         _cursorPosition++;
-        TextChanged?.Invoke(_text);
+        _textChanged.OnNext(_text);
         return true;
     }
 
@@ -298,7 +303,7 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
         if (HasSelection)
         {
             DeleteSelection();
-            TextChanged?.Invoke(_text);
+            _textChanged.OnNext(_text);
             return true;
         }
 
@@ -319,7 +324,7 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
             _cursorPosition--;
         }
 
-        TextChanged?.Invoke(_text);
+        _textChanged.OnNext(_text);
         return true;
     }
 
@@ -328,7 +333,7 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
         if (HasSelection)
         {
             DeleteSelection();
-            TextChanged?.Invoke(_text);
+            _textChanged.OnNext(_text);
             return true;
         }
 
@@ -347,7 +352,7 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
             _text = _text.Remove(_cursorPosition, 1);
         }
 
-        TextChanged?.Invoke(_text);
+        _textChanged.OnNext(_text);
         return true;
     }
 
@@ -425,8 +430,8 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
 
     private bool HandleEnter()
     {
-        // Just fire the event - ViewModel decides what to do (add to history, clear text, etc.)
-        Submitted?.Invoke(_text);
+        // Emit to observable - ViewModel decides what to do (add to history, clear text, etc.)
+        _submitted.OnNext(_text);
         return true;
     }
 
@@ -440,8 +445,8 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
         _cursorPosition = 0;
         _selectionStart = -1;
         _scrollOffset = 0;
-        TextChanged?.Invoke(_text);
-        Invalidated?.Invoke();
+        _textChanged.OnNext(_text);
+        _invalidated.OnNext(Unit.Default);
     }
 
     private bool HandleEscape()
@@ -456,7 +461,7 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
         {
             _text = "";
             _cursorPosition = 0;
-            TextChanged?.Invoke(_text);
+            _textChanged.OnNext(_text);
             return true;
         }
 
@@ -646,6 +651,14 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
         _disposed = true;
         _cursorTimer.Stop();
         _cursorTimer.Dispose();
+
+        _invalidated.OnCompleted();
+        _invalidated.Dispose();
+        _textChanged.OnCompleted();
+        _textChanged.Dispose();
+        _submitted.OnCompleted();
+        _submitted.Dispose();
+
         base.Dispose();
     }
 }

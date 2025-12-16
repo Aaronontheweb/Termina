@@ -9,7 +9,7 @@ var input = new TextInputNode()
     .WithPlaceholder("Enter text...");
 
 // Handle submission
-input.Submitted += text => Console.WriteLine($"Submitted: {text}");
+input.Submitted.Subscribe(text => Console.WriteLine($"Submitted: {text}"));
 ```
 
 ## Features
@@ -67,7 +67,7 @@ new TextInputNode()
 
 ## Handling Input
 
-TextInputNode exposes events and the `HandleInput` method for integration with your ViewModel:
+TextInputNode exposes observables and the `HandleInput` method for integration with your ViewModel:
 
 ```csharp
 public partial class MyViewModel : ReactiveViewModel
@@ -83,7 +83,9 @@ public partial class MyViewModel : ReactiveViewModel
             .DisposeWith(Subscriptions);
 
         // Handle submission
-        PromptInput.Submitted += OnSubmitted;
+        PromptInput.Submitted
+            .Subscribe(OnSubmitted)
+            .DisposeWith(Subscriptions);
     }
 
     private void OnSubmitted(string text)
@@ -94,13 +96,13 @@ public partial class MyViewModel : ReactiveViewModel
 }
 ```
 
-## Events
+## Observables
 
-| Event | Type | Description |
-|-------|------|-------------|
-| `TextChanged` | `Action<string>` | Fired when text changes |
-| `Submitted` | `Action<string>` | Fired when Enter is pressed |
-| `Invalidated` | `Action` | Fired when redraw is needed |
+| Observable | Type | Description |
+|------------|------|-------------|
+| `TextChanged` | `IObservable<string>` | Emits when text changes |
+| `Submitted` | `IObservable<string>` | Emits when Enter is pressed |
+| `Invalidated` | `IObservable<Unit>` | Emits when redraw is needed |
 
 ## API Reference
 

@@ -59,8 +59,10 @@ public TextInputNode PromptInput { get; } = new TextInputNode()
     .WithPlaceholder("Enter your question...")
     .WithForeground(Color.Cyan);
 
-// Wire up submit event
-PromptInput.Submitted += HandleSubmit;
+// Wire up submit observable
+PromptInput.Submitted
+    .Subscribe(HandleSubmit)
+    .DisposeWith(Subscriptions);
 ```
 
 `TextInputNode` provides full text editing with cursor, selection, and history.
@@ -250,10 +252,12 @@ private void CancelGeneration()
 }
 ```
 
-### Input Component Events
+### Input Component Observables
 
 ```csharp
-PromptInput.Submitted += HandleSubmit;
+PromptInput.Submitted
+    .Subscribe(HandleSubmit)
+    .DisposeWith(Subscriptions);
 
 // In input handling:
 if (ChatHistory.HandleInput(keyInfo, viewportHeight: 10, viewportWidth: 80))

@@ -60,8 +60,10 @@ public partial class StreamingChatViewModel : ReactiveViewModel
         ChatHistory.AppendLine("   Ask me anything and watch the streaming response!", foreground: Color.BrightBlack);
         ChatHistory.AppendLine("");
 
-        // Wire up submit event from the text input component
-        PromptInput.Submitted += HandleSubmit;
+        // Wire up submit observable from the text input component
+        PromptInput.Submitted
+            .Subscribe(HandleSubmit)
+            .DisposeWith(Subscriptions);
     }
 
     public override void OnActivated()

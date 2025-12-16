@@ -68,7 +68,7 @@ public class TextInputNodeTests : IDisposable
     public void Submitted_EventFired_OnEnter()
     {
         string? submittedText = null;
-        _node.Submitted += text => submittedText = text;
+        _node.Submitted.Subscribe(text => submittedText = text);
 
         TypeText("test submission");
         _node.HandleInput(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false));
@@ -80,7 +80,7 @@ public class TextInputNodeTests : IDisposable
     public void TextChanged_EventFired_OnCharacterInput()
     {
         var changeCount = 0;
-        _node.TextChanged += _ => changeCount++;
+        _node.TextChanged.Subscribe(_ => changeCount++);
 
         TypeText("abc");
 
@@ -93,7 +93,7 @@ public class TextInputNodeTests : IDisposable
         TypeText("test");
 
         string? changedText = null;
-        _node.TextChanged += text => changedText = text;
+        _node.TextChanged.Subscribe(text => changedText = text);
 
         _node.Clear();
 

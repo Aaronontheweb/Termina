@@ -1,7 +1,9 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
+using System.Reactive;
 using System.Reactive.Disposables;
+using System.Reactive.Subjects;
 using Termina.Rendering;
 
 namespace Termina.Layout;
@@ -13,11 +15,12 @@ namespace Termina.Layout;
 public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
 {
     private readonly IDisposable _subscription;
+    private readonly Subject<Unit> _invalidated = new();
     private ILayoutNode _currentChild;
     private Size _lastMeasuredSize;
 
     /// <inheritdoc />
-    public event Action? Invalidated;
+    public IObservable<Unit> Invalidated => _invalidated;
 
     /// <summary>
     /// Create a reactive layout node from an observable of layout nodes.
@@ -32,7 +35,7 @@ public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
                 // Dispose old child
                 _currentChild.Dispose();
                 _currentChild = node;
-                Invalidated?.Invoke();
+                _invalidated.OnNext(Unit.Default);
             },
             onError: _ => { },
             onCompleted: () => { });
@@ -61,6 +64,8 @@ public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
     public override void Dispose()
     {
         _subscription.Dispose();
+        _invalidated.OnCompleted();
+        _invalidated.Dispose();
         _currentChild.Dispose();
         base.Dispose();
     }
@@ -73,10 +78,11 @@ public sealed class ReactiveLayoutNode<T> : LayoutNode, IInvalidatingNode
 {
     private readonly Func<T, ILayoutNode> _transform;
     private readonly IDisposable _subscription;
+    private readonly Subject<Unit> _invalidated = new();
     private ILayoutNode _currentChild;
 
     /// <inheritdoc />
-    public event Action? Invalidated;
+    public IObservable<Unit> Invalidated => _invalidated;
 
     /// <summary>
     /// Create a reactive layout node from an observable with a transform function.
@@ -91,7 +97,7 @@ public sealed class ReactiveLayoutNode<T> : LayoutNode, IInvalidatingNode
             {
                 _currentChild.Dispose();
                 _currentChild = _transform(value);
-                Invalidated?.Invoke();
+                _invalidated.OnNext(Unit.Default);
             },
             onError: _ => { },
             onCompleted: () => { });
@@ -118,6 +124,8 @@ public sealed class ReactiveLayoutNode<T> : LayoutNode, IInvalidatingNode
     public override void Dispose()
     {
         _subscription.Dispose();
+        _invalidated.OnCompleted();
+        _invalidated.Dispose();
         _currentChild.Dispose();
         base.Dispose();
     }

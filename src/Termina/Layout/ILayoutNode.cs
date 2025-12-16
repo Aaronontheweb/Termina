@@ -1,6 +1,7 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
+using System.Reactive;
 using Termina.Rendering;
 
 namespace Termina.Layout;
@@ -55,9 +56,9 @@ public interface IContainerNode : ILayoutNode
 public interface IInvalidatingNode : ILayoutNode
 {
     /// <summary>
-    /// Raised when this node's content has changed and needs re-rendering.
+    /// Observable that emits when this node's content has changed and needs re-rendering.
     /// </summary>
-    event Action? Invalidated;
+    IObservable<Unit> Invalidated { get; }
 }
 
 /// <summary>
