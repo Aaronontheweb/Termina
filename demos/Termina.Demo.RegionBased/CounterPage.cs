@@ -42,7 +42,7 @@ public class CounterPage : ReactivePage<CounterViewModel>
                                 .WithForeground(Color.BrightCyan))
                             .AsLayout())
                     .Height(3))
-            // Input panel - reactive binding
+            // Input panel - reactive binding (NoWrap for single-line input)
             .WithChild(
                 new PanelNode()
                     .WithTitle("Input")
@@ -51,7 +51,8 @@ public class CounterPage : ReactivePage<CounterViewModel>
                     .WithContent(
                         ViewModel.InputTextChanged
                             .Select(text => new TextNode($"> {text}_")
-                                .WithForeground(Color.White))
+                                .WithForeground(Color.White)
+                                .NoWrap())
                             .AsLayout())
                     .Height(3))
             // Messages panel - reactive binding
