@@ -1,3 +1,25 @@
+#### 0.2.1 December 16th 2025 ####
+
+**Improvements**:
+- **Diff-based rendering system** ([#61](https://github.com/Aaronontheweb/Termina/pull/61))
+  - Implemented double-buffering terminal wrapper that eliminates screen flickering
+  - Only outputs changed cells on flush instead of clearing entire screen
+  - New `DiffingTerminal` wrapper with `FrameBuffer` for efficient cell-level diffing
+  - Uses same proven pattern as ncurses and termbox for flicker-free rendering
+  - `TerminaApplication` automatically wraps terminals with `DiffingTerminal`
+  - Added `ForceFullRefresh()` for complete redraw when needed (resize/corruption)
+
+**Bug Fixes**:
+- **Fix terminal state cleanup on application exit** ([#62](https://github.com/Aaronontheweb/Termina/pull/62))
+  - Properly restore terminal when Termina application exits
+  - Disable mouse tracking if enabled
+  - Reset colors and text attributes
+  - Flush buffered ANSI commands
+  - Prevents visual artifacts and inconsistent terminal state after exit
+  - Fixes [#44](https://github.com/Aaronontheweb/Termina/issues/44)
+
+---
+
 #### 0.2.0 December 16th 2025 ####
 
 **Breaking Changes**:
