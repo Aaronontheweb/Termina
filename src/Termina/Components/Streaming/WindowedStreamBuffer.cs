@@ -1,3 +1,5 @@
+using Termina.Terminal;
+
 namespace Termina.Components.Streaming;
 
 /// <summary>
@@ -18,9 +20,9 @@ namespace Termina.Components.Streaming;
 public class WindowedStreamBuffer : IStreamingTextBuffer
 {
     private readonly int _windowSize;
-    private readonly Queue<string> _lines;
+    private readonly Queue<StyledLine> _styledLines;
     private readonly object _lock = new();
-    private System.Text.StringBuilder _currentLine = new();
+    private StyledLine _currentStyledLine = new();
 
     /// <summary>
     /// Creates a new windowed stream buffer.
@@ -32,7 +34,7 @@ public class WindowedStreamBuffer : IStreamingTextBuffer
             throw new ArgumentOutOfRangeException(nameof(windowSize), "Window size must be positive.");
 
         _windowSize = windowSize;
-        _lines = new Queue<string>(windowSize + 1);
+        _styledLines = new Queue<StyledLine>(windowSize + 1);
     }
 
     /// <inheritdoc />
@@ -50,7 +52,7 @@ public class WindowedStreamBuffer : IStreamingTextBuffer
         {
             lock (_lock)
             {
-                return _lines.Count + (_currentLine.Length > 0 ? 1 : 0);
+                return _styledLines.Count + (_currentStyledLine.Length > 0 ? 1 : 0);
             }
         }
     }
@@ -62,8 +64,8 @@ public class WindowedStreamBuffer : IStreamingTextBuffer
         {
             lock (_lock)
             {
-                var count = _lines.Sum(l => l.Length + 1);
-                count += _currentLine.Length;
+                var count = _styledLines.Sum(l => l.Length + 1);
+                count += _currentStyledLine.Length;
                 return count;
             }
         }
@@ -76,7 +78,7 @@ public class WindowedStreamBuffer : IStreamingTextBuffer
         {
             lock (_lock)
             {
-                return _lines.Count > 0 || _currentLine.Length > 0;
+                return _styledLines.Count > 0 || _currentStyledLine.Length > 0;
             }
         }
     }
@@ -90,24 +92,58 @@ public class WindowedStreamBuffer : IStreamingTextBuffer
     /// <inheritdoc />
     public void Append(string text)
     {
+        Append(text, TextStyle.Default);
+    }
+
+    /// <inheritdoc />
+    public void Append(string text, TextStyle style)
+    {
         if (string.IsNullOrEmpty(text))
             return;
 
         lock (_lock)
         {
+            var pendingText = new System.Text.StringBuilder();
+
             foreach (var c in text)
             {
                 if (c == '\n')
                 {
-                    EnqueueLine(_currentLine.ToString());
-                    _currentLine.Clear();
+                    // Flush pending text to current line
+                    if (pendingText.Length > 0)
+                    {
+                        _currentStyledLine.Append(new StyledSegment(pendingText.ToString(), style));
+                        pendingText.Clear();
+                    }
+
+                    // Finalize current line
+                    EnqueueLine(_currentStyledLine);
+                    _currentStyledLine = new StyledLine();
                 }
                 else if (c != '\r')
                 {
-                    _currentLine.Append(c);
+                    pendingText.Append(c);
                 }
             }
+
+            // Append remaining text to current line
+            if (pendingText.Length > 0)
+            {
+                _currentStyledLine.Append(new StyledSegment(pendingText.ToString(), style));
+            }
         }
+    }
+
+    /// <inheritdoc />
+    public void Append(string text, Color foreground)
+    {
+        Append(text, new TextStyle(foreground));
+    }
+
+    /// <inheritdoc />
+    public void Append(StyledSegment segment)
+    {
+        Append(segment.Text, segment.Style);
     }
 
     /// <inheritdoc />
@@ -117,12 +153,24 @@ public class WindowedStreamBuffer : IStreamingTextBuffer
     }
 
     /// <inheritdoc />
+    public void AppendLine(string line, TextStyle style)
+    {
+        Append(line + "\n", style);
+    }
+
+    /// <inheritdoc />
+    public void AppendLine(string line, Color foreground)
+    {
+        Append(line + "\n", new TextStyle(foreground));
+    }
+
+    /// <inheritdoc />
     public void Clear()
     {
         lock (_lock)
         {
-            _lines.Clear();
-            _currentLine.Clear();
+            _styledLines.Clear();
+            _currentStyledLine = new StyledLine();
             // Note: We don't reset DiscardedLineCount - it's cumulative
         }
     }
@@ -138,13 +186,22 @@ public class WindowedStreamBuffer : IStreamingTextBuffer
     /// <inheritdoc />
     public IReadOnlyList<string> GetVisibleLines(int viewportHeight, int viewportWidth)
     {
+        // Delegate to styled version and convert to plain text
+        return GetVisibleStyledLines(viewportHeight, viewportWidth)
+            .Select(l => l.ToPlainText())
+            .ToList();
+    }
+
+    /// <inheritdoc />
+    public IReadOnlyList<StyledLine> GetVisibleStyledLines(int viewportHeight, int viewportWidth)
+    {
         if (viewportHeight <= 0 || viewportWidth <= 0)
             return [];
 
         lock (_lock)
         {
-            var allLines = GetAllLinesInternal().ToList();
-            var wrappedLines = WordWrapper.WrapLines(allLines, viewportWidth);
+            var allLines = GetAllStyledLinesInternal().ToList();
+            var wrappedLines = StyledWordWrapper.WrapLines(allLines, viewportWidth);
 
             // For windowed mode, always show the last viewportHeight lines
             // (or fewer if we don't have that many)
@@ -158,34 +215,40 @@ public class WindowedStreamBuffer : IStreamingTextBuffer
     /// <inheritdoc />
     public IReadOnlyList<string> GetAllLines()
     {
+        return GetAllStyledLines().Select(l => l.ToPlainText()).ToList();
+    }
+
+    /// <inheritdoc />
+    public IReadOnlyList<StyledLine> GetAllStyledLines()
+    {
         lock (_lock)
         {
-            return GetAllLinesInternal().ToList();
+            return GetAllStyledLinesInternal().ToList();
         }
     }
 
-    private void EnqueueLine(string line)
+    private void EnqueueLine(StyledLine line)
     {
-        _lines.Enqueue(line);
+        _styledLines.Enqueue(line);
 
         // Trim to window size
-        while (_lines.Count > _windowSize)
+        while (_styledLines.Count > _windowSize)
         {
-            _lines.Dequeue();
+            _styledLines.Dequeue();
             DiscardedLineCount++;
         }
     }
 
-    private IEnumerable<string> GetAllLinesInternal()
+    private IEnumerable<StyledLine> GetAllStyledLinesInternal()
     {
-        foreach (var line in _lines)
+        foreach (var line in _styledLines)
         {
             yield return line;
         }
 
-        if (_currentLine.Length > 0)
+        if (_currentStyledLine.Length > 0)
         {
-            yield return _currentLine.ToString();
+            yield return _currentStyledLine;
         }
     }
 }

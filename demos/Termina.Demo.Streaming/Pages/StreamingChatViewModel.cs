@@ -53,9 +53,11 @@ public partial class StreamingChatViewModel : ReactiveViewModel
     {
         _llmActorProvider = llmActorProvider;
 
-        // Add initial welcome message
-        ChatHistory.AppendLine("🤖 Assistant: Hello! I'm a simulated LLM demo.");
-        ChatHistory.AppendLine("   Ask me anything and watch the streaming response!");
+        // Add initial welcome message with styled text
+        ChatHistory.Append("🤖 ", foreground: Color.Yellow);
+        ChatHistory.Append("Assistant: ", foreground: Color.Green, decoration: TextDecoration.Bold);
+        ChatHistory.AppendLine("Hello! I'm a simulated LLM demo.", foreground: Color.White);
+        ChatHistory.AppendLine("   Ask me anything and watch the streaming response!", foreground: Color.BrightBlack);
         ChatHistory.AppendLine("");
 
         // Wire up submit event from the text input component
@@ -197,10 +199,13 @@ public partial class StreamingChatViewModel : ReactiveViewModel
         // Clear the input
         PromptInput.Clear();
 
-        // Add user message to chat
-        ChatHistory.AppendLine($"👤 You: {prompt}");
+        // Add user message to chat with styled text
+        ChatHistory.Append("👤 ", foreground: Color.Cyan);
+        ChatHistory.Append("You: ", foreground: Color.Cyan, decoration: TextDecoration.Bold);
+        ChatHistory.AppendLine(prompt, foreground: Color.White);
         ChatHistory.AppendLine("");
-        ChatHistory.Append("🤖 Assistant: ");
+        ChatHistory.Append("🤖 ", foreground: Color.Yellow);
+        ChatHistory.Append("Assistant: ", foreground: Color.Green, decoration: TextDecoration.Bold);
 
         // Start generation
         IsGenerating = true;
@@ -235,7 +240,7 @@ public partial class StreamingChatViewModel : ReactiveViewModel
                 switch (token)
                 {
                     case LlmMessages.ThinkingToken thinking:
-                        ThinkingIndicator.AppendLine(thinking.Text);
+                        ThinkingIndicator.AppendLine(thinking.Text, foreground: Color.BrightBlack, decoration: TextDecoration.Italic);
                         break;
 
                     case LlmMessages.TextChunk chunk:
@@ -261,7 +266,7 @@ public partial class StreamingChatViewModel : ReactiveViewModel
         }
         catch (Exception ex)
         {
-            CleanupGeneration($" [error: {ex.Message}]");
+            CleanupGenerationWithError(ex.Message);
             StatusMessage = $"Error: {ex.Message}";
         }
         finally
@@ -278,16 +283,21 @@ public partial class StreamingChatViewModel : ReactiveViewModel
     private void CancelGeneration()
     {
         _generationCts?.Cancel();
-        CleanupGeneration(" [cancelled]");
+        ChatHistory.AppendLine(" [cancelled]", foreground: Color.Yellow, decoration: TextDecoration.Italic);
+        CleanupGeneration();
         StatusMessage = "Generation cancelled.";
     }
 
-    private void CleanupGeneration(string? suffix = null)
+    private void CleanupGenerationWithError(string errorMessage)
     {
-        if (suffix != null)
-        {
-            ChatHistory.AppendLine(suffix);
-        }
+        ChatHistory.Append(" [error: ", foreground: Color.Red);
+        ChatHistory.Append(errorMessage, foreground: Color.Red, decoration: TextDecoration.Bold);
+        ChatHistory.AppendLine("]", foreground: Color.Red);
+        CleanupGeneration();
+    }
+
+    private void CleanupGeneration()
+    {
         ChatHistory.AppendLine("");
 
         ThinkingIndicator.Clear();

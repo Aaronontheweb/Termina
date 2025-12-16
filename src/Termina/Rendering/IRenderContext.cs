@@ -56,6 +56,18 @@ public interface IRenderContext
     void ResetColors();
 
     /// <summary>
+    /// Set text decorations (bold, italic, underline, etc.) for subsequent writes.
+    /// </summary>
+    /// <param name="decoration">The decorations to apply.</param>
+    void SetDecoration(TextDecoration decoration);
+
+    /// <summary>
+    /// Apply a complete text style (foreground, background, decorations) for subsequent writes.
+    /// </summary>
+    /// <param name="style">The style to apply.</param>
+    void ApplyStyle(TextStyle style);
+
+    /// <summary>
     /// Fill a rectangular area with a character.
     /// </summary>
     /// <param name="x">Starting X position.</param>

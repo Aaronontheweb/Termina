@@ -1,3 +1,5 @@
+using Termina.Terminal;
+
 namespace Termina.Components.Streaming;
 
 /// <summary>
@@ -17,9 +19,9 @@ namespace Termina.Components.Streaming;
 /// </remarks>
 public class PersistedStreamBuffer : IStreamingTextBuffer
 {
-    private readonly List<string> _lines = [];
+    private readonly List<StyledLine> _styledLines = [];
     private readonly object _lock = new();
-    private System.Text.StringBuilder _currentLine = new();
+    private StyledLine _currentStyledLine = new();
 
     // Scroll offset: 0 = bottom (newest), positive = scrolled up
     private int _scrollOffset;
@@ -43,7 +45,7 @@ public class PersistedStreamBuffer : IStreamingTextBuffer
             lock (_lock)
             {
                 // Include current partial line if non-empty
-                return _lines.Count + (_currentLine.Length > 0 ? 1 : 0);
+                return _styledLines.Count + (_currentStyledLine.Length > 0 ? 1 : 0);
             }
         }
     }
@@ -55,8 +57,8 @@ public class PersistedStreamBuffer : IStreamingTextBuffer
         {
             lock (_lock)
             {
-                var count = _lines.Sum(l => l.Length + 1); // +1 for newlines
-                count += _currentLine.Length;
+                var count = _styledLines.Sum(l => l.Length + 1); // +1 for newlines
+                count += _currentStyledLine.Length;
                 return count;
             }
         }
@@ -69,7 +71,7 @@ public class PersistedStreamBuffer : IStreamingTextBuffer
         {
             lock (_lock)
             {
-                return _lines.Count > 0 || _currentLine.Length > 0;
+                return _styledLines.Count > 0 || _currentStyledLine.Length > 0;
             }
         }
     }
@@ -111,22 +113,44 @@ public class PersistedStreamBuffer : IStreamingTextBuffer
     /// <inheritdoc />
     public void Append(string text)
     {
+        Append(text, TextStyle.Default);
+    }
+
+    /// <inheritdoc />
+    public void Append(string text, TextStyle style)
+    {
         if (string.IsNullOrEmpty(text))
             return;
 
         lock (_lock)
         {
+            var pendingText = new System.Text.StringBuilder();
+
             foreach (var c in text)
             {
                 if (c == '\n')
                 {
-                    _lines.Add(_currentLine.ToString());
-                    _currentLine.Clear();
+                    // Flush pending text to current line
+                    if (pendingText.Length > 0)
+                    {
+                        _currentStyledLine.Append(new StyledSegment(pendingText.ToString(), style));
+                        pendingText.Clear();
+                    }
+
+                    // Finalize current line
+                    _styledLines.Add(_currentStyledLine);
+                    _currentStyledLine = new StyledLine();
                 }
                 else if (c != '\r') // Ignore carriage returns
                 {
-                    _currentLine.Append(c);
+                    pendingText.Append(c);
                 }
+            }
+
+            // Append remaining text to current line
+            if (pendingText.Length > 0)
+            {
+                _currentStyledLine.Append(new StyledSegment(pendingText.ToString(), style));
             }
 
             _wrappedCountDirty = true;
@@ -140,9 +164,33 @@ public class PersistedStreamBuffer : IStreamingTextBuffer
     }
 
     /// <inheritdoc />
+    public void Append(string text, Color foreground)
+    {
+        Append(text, new TextStyle(foreground));
+    }
+
+    /// <inheritdoc />
+    public void Append(StyledSegment segment)
+    {
+        Append(segment.Text, segment.Style);
+    }
+
+    /// <inheritdoc />
     public void AppendLine(string line)
     {
         Append(line + "\n");
+    }
+
+    /// <inheritdoc />
+    public void AppendLine(string line, TextStyle style)
+    {
+        Append(line + "\n", style);
+    }
+
+    /// <inheritdoc />
+    public void AppendLine(string line, Color foreground)
+    {
+        Append(line + "\n", new TextStyle(foreground));
     }
 
     /// <inheritdoc />
@@ -150,8 +198,8 @@ public class PersistedStreamBuffer : IStreamingTextBuffer
     {
         lock (_lock)
         {
-            _lines.Clear();
-            _currentLine.Clear();
+            _styledLines.Clear();
+            _currentStyledLine = new StyledLine();
             _scrollOffset = 0;
             _userScrolled = false;
             _wrappedCountDirty = true;
@@ -219,13 +267,22 @@ public class PersistedStreamBuffer : IStreamingTextBuffer
     /// <inheritdoc />
     public IReadOnlyList<string> GetVisibleLines(int viewportHeight, int viewportWidth)
     {
+        // Delegate to styled version and convert to plain text
+        return GetVisibleStyledLines(viewportHeight, viewportWidth)
+            .Select(l => l.ToPlainText())
+            .ToList();
+    }
+
+    /// <inheritdoc />
+    public IReadOnlyList<StyledLine> GetVisibleStyledLines(int viewportHeight, int viewportWidth)
+    {
         if (viewportHeight <= 0 || viewportWidth <= 0)
             return [];
 
         lock (_lock)
         {
-            var allLines = GetAllLinesInternal();
-            var wrappedLines = WordWrapper.WrapLines(allLines, viewportWidth);
+            var allLines = GetAllStyledLinesInternal().ToList();
+            var wrappedLines = StyledWordWrapper.WrapLines(allLines, viewportWidth);
 
             if (wrappedLines.Count == 0)
                 return [];
@@ -243,9 +300,15 @@ public class PersistedStreamBuffer : IStreamingTextBuffer
     /// <inheritdoc />
     public IReadOnlyList<string> GetAllLines()
     {
+        return GetAllStyledLines().Select(l => l.ToPlainText()).ToList();
+    }
+
+    /// <inheritdoc />
+    public IReadOnlyList<StyledLine> GetAllStyledLines()
+    {
         lock (_lock)
         {
-            return GetAllLinesInternal().ToList();
+            return GetAllStyledLinesInternal().ToList();
         }
     }
 
@@ -258,8 +321,8 @@ public class PersistedStreamBuffer : IStreamingTextBuffer
         {
             if (_wrappedCountDirty || _cachedWidth != viewportWidth)
             {
-                var allLines = GetAllLinesInternal();
-                _cachedWrappedLineCount = WordWrapper.CalculateTotalWrappedLineCount(allLines, viewportWidth);
+                var allLines = GetAllStyledLinesInternal().ToList();
+                _cachedWrappedLineCount = StyledWordWrapper.CalculateTotalWrappedLineCount(allLines, viewportWidth);
                 _cachedWidth = viewportWidth;
                 _wrappedCountDirty = false;
             }
@@ -273,17 +336,17 @@ public class PersistedStreamBuffer : IStreamingTextBuffer
         return Math.Max(0, totalWrapped - 1); // Can scroll up to see first line at bottom
     }
 
-    private IEnumerable<string> GetAllLinesInternal()
+    private IEnumerable<StyledLine> GetAllStyledLinesInternal()
     {
-        foreach (var line in _lines)
+        foreach (var line in _styledLines)
         {
             yield return line;
         }
 
         // Include current partial line if non-empty
-        if (_currentLine.Length > 0)
+        if (_currentStyledLine.Length > 0)
         {
-            yield return _currentLine.ToString();
+            yield return _currentStyledLine;
         }
     }
 }

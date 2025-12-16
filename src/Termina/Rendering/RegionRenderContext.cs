@@ -89,6 +89,40 @@ public sealed class RegionRenderContext : IRenderContext
     }
 
     /// <inheritdoc />
+    public void SetDecoration(TextDecoration decoration)
+    {
+        // Reset any previous decorations first
+        if (decoration == TextDecoration.None)
+        {
+            // Just reset - handled by ResetColors
+            return;
+        }
+
+        // Apply requested decorations
+        if (decoration.HasFlag(TextDecoration.Bold))
+            _terminal.Write(AnsiCodes.Bold);
+        if (decoration.HasFlag(TextDecoration.Dim))
+            _terminal.Write(AnsiCodes.Dim);
+        if (decoration.HasFlag(TextDecoration.Italic))
+            _terminal.Write(AnsiCodes.Italic);
+        if (decoration.HasFlag(TextDecoration.Underline))
+            _terminal.Write(AnsiCodes.Underline);
+        if (decoration.HasFlag(TextDecoration.Strikethrough))
+            _terminal.Write(AnsiCodes.Strikethrough);
+    }
+
+    /// <inheritdoc />
+    public void ApplyStyle(TextStyle style)
+    {
+        if (style.HasForeground)
+            SetForeground(style.Foreground);
+        if (style.HasBackground)
+            SetBackground(style.Background);
+        if (style.HasDecoration)
+            SetDecoration(style.Decoration);
+    }
+
+    /// <inheritdoc />
     public void Fill(int x, int y, int width, int height, char c = ' ')
     {
         // Clip to region bounds

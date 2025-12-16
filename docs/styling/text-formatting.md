@@ -1,6 +1,6 @@
 # Text Formatting
 
-Termina supports common text formatting options for TextNode.
+Termina supports common text formatting options for TextNode and StreamingTextNode.
 
 ## Bold Text
 
@@ -109,3 +109,22 @@ Some terminals render bold as bright colors instead of heavier font weight.
 | `IsItalic` | `bool` | `false` | Italic text |
 | `IsUnderline` | `bool` | `false` | Underlined text |
 | `WordWrap` | `bool` | `true` | Enable word wrapping |
+
+## StreamingTextNode Inline Styling
+
+For streaming content with inline styles, use the styled append methods:
+
+```csharp
+var stream = StreamingTextNode.Create();
+
+// Inline colors and decorations
+stream.Append("Error: ", foreground: Color.Red, decoration: TextDecoration.Bold);
+stream.AppendLine("Something went wrong");
+
+// Combine multiple decorations
+stream.Append("Important",
+    foreground: Color.Yellow,
+    decoration: TextDecoration.Bold | TextDecoration.Underline);
+```
+
+See [StreamingTextNode](/components/streaming-text-node#inline-styled-text) for full documentation on inline styled text.

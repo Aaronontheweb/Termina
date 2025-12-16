@@ -1,3 +1,5 @@
+using Termina.Terminal;
+
 namespace Termina.Components.Streaming;
 
 /// <summary>
@@ -56,4 +58,54 @@ public interface IStreamingTextBuffer
     /// Gets all raw lines (unwrapped) in the buffer.
     /// </summary>
     IReadOnlyList<string> GetAllLines();
+
+    // Styled text support
+
+    /// <summary>
+    /// Appends a styled segment to the buffer.
+    /// </summary>
+    /// <param name="segment">The styled segment to append.</param>
+    void Append(StyledSegment segment);
+
+    /// <summary>
+    /// Appends text with the specified style to the buffer.
+    /// </summary>
+    /// <param name="text">The text to append.</param>
+    /// <param name="style">The style to apply.</param>
+    void Append(string text, TextStyle style);
+
+    /// <summary>
+    /// Appends text with the specified foreground color.
+    /// </summary>
+    /// <param name="text">The text to append.</param>
+    /// <param name="foreground">The foreground color.</param>
+    void Append(string text, Color foreground);
+
+    /// <summary>
+    /// Appends a complete line with the specified style to the buffer.
+    /// </summary>
+    /// <param name="line">Line to append (newline added automatically).</param>
+    /// <param name="style">The style to apply.</param>
+    void AppendLine(string line, TextStyle style);
+
+    /// <summary>
+    /// Appends a complete line with the specified foreground color.
+    /// </summary>
+    /// <param name="line">Line to append (newline added automatically).</param>
+    /// <param name="foreground">The foreground color.</param>
+    void AppendLine(string line, Color foreground);
+
+    /// <summary>
+    /// Gets visible styled lines for rendering, given a viewport height and width.
+    /// Handles word wrapping internally while preserving styles.
+    /// </summary>
+    /// <param name="viewportHeight">Number of lines visible.</param>
+    /// <param name="viewportWidth">Width for word wrapping.</param>
+    /// <returns>Styled lines to render, already wrapped to fit viewport.</returns>
+    IReadOnlyList<StyledLine> GetVisibleStyledLines(int viewportHeight, int viewportWidth);
+
+    /// <summary>
+    /// Gets all raw styled lines (unwrapped) in the buffer.
+    /// </summary>
+    IReadOnlyList<StyledLine> GetAllStyledLines();
 }
