@@ -19,15 +19,15 @@ namespace Termina.Layout;
 public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode
 {
     private readonly IStreamingTextBuffer _buffer;
-    private readonly Subject<Unit> _contentChanged = new();
+    private readonly Subject<Unit> _invalidated = new();
 
     /// <inheritdoc />
-    public event Action? Invalidated;
+    public IObservable<Unit> Invalidated => _invalidated;
 
     /// <summary>
-    /// Observable that emits when content changes.
+    /// Observable that emits when content changes. Alias for Invalidated.
     /// </summary>
-    public IObservable<Unit> ContentChanged => _contentChanged;
+    public IObservable<Unit> ContentChanged => _invalidated;
 
     /// <summary>
     /// Gets or sets the foreground color.
@@ -234,8 +234,7 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode
 
     private void NotifyChanged()
     {
-        _contentChanged.OnNext(Unit.Default);
-        Invalidated?.Invoke();
+        _invalidated.OnNext(Unit.Default);
     }
 
     /// <summary>
@@ -354,8 +353,8 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode
     /// <inheritdoc />
     public override void Dispose()
     {
-        _contentChanged.OnCompleted();
-        _contentChanged.Dispose();
+        _invalidated.OnCompleted();
+        _invalidated.Dispose();
         base.Dispose();
     }
 }

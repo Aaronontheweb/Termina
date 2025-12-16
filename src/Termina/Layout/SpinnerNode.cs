@@ -1,6 +1,8 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
+using System.Reactive;
+using System.Reactive.Subjects;
 using System.Timers;
 using Termina.Rendering;
 using Termina.Terminal;
@@ -62,6 +64,7 @@ public sealed class SpinnerNode : LayoutNode, IAnimatedNode, IInvalidatingNode
 
     private readonly Timer _timer;
     private readonly string[] _frames;
+    private readonly Subject<Unit> _invalidated = new();
     private int _currentFrame;
 
     /// <summary>
@@ -80,7 +83,7 @@ public sealed class SpinnerNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     public Color? LabelColor { get; private set; }
 
     /// <inheritdoc />
-    public event Action? Invalidated;
+    public IObservable<Unit> Invalidated => _invalidated;
 
     /// <inheritdoc />
     public bool IsAnimating { get; private set; }
@@ -149,7 +152,7 @@ public sealed class SpinnerNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     private void OnTimerTick(object? sender, ElapsedEventArgs e)
     {
         _currentFrame = (_currentFrame + 1) % _frames.Length;
-        Invalidated?.Invoke();
+        _invalidated.OnNext(Unit.Default);
     }
 
     /// <inheritdoc />
@@ -203,6 +206,8 @@ public sealed class SpinnerNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     {
         _timer.Stop();
         _timer.Dispose();
+        _invalidated.OnCompleted();
+        _invalidated.Dispose();
         base.Dispose();
     }
 }

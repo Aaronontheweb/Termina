@@ -263,7 +263,7 @@ public class TextInputTests
     {
         var input = new TextInput { IsFocused = true, Text = "Hello" };
         string? submittedText = null;
-        input.OnSubmit += text => submittedText = text;
+        input.Submitted.Subscribe(text => submittedText = text);
 
         var handled = input.HandleKey(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false));
 
@@ -449,7 +449,7 @@ public class TextInputTests
     {
         var input = new TextInput();
         var dirtyCount = 0;
-        input.OnDirty += () => dirtyCount++;
+        input.Dirty.Subscribe(_ => dirtyCount++);
 
         input.IsFocused = true;
 
@@ -461,7 +461,7 @@ public class TextInputTests
     {
         var input = new TextInput { IsFocused = true };
         var dirtyCount = 0;
-        input.OnDirty += () => dirtyCount++;
+        input.Dirty.Subscribe(_ => dirtyCount++);
 
         input.IsFocused = false;
 

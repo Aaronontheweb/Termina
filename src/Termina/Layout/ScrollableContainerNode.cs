@@ -1,6 +1,9 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
+using System.Reactive;
+using System.Reactive.Disposables;
+using System.Reactive.Subjects;
 using Termina.Rendering;
 using Termina.Terminal;
 
@@ -39,9 +42,11 @@ public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode
     private int _contentHeight;
     private int _viewportHeight;
     private int _previousContentHeight;
+    private readonly Subject<Unit> _invalidated = new();
+    private IDisposable? _contentSubscription;
 
     /// <inheritdoc />
-    public event Action? Invalidated;
+    public IObservable<Unit> Invalidated => _invalidated;
 
     /// <summary>
     /// Gets or sets the automatic scroll policy.
@@ -98,13 +103,15 @@ public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode
     /// </summary>
     public ScrollableContainerNode WithContent(ILayoutNode content)
     {
+        // Dispose previous subscription and content
+        _contentSubscription?.Dispose();
         _content.Dispose();
         _content = content;
 
-        // If content is invalidating, wire up the event
+        // If content is invalidating, subscribe to the observable
         if (_content is IInvalidatingNode invalidating)
         {
-            invalidating.Invalidated += OnContentInvalidated;
+            _contentSubscription = invalidating.Invalidated.Subscribe(_ => OnContentInvalidated());
         }
 
         return this;
@@ -146,7 +153,7 @@ public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode
         if (CanScrollDown)
         {
             _scrollOffset++;
-            Invalidated?.Invoke();
+            _invalidated.OnNext(Unit.Default);
         }
     }
 
@@ -158,7 +165,7 @@ public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode
         if (CanScrollUp)
         {
             _scrollOffset--;
-            Invalidated?.Invoke();
+            _invalidated.OnNext(Unit.Default);
         }
     }
 
@@ -171,7 +178,7 @@ public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode
         if (newOffset != _scrollOffset)
         {
             _scrollOffset = newOffset;
-            Invalidated?.Invoke();
+            _invalidated.OnNext(Unit.Default);
         }
     }
 
@@ -184,7 +191,7 @@ public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode
         if (newOffset != _scrollOffset)
         {
             _scrollOffset = newOffset;
-            Invalidated?.Invoke();
+            _invalidated.OnNext(Unit.Default);
         }
     }
 
@@ -197,7 +204,7 @@ public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode
         if (newOffset != _scrollOffset)
         {
             _scrollOffset = newOffset;
-            Invalidated?.Invoke();
+            _invalidated.OnNext(Unit.Default);
         }
     }
 
@@ -221,7 +228,7 @@ public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode
     {
         // Content changed - check if we need to auto-scroll
         ApplyAutoScrollPolicy();
-        Invalidated?.Invoke();
+        _invalidated.OnNext(Unit.Default);
     }
 
     private void ApplyAutoScrollPolicy()
@@ -336,10 +343,9 @@ public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode
     /// <inheritdoc />
     public override void Dispose()
     {
-        if (_content is IInvalidatingNode invalidating)
-        {
-            invalidating.Invalidated -= OnContentInvalidated;
-        }
+        _contentSubscription?.Dispose();
+        _invalidated.OnCompleted();
+        _invalidated.Dispose();
         _content.Dispose();
         base.Dispose();
     }

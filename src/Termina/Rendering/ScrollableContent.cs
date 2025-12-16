@@ -1,6 +1,8 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Reactive;
+using System.Reactive.Subjects;
 using Termina.Terminal;
 
 namespace Termina.Rendering;
@@ -8,10 +10,11 @@ namespace Termina.Rendering;
 /// <summary>
 /// A container that provides vertical scrolling for content that exceeds the viewport height.
 /// </summary>
-public sealed class ScrollableContent : IRenderable
+public sealed class ScrollableContent : IRenderable, IDisposable
 {
     private string[] _lines = Array.Empty<string>();
     private int _viewportHeight;
+    private readonly Subject<Unit> _dirty = new();
 
     /// <summary>
     /// Gets or sets the renderable content.
@@ -70,9 +73,9 @@ public sealed class ScrollableContent : IRenderable
     public bool CanScrollUp => ScrollOffset > 0;
 
     /// <summary>
-    /// Event raised when the component needs to be re-rendered.
+    /// Observable that emits when the component needs to be re-rendered.
     /// </summary>
-    public event Action? OnDirty;
+    public IObservable<Unit> Dirty => _dirty;
 
     /// <summary>
     /// Set the content as an array of text lines.
@@ -278,7 +281,17 @@ public sealed class ScrollableContent : IRenderable
 
     private void MarkDirty()
     {
-        OnDirty?.Invoke();
+        _dirty.OnNext(Unit.Default);
+    }
+
+    /// <summary>
+    /// Disposes the component.
+    /// </summary>
+    public void Dispose()
+    {
+        _dirty.OnCompleted();
+        _dirty.Dispose();
+        GC.SuppressFinalize(this);
     }
 
     /// <summary>

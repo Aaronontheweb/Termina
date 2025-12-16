@@ -1,6 +1,8 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Reactive;
+using System.Reactive.Subjects;
 using Termina.Terminal;
 
 namespace Termina.Rendering;
@@ -22,15 +24,19 @@ public sealed class TextInput : IRenderable, IDisposable
     private bool _cursorVisible = true;
     private int _blinkIntervalMs = 530; // Standard cursor blink rate
 
-    /// <summary>
-    /// Event raised when Enter is pressed.
-    /// </summary>
-    public event Action<string>? OnSubmit;
+    // Reactive observables
+    private readonly Subject<string> _submitted = new();
+    private readonly Subject<Unit> _dirty = new();
 
     /// <summary>
-    /// Event raised when the component needs to be re-rendered.
+    /// Observable that emits when Enter is pressed, providing the submitted text.
     /// </summary>
-    public event Action? OnDirty;
+    public IObservable<string> Submitted => _submitted;
+
+    /// <summary>
+    /// Observable that emits when the component needs to be re-rendered.
+    /// </summary>
+    public IObservable<Unit> Dirty => _dirty;
 
     /// <summary>
     /// Gets or sets the label displayed before the input.
@@ -162,7 +168,7 @@ public sealed class TextInput : IRenderable, IDisposable
         switch (key.Key)
         {
             case ConsoleKey.Enter:
-                OnSubmit?.Invoke(_text);
+                _submitted.OnNext(_text);
                 return true;
 
             case ConsoleKey.Backspace:
@@ -349,7 +355,7 @@ public sealed class TextInput : IRenderable, IDisposable
     /// </summary>
     private void MarkDirty()
     {
-        OnDirty?.Invoke();
+        _dirty.OnNext(Unit.Default);
     }
 
     /// <summary>
@@ -402,6 +408,10 @@ public sealed class TextInput : IRenderable, IDisposable
     public void Dispose()
     {
         StopBlinking();
+        _submitted.OnCompleted();
+        _submitted.Dispose();
+        _dirty.OnCompleted();
+        _dirty.Dispose();
         GC.SuppressFinalize(this);
     }
 }
