@@ -5,7 +5,7 @@ import { data } from '../../releases.data'
 <template>
   <a
     v-if="data.latest !== '0.0.0'"
-    href="/Termina/changelog"
+    href="/termina/changelog"
     class="version-badge"
     title="View changelog"
   >
