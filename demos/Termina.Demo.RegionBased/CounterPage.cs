@@ -8,7 +8,7 @@ using Termina.Reactive;
 using Termina.Rendering;
 using Termina.Terminal;
 
-namespace Termina.Demo.V2;
+namespace Termina.Demo.RegionBased;
 
 /// <summary>
 /// Page for the counter demo.
@@ -68,12 +68,18 @@ public class CounterPage : ReactivePage<CounterViewModel>
                                 .WithForeground(Color.Gray))
                             .AsLayout())
                     .Fill())
-            // Status bar at the bottom - reactive binding
+            // Status bar at the bottom - reactive binding with instructions
             .WithChild(
-                ViewModel.StatusMessageChanged
-                    .Select(status => new TextNode(status)
-                        .WithForeground(Color.BrightYellow))
-                    .AsLayout()
+                Layouts.Horizontal()
+                    .WithChild(
+                        ViewModel.StatusMessageChanged
+                            .Select(status => new TextNode(status)
+                                .WithForeground(Color.BrightYellow))
+                            .AsLayout()
+                            .Fill())
+                    .WithChild(
+                        new TextNode("[↑/↓] Count [Enter] Send [Esc] Quit")
+                            .WithForeground(Color.BrightBlack))
                     .Height(1));
     }
 }

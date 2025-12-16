@@ -5,7 +5,7 @@ using System.Reactive.Linq;
 using Termina.Input;
 using Termina.Reactive;
 
-namespace Termina.Demo.V2;
+namespace Termina.Demo.RegionBased;
 
 /// <summary>
 /// ViewModel for the counter demo.

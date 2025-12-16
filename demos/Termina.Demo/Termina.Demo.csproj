@@ -20,9 +20,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Termina\Termina.csproj" />
+    <ProjectReference Include="..\..\src\Termina\Termina.csproj" />
     <!-- Source generator - compile-time only, never publish -->
-    <ProjectReference Include="..\Termina.Generators\Termina.Generators.csproj"
+    <ProjectReference Include="..\..\src\Termina.Generators\Termina.Generators.csproj"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false"
                       PrivateAssets="all"
