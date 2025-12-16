@@ -19,7 +19,8 @@ export default defineConfig({
       { text: 'Components', link: '/components/' },
       { text: 'Styling', link: '/styling/' },
       { text: 'Concepts', link: '/concepts/' },
-      { text: 'Advanced', link: '/advanced/' }
+      { text: 'Advanced', link: '/advanced/' },
+      { text: 'Changelog', link: '/changelog' }
     ],
 
     sidebar: {
