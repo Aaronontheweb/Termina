@@ -42,7 +42,7 @@ public class CounterPage : ReactivePage<CounterViewModel>
                                 .WithForeground(Color.BrightCyan))
                             .AsLayout())
                     .Height(3))
-            // Input panel - reactive binding
+            // Input panel - reactive binding (NoWrap for single-line input)
             .WithChild(
                 new PanelNode()
                     .WithTitle("Input")
@@ -51,7 +51,8 @@ public class CounterPage : ReactivePage<CounterViewModel>
                     .WithContent(
                         ViewModel.InputTextChanged
                             .Select(text => new TextNode($"> {text}_")
-                                .WithForeground(Color.White))
+                                .WithForeground(Color.White)
+                                .NoWrap())
                             .AsLayout())
                     .Height(3))
             // Messages panel - reactive binding
@@ -69,17 +70,21 @@ public class CounterPage : ReactivePage<CounterViewModel>
                             .AsLayout())
                     .Fill())
             // Status bar at the bottom - reactive binding with instructions
+            // Note: Height(1) means only 1 row is available - any wrapped text will be clipped
             .WithChild(
                 Layouts.Horizontal()
                     .WithChild(
                         ViewModel.StatusMessageChanged
                             .Select(status => new TextNode(status)
-                                .WithForeground(Color.BrightYellow))
+                                .WithForeground(Color.BrightYellow)
+                                .NoWrap())  // Status should truncate, not wrap
                             .AsLayout()
                             .Fill())
                     .WithChild(
                         new TextNode("[↑/↓] Count [Enter] Send [Esc] Quit")
-                            .WithForeground(Color.BrightBlack))
+                            .WithForeground(Color.BrightBlack)
+                            .NoWrap()      // Instructions should truncate at narrow widths
+                            .WidthAuto())  // Take only the width needed
                     .Height(1));
     }
 }
