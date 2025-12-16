@@ -16,10 +16,13 @@
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions"/>
   </ItemGroup>
 
+  <!--
+    Reference the source generator.
+    - The generator project handles its own packaging into analyzers/dotnet/cs
+    - No PrivateAssets means the dependency flows to NuGet consumers
+  -->
   <ItemGroup>
-    <ProjectReference Include="..\Termina.Generators\Termina.Generators.csproj"
-                      OutputItemType="Analyzer"
-                      ReferenceOutputAssembly="false"/>
+    <ProjectReference Include="..\Termina.Generators\Termina.Generators.csproj"/>
   </ItemGroup>
 
 </Project>

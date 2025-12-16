@@ -7,6 +7,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
     <IsRoslynComponent>true</IsRoslynComponent>
+    <AnalyzerLanguage>cs</AnalyzerLanguage>
 
     <!-- Source generators are compile-time only - explicitly opt out of AOT/trimming -->
     <!-- These properties prevent NETSDK1124 error when consuming projects use AOT -->
@@ -15,11 +16,25 @@
     <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
     <PublishAot>false</PublishAot>
     <PublishTrimmed>false</PublishTrimmed>
+
+    <!-- NuGet packaging - package as analyzer, not as lib reference -->
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);PackBuildOutputs</TargetsForTfmSpecificContentInPackage>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <DevelopmentDependency>true</DevelopmentDependency>
+    <IncludeSymbols>false</IncludeSymbols>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
   </ItemGroup>
+
+  <!-- Package the generator DLL into the analyzers folder for NuGet consumers -->
+  <Target Name="PackBuildOutputs" DependsOnTargets="SatelliteDllsProjectOutputGroup;DebugSymbolsProjectOutputGroup">
+    <ItemGroup>
+      <TfmSpecificPackageFile Include="$(TargetDir)\*.dll" PackagePath="analyzers\dotnet\cs" />
+    </ItemGroup>
+  </Target>
 
 </Project>
