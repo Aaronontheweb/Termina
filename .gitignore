@@ -406,3 +406,4 @@ output/
 # VitePress documentation
 docs/.vitepress/dist/
 docs/.vitepress/cache/
+/.playwright-mcp
