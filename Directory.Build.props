@@ -76,7 +76,7 @@ This release represents a complete architectural redesign from the beta, removin
   <!-- NuGet .nupkg options -->
   <PropertyGroup>
     <PackageTags>tui;terminal;console;ansi;reactive;mvvm;cli;dotnet</PackageTags>
-    <PackageProjectUrl>https://github.com/Aaronontheweb/Termina</PackageProjectUrl>
+    <PackageProjectUrl>https://aaronstannard.com/Termina/</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Aaronontheweb/Termina</RepositoryUrl>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <PackageIcon>termina-icon.png</PackageIcon>
