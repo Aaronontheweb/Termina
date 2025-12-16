@@ -44,10 +44,42 @@ public sealed class AnsiTerminal : IAnsiTerminal, IDisposable
     }
 
     /// <inheritdoc />
-    public int Width => Console.WindowWidth;
+    public int Width => GetConsoleWidth();
 
     /// <inheritdoc />
-    public int Height => Console.WindowHeight;
+    public int Height => GetConsoleHeight();
+
+    /// <summary>
+    /// Gets the console width, with fallback for non-TTY environments.
+    /// </summary>
+    private static int GetConsoleWidth()
+    {
+        try
+        {
+            return Console.WindowWidth;
+        }
+        catch (IOException)
+        {
+            // No TTY available (e.g., CI environment, redirected output)
+            return 80;
+        }
+    }
+
+    /// <summary>
+    /// Gets the console height, with fallback for non-TTY environments.
+    /// </summary>
+    private static int GetConsoleHeight()
+    {
+        try
+        {
+            return Console.WindowHeight;
+        }
+        catch (IOException)
+        {
+            // No TTY available (e.g., CI environment, redirected output)
+            return 24;
+        }
+    }
 
     /// <inheritdoc />
     public void MoveTo(int x, int y)
