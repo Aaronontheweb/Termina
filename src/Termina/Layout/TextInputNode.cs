@@ -21,6 +21,7 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     private int _selectionStart = -1;
     private int _scrollOffset;
     private bool _cursorVisible = true;
+    private bool _disposed;
 
     /// <inheritdoc />
     public event Action? Invalidated;
@@ -214,6 +215,10 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     /// </summary>
     public bool HandleInput(ConsoleKeyInfo key)
     {
+        // Don't process input if disposed
+        if (_disposed)
+            return false;
+
         // Reset cursor to visible on any input
         _cursorVisible = true;
         _cursorTimer.Stop();
@@ -668,6 +673,10 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     /// <inheritdoc />
     public override void Dispose()
     {
+        if (_disposed)
+            return;
+
+        _disposed = true;
         _cursorTimer.Stop();
         _cursorTimer.Dispose();
         base.Dispose();
