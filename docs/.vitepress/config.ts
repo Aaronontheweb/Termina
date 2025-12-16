@@ -46,13 +46,16 @@ export default defineConfig({
         { text: 'TextNode', link: '/components/text-node' },
         { text: 'PanelNode', link: '/components/panel-node' },
         { text: 'TextInputNode', link: '/components/text-input-node' },
+        { text: 'SelectionListNode', link: '/components/selection-list-node' },
         { text: 'SpinnerNode', link: '/components/spinner-node' },
         { text: 'StreamingTextNode', link: '/components/streaming-text-node' },
         { text: 'ScrollableContainer', link: '/components/scrollable-container' },
         { text: 'StackLayout', link: '/components/stack-layout' },
+        { text: 'ModalNode', link: '/components/modal-node' },
         { text: 'ReactiveLayoutNode', link: '/components/reactive-layout' },
         { text: 'ConditionalNode', link: '/components/conditional-node' },
-        { text: 'EmptyNode', link: '/components/empty-node' }
+        { text: 'EmptyNode', link: '/components/empty-node' },
+        { text: 'DeferredNode', link: '/components/deferred-node' }
       ],
       '/styling/': [
         { text: 'Styling Guide', link: '/styling/' },
