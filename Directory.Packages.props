@@ -27,6 +27,11 @@
   <!-- Source generator dependencies -->
   <ItemGroup>
     <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.12.0" />
+  </ItemGroup>
+  <!-- Analyzer testing dependencies -->
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing.XUnit" Version="1.1.2" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.12.0" />
   </ItemGroup>
 </Project>

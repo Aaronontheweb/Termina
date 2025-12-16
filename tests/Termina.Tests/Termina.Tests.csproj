@@ -12,6 +12,8 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing.XUnit" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
   </ItemGroup>
 
   <ItemGroup>
@@ -20,9 +22,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Termina\Termina.csproj" />
+    <!-- Reference as analyzer for source generation in test code -->
     <ProjectReference Include="..\..\src\Termina.Generators\Termina.Generators.csproj"
                       OutputItemType="Analyzer"
-                      ReferenceOutputAssembly="false" />
+                      ReferenceOutputAssembly="true" />
   </ItemGroup>
 
 </Project>
