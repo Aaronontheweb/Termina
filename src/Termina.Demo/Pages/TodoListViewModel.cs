@@ -20,6 +20,8 @@ public partial class TodoListViewModel : ReactiveViewModel
 
     [Reactive] private int _selectedIndex;
     [Reactive] private string _statusMessage = "Navigate with ↑/↓, Space to toggle, C for counter, Q to quit";
+    [Reactive] private bool _isAddingItem;
+    [Reactive] private string _newItemText = "";
 
     public override void OnActivated()
     {
@@ -31,6 +33,13 @@ public partial class TodoListViewModel : ReactiveViewModel
 
     private void HandleKeyPress(KeyPressed key)
     {
+        // Handle input differently when in text entry mode
+        if (IsAddingItem)
+        {
+            HandleTextEntryKeyPress(key);
+            return;
+        }
+
         switch (key.KeyInfo.Key)
         {
             case ConsoleKey.UpArrow:
@@ -54,7 +63,7 @@ public partial class TodoListViewModel : ReactiveViewModel
                 break;
 
             case ConsoleKey.A:
-                AddItem();
+                StartAddingItem();
                 break;
 
             case ConsoleKey.D:
@@ -69,6 +78,65 @@ public partial class TodoListViewModel : ReactiveViewModel
                 Shutdown();
                 break;
         }
+    }
+
+    private void HandleTextEntryKeyPress(KeyPressed key)
+    {
+        switch (key.KeyInfo.Key)
+        {
+            case ConsoleKey.Enter:
+                ConfirmAddItem();
+                break;
+            case ConsoleKey.Escape:
+                CancelAddItem();
+                break;
+            case ConsoleKey.Backspace:
+                if (NewItemText.Length > 0)
+                {
+                    NewItemText = NewItemText[..^1];
+                }
+                break;
+            default:
+                // Add printable characters
+                if (key.KeyInfo.KeyChar != '\0' && !char.IsControl(key.KeyInfo.KeyChar))
+                {
+                    NewItemText += key.KeyInfo.KeyChar;
+                }
+                break;
+        }
+    }
+
+    private void StartAddingItem()
+    {
+        IsAddingItem = true;
+        NewItemText = "";
+        StatusMessage = "Type task name, Enter to add, Escape to cancel";
+    }
+
+    private void ConfirmAddItem()
+    {
+        if (!string.IsNullOrWhiteSpace(NewItemText))
+        {
+            var newItems = Items.ToList();
+            newItems.Add(new TodoItem(NewItemText.Trim(), false));
+            Items = newItems;
+            SelectedIndex = Items.Count - 1;
+            StatusMessage = $"Added: {NewItemText.Trim()}";
+        }
+        else
+        {
+            StatusMessage = "Cancelled - empty task name";
+        }
+
+        IsAddingItem = false;
+        NewItemText = "";
+    }
+
+    private void CancelAddItem()
+    {
+        IsAddingItem = false;
+        NewItemText = "";
+        StatusMessage = "Cancelled adding item";
     }
 
     private void ToggleSelected()
@@ -86,14 +154,6 @@ public partial class TodoListViewModel : ReactiveViewModel
         StatusMessage = newItem.IsCompleted
             ? $"Completed: {newItem.Description}"
             : $"Uncompleted: {newItem.Description}";
-    }
-
-    private void AddItem()
-    {
-        var newItems = Items.ToList();
-        newItems.Add(new TodoItem($"New task {Items.Count + 1}", false));
-        Items = newItems;
-        StatusMessage = "Added new item";
     }
 
     private void DeleteSelected()

@@ -2,6 +2,7 @@ using Microsoft.Extensions.Hosting;
 using Termina.Demo.Pages;
 using Termina.Hosting;
 using Termina.Input;
+using Termina.Pages;
 
 // Check for --test flag (used in CI/CD to run scripted test and exit)
 var testMode = args.Contains("--test");
@@ -17,10 +18,11 @@ if (testMode)
 }
 
 // Register Termina with reactive pages using route-based navigation
+// Use PreserveState so state persists when navigating between pages
 builder.Services.AddTermina("/counter", termina =>
 {
-    termina.RegisterRoute<CounterPage, CounterViewModel>("/counter");
-    termina.RegisterRoute<TodoListPage, TodoListViewModel>("/todos");
+    termina.RegisterRoute<CounterPage, CounterViewModel>("/counter", NavigationBehavior.PreserveState);
+    termina.RegisterRoute<TodoListPage, TodoListViewModel>("/todos", NavigationBehavior.PreserveState);
 });
 
 var host = builder.Build();
