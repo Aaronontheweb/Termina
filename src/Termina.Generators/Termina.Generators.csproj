@@ -17,6 +17,9 @@
     <PublishAot>false</PublishAot>
     <PublishTrimmed>false</PublishTrimmed>
 
+    <!-- Suppress RS2008 - release tracking is overkill for a single diagnostic -->
+    <NoWarn>$(NoWarn);RS2008</NoWarn>
+
     <!-- NuGet packaging - package as analyzer, not as lib reference -->
     <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);PackBuildOutputs</TargetsForTfmSpecificContentInPackage>
     <IncludeBuildOutput>false</IncludeBuildOutput>

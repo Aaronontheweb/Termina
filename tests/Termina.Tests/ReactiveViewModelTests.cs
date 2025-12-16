@@ -119,6 +119,83 @@ public class ReactiveViewModelTests
         Assert.True(vm.WasDeactivating);
     }
 
+    [Fact]
+    public void ReactiveViewModel_WithReactiveFields_HasDisposeReactiveFieldsMethod()
+    {
+        var vm = new TestReactiveViewModel();
+
+        // The generated DisposeReactiveFields method should be callable
+        // It's generated as protected, so we access it through Dispose()
+        Assert.NotNull(vm);
+        vm.Count = 5;
+        Assert.Equal(5, vm.Count);
+
+        // Dispose should call DisposeReactiveFields automatically
+        vm.Dispose();
+
+        // After disposal, setting a value should throw ObjectDisposedException
+        Assert.Throws<ObjectDisposedException>(() => vm.Count = 10);
+    }
+
+    [Fact]
+    public void ReactiveViewModel_WithReactiveFields_DisposesAllSubjects()
+    {
+        var vm = new TestReactiveViewModel();
+
+        // Set some values to ensure subjects are active
+        vm.Count = 42;
+        vm.Message = "Hello";
+
+        Assert.Equal(42, vm.Count);
+        Assert.Equal("Hello", vm.Message);
+
+        // Dispose the ViewModel
+        vm.Dispose();
+
+        // Both subjects should be disposed
+        Assert.Throws<ObjectDisposedException>(() => vm.Count = 1);
+        Assert.Throws<ObjectDisposedException>(() => vm.Message = "test");
+    }
+
+    [Fact]
+    public void ReactiveViewModel_WithReactiveFields_CannotSetValueAfterDispose()
+    {
+        var vm = new TestReactiveViewModel();
+        var valuesReceived = new List<int>();
+
+        // Subscribe to track values
+        vm.CountChanged.Subscribe(v => valuesReceived.Add(v));
+
+        // Set a value before dispose
+        vm.Count = 42;
+        Assert.Contains(42, valuesReceived);
+
+        // Dispose
+        vm.Dispose();
+
+        // Attempting to set value after dispose throws
+        Assert.Throws<ObjectDisposedException>(() => vm.Count = 100);
+    }
+
+    [Fact]
+    public void ReactiveViewModel_WithCustomDispose_CallsDisposeReactiveFields()
+    {
+        var vm = new TestReactiveViewModelWithCustomDispose();
+
+        // Set a value
+        vm.Value = 42;
+        Assert.Equal(42, vm.Value);
+
+        // Dispose
+        vm.Dispose();
+
+        // Custom dispose was called
+        Assert.True(vm.CustomDisposeWasCalled);
+
+        // Reactive fields were disposed (setting value throws)
+        Assert.Throws<ObjectDisposedException>(() => vm.Value = 100);
+    }
+
     private class TestViewModel : ReactiveViewModel
     {
         public bool WasActivated { get; private set; }
@@ -142,5 +219,33 @@ public class ReactiveViewModelTests
             base.OnDeactivating();
             WasDeactivating = true;
         }
+    }
+}
+
+/// <summary>
+/// Test ViewModel with [Reactive] fields to verify source generator disposal.
+/// This must be partial and outside the test class for the generator to work.
+/// </summary>
+public partial class TestReactiveViewModel : ReactiveViewModel
+{
+    [Reactive] private int _count;
+    [Reactive] private string _message = "Initial";
+}
+
+/// <summary>
+/// Test ViewModel with custom Dispose() that properly calls DisposeReactiveFields().
+/// This should NOT trigger TERMINA001 error.
+/// </summary>
+public partial class TestReactiveViewModelWithCustomDispose : ReactiveViewModel
+{
+    [Reactive] private int _value;
+
+    public bool CustomDisposeWasCalled { get; private set; }
+
+    public override void Dispose()
+    {
+        CustomDisposeWasCalled = true;
+        DisposeReactiveFields();
+        base.Dispose();
     }
 }

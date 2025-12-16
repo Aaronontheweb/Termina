@@ -28,6 +28,19 @@ public class ReactivePropertyGenerator : IIncrementalGenerator
     private const string FromRouteAttributeName = "FromRoute";
     private const string FromRouteAttributeFullName = "Termina.Routing.FromRouteAttribute";
 
+    /// <summary>
+    /// Diagnostic reported when a ReactiveViewModel subclass has a custom Dispose() method
+    /// but needs to call DisposeReactiveFields() to properly dispose generated BehaviorSubjects.
+    /// </summary>
+    private static readonly DiagnosticDescriptor MustCallDisposeReactiveFields = new(
+        id: "TERMINA001",
+        title: "Must call DisposeReactiveFields() in custom Dispose() override",
+        messageFormat: "Class '{0}' inherits from ReactiveViewModel and has [Reactive] fields, but defines a custom Dispose() method. You must call DisposeReactiveFields() in your Dispose() implementation to properly dispose generated BehaviorSubject backing fields.",
+        category: "Termina.Reactive",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "When a ReactiveViewModel subclass has [Reactive] fields and defines its own Dispose() method, it must call the generated DisposeReactiveFields() method to ensure BehaviorSubject backing fields are properly disposed.");
+
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         // Find all field declarations with [Reactive] or [FromRoute] attribute
@@ -138,6 +151,49 @@ public class ReactivePropertyGenerator : IIncrementalGenerator
             : containingType.ContainingNamespace.ToDisplayString();
         var typeName = containingType.Name;
 
+        // Check if the containing type inherits from ReactiveViewModel
+        var inheritsFromReactiveViewModel = InheritsFromType(containingType, "Termina.Reactive.ReactiveViewModel");
+
+        // Check if the class already has a Dispose() method defined
+        var disposeMethod = containingType.GetMembers("Dispose")
+            .OfType<IMethodSymbol>()
+            .FirstOrDefault(m => m.Parameters.Length == 0 &&
+                      m.ReturnType.SpecialType == SpecialType.System_Void &&
+                      !m.IsImplicitlyDeclared);
+        var hasExistingDisposeMethod = disposeMethod is not null;
+
+        // Check if the existing Dispose method calls DisposeReactiveFields()
+        var disposeCallsDisposeReactiveFields = false;
+        if (disposeMethod is not null)
+        {
+            // Get the syntax reference for the dispose method
+            var syntaxRef = disposeMethod.DeclaringSyntaxReferences.FirstOrDefault();
+            if (syntaxRef is not null)
+            {
+                var disposeSyntax = syntaxRef.GetSyntax();
+                // Check if the method body contains a call to DisposeReactiveFields
+                disposeCallsDisposeReactiveFields = disposeSyntax.DescendantNodes()
+                    .OfType<InvocationExpressionSyntax>()
+                    .Any(inv =>
+                    {
+                        // Check for direct call: DisposeReactiveFields()
+                        if (inv.Expression is IdentifierNameSyntax id &&
+                            id.Identifier.Text == "DisposeReactiveFields")
+                            return true;
+
+                        // Check for this.DisposeReactiveFields()
+                        if (inv.Expression is MemberAccessExpressionSyntax ma &&
+                            ma.Name.Identifier.Text == "DisposeReactiveFields")
+                            return true;
+
+                        return false;
+                    });
+            }
+        }
+
+        // Get the location of the type declaration for diagnostics
+        var typeLocation = typeDeclaration.Identifier.GetLocation();
+
         return new FieldInfo(
             namespaceName,
             typeName,
@@ -147,7 +203,38 @@ public class ReactivePropertyGenerator : IIncrementalGenerator
             containingType.ToDisplayString(),
             hasReactiveAttribute,
             hasFromRouteAttribute,
-            routeParameterName);
+            routeParameterName,
+            inheritsFromReactiveViewModel,
+            hasExistingDisposeMethod,
+            disposeCallsDisposeReactiveFields,
+            typeLocation);
+    }
+
+    private static bool InheritsFromType(INamedTypeSymbol? type, string baseTypeName)
+    {
+        var current = type?.BaseType;
+        while (current != null)
+        {
+            // Check against multiple possible display formats
+            var displayString = current.ToDisplayString();
+            if (displayString == baseTypeName)
+                return true;
+
+            // Also check the fully qualified name (namespace + name)
+            var fullyQualifiedName = current.ContainingNamespace.IsGlobalNamespace
+                ? current.Name
+                : $"{current.ContainingNamespace.ToDisplayString()}.{current.Name}";
+            if (fullyQualifiedName == baseTypeName)
+                return true;
+
+            // Also check just by type name and namespace separately (for metadata types)
+            if (current.Name == "ReactiveViewModel" &&
+                current.ContainingNamespace.ToDisplayString() == "Termina.Reactive")
+                return true;
+
+            current = current.BaseType;
+        }
+        return false;
     }
 
     private static void GenerateSource(SourceProductionContext context, ImmutableArray<FieldInfo?> fields)
@@ -160,8 +247,25 @@ public class ReactivePropertyGenerator : IIncrementalGenerator
 
         foreach (var group in fieldsByType)
         {
-            var firstField = group.First();
-            var source = GeneratePartialClass(firstField.Namespace, firstField.TypeName, group.ToList());
+            var fieldList = group.ToList();
+            var firstField = fieldList.First();
+            var reactiveFields = fieldList.Where(f => f.IsReactive).ToList();
+
+            // Report diagnostic if user has custom Dispose() but doesn't call DisposeReactiveFields()
+            if (reactiveFields.Count > 0 &&
+                firstField.InheritsFromReactiveViewModel &&
+                firstField.HasExistingDisposeMethod &&
+                !firstField.DisposeCallsDisposeReactiveFields &&
+                firstField.TypeLocation is not null)
+            {
+                var diagnostic = Diagnostic.Create(
+                    MustCallDisposeReactiveFields,
+                    firstField.TypeLocation,
+                    firstField.TypeName);
+                context.ReportDiagnostic(diagnostic);
+            }
+
+            var source = GeneratePartialClass(firstField.Namespace, firstField.TypeName, fieldList);
             context.AddSource($"{firstField.TypeName}.Reactive.g.cs", SourceText.From(source, Encoding.UTF8));
         }
     }
@@ -224,6 +328,20 @@ public class ReactivePropertyGenerator : IIncrementalGenerator
             GenerateSetRouteParameters(sb, fromRouteFields);
         }
 
+        // Generate disposal method for reactive fields
+        if (reactiveFields.Count > 0)
+        {
+            GenerateDisposeReactiveFields(sb, reactiveFields);
+
+            // Generate Dispose() override for ReactiveViewModel subclasses
+            // (only if user hasn't already defined one)
+            var firstField = reactiveFields.First();
+            if (firstField.InheritsFromReactiveViewModel && !firstField.HasExistingDisposeMethod)
+            {
+                GenerateDisposeOverride(sb);
+            }
+        }
+
         sb.AppendLine("}");
 
         return sb.ToString();
@@ -275,6 +393,37 @@ public class ReactivePropertyGenerator : IIncrementalGenerator
             sb.AppendLine($"            {field.FieldName} = ({field.FieldType}){field.FieldName}Value;");
         }
 
+        sb.AppendLine("    }");
+    }
+
+    private static void GenerateDisposeReactiveFields(StringBuilder sb, List<FieldInfo> reactiveFields)
+    {
+        sb.AppendLine();
+        sb.AppendLine("    /// <summary>");
+        sb.AppendLine("    /// Disposes all BehaviorSubject backing fields generated by [Reactive] attributes.");
+        sb.AppendLine("    /// </summary>");
+        sb.AppendLine("    protected void DisposeReactiveFields()");
+        sb.AppendLine("    {");
+
+        foreach (var field in reactiveFields)
+        {
+            var subjectFieldName = $"{field.FieldName}Subject";
+            sb.AppendLine($"        {subjectFieldName}.Dispose();");
+        }
+
+        sb.AppendLine("    }");
+    }
+
+    private static void GenerateDisposeOverride(StringBuilder sb)
+    {
+        sb.AppendLine();
+        sb.AppendLine("    /// <summary>");
+        sb.AppendLine("    /// Disposes reactive property backing fields and calls base disposal.");
+        sb.AppendLine("    /// </summary>");
+        sb.AppendLine("    public override void Dispose()");
+        sb.AppendLine("    {");
+        sb.AppendLine("        DisposeReactiveFields();");
+        sb.AppendLine("        base.Dispose();");
         sb.AppendLine("    }");
     }
 
@@ -330,6 +479,10 @@ public class ReactivePropertyGenerator : IIncrementalGenerator
         public bool IsReactive { get; }
         public bool IsFromRoute { get; }
         public string? RouteParameterName { get; }
+        public bool InheritsFromReactiveViewModel { get; }
+        public bool HasExistingDisposeMethod { get; }
+        public bool DisposeCallsDisposeReactiveFields { get; }
+        public Location? TypeLocation { get; }
 
         public FieldInfo(
             string? @namespace,
@@ -340,7 +493,11 @@ public class ReactivePropertyGenerator : IIncrementalGenerator
             string fullTypeName,
             bool isReactive,
             bool isFromRoute,
-            string? routeParameterName)
+            string? routeParameterName,
+            bool inheritsFromReactiveViewModel,
+            bool hasExistingDisposeMethod,
+            bool disposeCallsDisposeReactiveFields,
+            Location? typeLocation)
         {
             Namespace = @namespace;
             TypeName = typeName;
@@ -351,6 +508,10 @@ public class ReactivePropertyGenerator : IIncrementalGenerator
             IsReactive = isReactive;
             IsFromRoute = isFromRoute;
             RouteParameterName = routeParameterName;
+            InheritsFromReactiveViewModel = inheritsFromReactiveViewModel;
+            HasExistingDisposeMethod = hasExistingDisposeMethod;
+            DisposeCallsDisposeReactiveFields = disposeCallsDisposeReactiveFields;
+            TypeLocation = typeLocation;
         }
     }
 }
