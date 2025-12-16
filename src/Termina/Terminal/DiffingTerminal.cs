@@ -253,8 +253,6 @@ public sealed class DiffingTerminal : IAnsiTerminal, IDisposable
         _lastOutputBackground = Color.Default;
         _lastOutputDecoration = TextDecoration.None;
 
-        _inner.SetCursorVisible(false);
-
         for (var y = 0; y < _pendingFrame.Height; y++)
         {
             _inner.MoveTo(0, y);
@@ -268,7 +266,6 @@ public sealed class DiffingTerminal : IAnsiTerminal, IDisposable
         }
 
         _inner.ResetColors();
-        _inner.SetCursorVisible(true);
     }
 
     /// <summary>
@@ -280,8 +277,6 @@ public sealed class DiffingTerminal : IAnsiTerminal, IDisposable
         _lastOutputForeground = Color.Default;
         _lastOutputBackground = Color.Default;
         _lastOutputDecoration = TextDecoration.None;
-
-        _inner.SetCursorVisible(false);
 
         // Use GetChangedRuns for efficient output (groups consecutive changes)
         foreach (var (y, startX, cells) in _pendingFrame.GetChangedRuns(_currentFrame))
@@ -299,8 +294,6 @@ public sealed class DiffingTerminal : IAnsiTerminal, IDisposable
         _lastOutputForeground = Color.Default;
         _lastOutputBackground = Color.Default;
         _lastOutputDecoration = TextDecoration.None;
-
-        _inner.SetCursorVisible(true);
     }
 
     /// <summary>
