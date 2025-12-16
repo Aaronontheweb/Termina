@@ -346,9 +346,15 @@ public sealed class TerminaApplication
         }
         finally
         {
-            // Restore terminal
+            // Restore terminal state fully to avoid artifacts
+            _terminal.DisableMouse();
             _terminal.SetCursorVisible(true);
+            _terminal.ResetColors();
             _terminal.ExitAlternateScreen();
+            _terminal.Flush();
+
+            // Clear any partial line artifacts
+            Console.WriteLine();
 
             // Complete the input subject
             _inputSubject.OnCompleted();
