@@ -9,13 +9,17 @@ using Timer = System.Timers.Timer;
 namespace Termina.Layout;
 
 /// <summary>
-/// A stateful layout node that handles text input with cursor, selection, and history.
+/// A stateful layout node that handles text input with cursor and selection.
 /// </summary>
+/// <remarks>
+/// TextInputNode is a pure UI component that handles text editing (cursor movement, selection,
+/// typing). It does NOT handle input history - that is the responsibility of the ViewModel
+/// which can decide whether to enable history, how many entries to keep, and whether to
+/// persist it across sessions.
+/// </remarks>
 public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
 {
     private readonly Timer _cursorTimer;
-    private readonly List<string> _history = new();
-    private int _historyIndex = -1;
     private string _text = "";
     private int _cursorPosition;
     private int _selectionStart = -1;
@@ -232,8 +236,8 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
             ConsoleKey.RightArrow => HandleRightArrow(key.Modifiers),
             ConsoleKey.Home => HandleHome(key.Modifiers),
             ConsoleKey.End => HandleEnd(key.Modifiers),
-            ConsoleKey.UpArrow => HandleUpArrow(),
-            ConsoleKey.DownArrow => HandleDownArrow(),
+            ConsoleKey.UpArrow => false, // Let ViewModel handle history
+            ConsoleKey.DownArrow => false, // Let ViewModel handle history
             ConsoleKey.Enter => HandleEnter(),
             ConsoleKey.Escape => HandleEscape(),
             _ when key.KeyChar != '\0' && !char.IsControl(key.KeyChar) => HandleCharacter(key.KeyChar, key.Modifiers),
@@ -419,62 +423,25 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
         return true;
     }
 
-    private bool HandleUpArrow()
-    {
-        // Navigate history
-        if (_history.Count == 0)
-            return false;
-
-        if (_historyIndex < 0)
-        {
-            _historyIndex = _history.Count - 1;
-        }
-        else if (_historyIndex > 0)
-        {
-            _historyIndex--;
-        }
-
-        _text = _history[_historyIndex];
-        _cursorPosition = _text.Length;
-        _selectionStart = -1;
-        return true;
-    }
-
-    private bool HandleDownArrow()
-    {
-        if (_historyIndex < 0)
-            return false;
-
-        if (_historyIndex < _history.Count - 1)
-        {
-            _historyIndex++;
-            _text = _history[_historyIndex];
-        }
-        else
-        {
-            _historyIndex = -1;
-            _text = "";
-        }
-
-        _cursorPosition = _text.Length;
-        _selectionStart = -1;
-        return true;
-    }
-
     private bool HandleEnter()
     {
-        if (!string.IsNullOrWhiteSpace(_text))
-        {
-            _history.Add(_text);
-            _historyIndex = -1;
-        }
-
+        // Just fire the event - ViewModel decides what to do (add to history, clear text, etc.)
         Submitted?.Invoke(_text);
+        return true;
+    }
+
+    /// <summary>
+    /// Clears the text and resets cursor position.
+    /// Call this from ViewModel after handling submission.
+    /// </summary>
+    public void Clear()
+    {
         _text = "";
         _cursorPosition = 0;
         _selectionStart = -1;
+        _scrollOffset = 0;
         TextChanged?.Invoke(_text);
-        return true;
+        Invalidated?.Invoke();
     }
 
     private bool HandleEscape()
