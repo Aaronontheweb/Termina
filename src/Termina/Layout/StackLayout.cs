@@ -20,6 +20,15 @@ public sealed class StackLayout : ContainerNode
         WidthConstraint = new SizeConstraint.Fill();
     }
 
+    /// <summary>
+    /// Add a child node fluently.
+    /// </summary>
+    public StackLayout WithChild(ILayoutNode child)
+    {
+        AddChild(child);
+        return this;
+    }
+
     /// <inheritdoc />
     public override Size Measure(Size available)
     {

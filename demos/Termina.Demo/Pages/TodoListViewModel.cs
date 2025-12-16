@@ -1,12 +1,14 @@
 using System.Reactive.Linq;
 using Termina.Input;
+using Termina.Layout;
 using Termina.Reactive;
+using Termina.Rendering;
 
 namespace Termina.Demo.Pages;
 
 /// <summary>
 /// ViewModel for a todo list demo.
-/// Demonstrates list selection and state management.
+/// Demonstrates list selection and state management with modal dialogs.
 /// </summary>
 public partial class TodoListViewModel : ReactiveViewModel
 {
@@ -22,6 +24,14 @@ public partial class TodoListViewModel : ReactiveViewModel
     [Reactive] private string _statusMessage = "Navigate with ↑/↓, Space to toggle, C for counter, Q to quit";
     [Reactive] private bool _isAddingItem;
     [Reactive] private string _newItemText = "";
+    [Reactive] private bool _showPriorityModal;
+    [Reactive] private string _pendingTaskText = "";
+
+    // Modal and selection list instances (created once, reused)
+    private ModalNode? _addModal;
+    private ModalNode? _priorityModal;
+    private SelectionListNode<string>? _priorityList;
+    private TextInputNode? _textInput;
 
     public override void OnActivated()
     {
@@ -29,7 +39,104 @@ public partial class TodoListViewModel : ReactiveViewModel
         Input.OfType<KeyPressed>()
             .Subscribe(HandleKeyPress)
             .DisposeWith(Subscriptions);
+
+        // Create the text input for the add modal
+        _textInput = new TextInputNode()
+            .WithPlaceholder("Enter task description...");
+
+        // Subscribe to text input submission
+        _textInput.Submitted
+            .Subscribe(text =>
+            {
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    PendingTaskText = text.Trim();
+                    ShowPrioritySelection();
+                }
+                else
+                {
+                    CancelAddItem();
+                }
+            })
+            .DisposeWith(Subscriptions);
+
+        // Create priority selection list
+        _priorityList = Layouts.SelectionList("High", "Medium", "Low")
+            .WithMode(SelectionMode.Single)
+            .WithShowNumbers(true)
+            .WithHighlightColors(Terminal.Color.Black, Terminal.Color.Cyan)
+            .WithOtherOption("Custom priority...");
+
+        // Subscribe to priority selection
+        _priorityList.SelectionConfirmed
+            .Subscribe(selected =>
+            {
+                var priority = selected.FirstOrDefault() ?? "Normal";
+                AddNewItem(PendingTaskText, priority);
+            })
+            .DisposeWith(Subscriptions);
+
+        _priorityList.OtherSelected
+            .Subscribe(customPriority =>
+            {
+                AddNewItem(PendingTaskText, customPriority);
+            })
+            .DisposeWith(Subscriptions);
+
+        _priorityList.Cancelled
+            .Subscribe(_ =>
+            {
+                // Go back to text input
+                ShowPriorityModal = false;
+                Focus.PopFocus();
+            })
+            .DisposeWith(Subscriptions);
+
+        // Create modals
+        _addModal = Layouts.Modal()
+            .WithTitle("Add New Task")
+            .WithBorder(BorderStyle.Rounded)
+            .WithBorderColor(Terminal.Color.Cyan)
+            .WithBackdrop(BackdropStyle.Dim)
+            .WithPosition(ModalPosition.Center)
+            .WithPadding(1)
+            .WithContent(_textInput)
+            .WithDismissOnEscape(true);
+
+        _addModal.Dismissed
+            .Subscribe(_ => CancelAddItem())
+            .DisposeWith(Subscriptions);
+
+        _priorityModal = Layouts.Modal()
+            .WithTitle("Select Priority")
+            .WithBorder(BorderStyle.Rounded)
+            .WithBorderColor(Terminal.Color.Yellow)
+            .WithBackdrop(BackdropStyle.Dim)
+            .WithPosition(ModalPosition.Center)
+            .WithPadding(1)
+            .WithContent(_priorityList)
+            .WithDismissOnEscape(true);
+
+        _priorityModal.Dismissed
+            .Subscribe(_ =>
+            {
+                ShowPriorityModal = false;
+                IsAddingItem = false;
+                Focus.PopFocus();
+                StatusMessage = "Cancelled adding item";
+            })
+            .DisposeWith(Subscriptions);
     }
+
+    /// <summary>
+    /// Gets the modal for adding items (used by the Page).
+    /// </summary>
+    public ModalNode? AddModal => _addModal;
+
+    /// <summary>
+    /// Gets the modal for priority selection (used by the Page).
+    /// </summary>
+    public ModalNode? PriorityModal => _priorityModal;
 
     private void HandleKeyPress(KeyPressed key)
     {
@@ -109,8 +216,49 @@ public partial class TodoListViewModel : ReactiveViewModel
     private void StartAddingItem()
     {
         IsAddingItem = true;
+        ShowPriorityModal = false;
         NewItemText = "";
-        StatusMessage = "Type task name, Enter to add, Escape to cancel";
+        PendingTaskText = "";
+        _textInput?.Clear();
+        StatusMessage = "Enter task name and press Enter, or Escape to cancel";
+
+        // Push focus to the modal for keyboard input
+        if (_addModal != null)
+        {
+            Focus.PushFocus(_addModal);
+        }
+    }
+
+    private void ShowPrioritySelection()
+    {
+        ShowPriorityModal = true;
+
+        // Switch focus from text input modal to priority modal
+        Focus.PopFocus(); // Remove add modal focus
+
+        if (_priorityModal != null && _priorityList != null)
+        {
+            Focus.PushFocus(_priorityModal);
+            Focus.PushFocus(_priorityList); // Selection list needs focus for keyboard input
+        }
+
+        StatusMessage = "Select priority with ↑/↓ or number keys, Enter to confirm";
+    }
+
+    private void AddNewItem(string description, string priority)
+    {
+        var newItems = Items.ToList();
+        var displayText = priority != "Normal" ? $"[{priority}] {description}" : description;
+        newItems.Add(new TodoItem(displayText, false));
+        Items = newItems;
+        SelectedIndex = Items.Count - 1;
+        StatusMessage = $"Added: {displayText}";
+
+        // Clean up modal state
+        ShowPriorityModal = false;
+        IsAddingItem = false;
+        PendingTaskText = "";
+        Focus.ClearFocus();
     }
 
     private void ConfirmAddItem()
@@ -135,7 +283,10 @@ public partial class TodoListViewModel : ReactiveViewModel
     private void CancelAddItem()
     {
         IsAddingItem = false;
+        ShowPriorityModal = false;
         NewItemText = "";
+        PendingTaskText = "";
+        Focus.ClearFocus();
         StatusMessage = "Cancelled adding item";
     }
 

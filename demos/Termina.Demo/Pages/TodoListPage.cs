@@ -12,13 +12,14 @@ namespace Termina.Demo.Pages;
 
 /// <summary>
 /// Page for the todo list demo.
-/// Demonstrates list components and state binding with the new declarative layout API.
+/// Demonstrates list components and state binding with modal dialogs.
 /// </summary>
 public class TodoListPage : ReactivePage<TodoListViewModel>
 {
     public override ILayoutNode BuildLayout()
     {
-        return Layouts.Vertical()
+        // Build the main content
+        var mainContent = Layouts.Vertical()
             .WithChild(
                 new PanelNode()
                     .WithTitle("Todo List Demo")
@@ -31,33 +32,36 @@ public class TodoListPage : ReactivePage<TodoListViewModel>
                             .AsLayout())
                     .Fill())
             .WithChild(
-                // Show text input row when adding, otherwise show help text
-                ViewModel.IsAddingItemChanged
-                    .CombineLatest(ViewModel.NewItemTextChanged, (isAdding, text) => (isAdding, text))
-                    .Select(tuple => tuple.isAdding
-                        ? BuildTextInputRow(tuple.text)
-                        : new TextNode("[↑/↓] Navigate [Space] Toggle [A] Add [D] Delete [C] Counter [Q] Quit")
-                            .WithForeground(Color.BrightBlack))
-                    .AsLayout()
+                new TextNode("[↑/↓] Navigate [Space] Toggle [A] Add [D] Delete [C] Counter [Q] Quit")
+                    .WithForeground(Color.BrightBlack)
                     .Height(1))
             .WithChild(
                 ViewModel.StatusMessageChanged
                     .Select(msg => new TextNode(msg).WithForeground(Color.White))
                     .AsLayout()
                     .Height(1));
-    }
 
-    private static ILayoutNode BuildTextInputRow(string text)
-    {
-        return Layouts.Horizontal()
+        // Build the layer with modal overlays
+        // The stack layout renders children in order, with later children on top
+        return Layouts.Stack()
+            .WithChild(mainContent)
             .WithChild(
-                new TextNode("New task: ")
-                    .WithForeground(Color.Yellow)
-                    .Width(11))
+                // Show add modal when IsAddingItem is true and ShowPriorityModal is false
+                ViewModel.IsAddingItemChanged
+                    .CombineLatest(ViewModel.ShowPriorityModalChanged, (adding, showPriority) => (adding, showPriority))
+                    .Select(state =>
+                        state.adding && !state.showPriority && ViewModel.AddModal != null
+                            ? (ILayoutNode)ViewModel.AddModal
+                            : Layouts.Empty())
+                    .AsLayout())
             .WithChild(
-                new TextNode(text + "▌")
-                    .WithForeground(Color.White)
-                    .Fill());
+                // Show priority selection modal when ShowPriorityModal is true
+                ViewModel.ShowPriorityModalChanged
+                    .Select(showPriority =>
+                        showPriority && ViewModel.PriorityModal != null
+                            ? (ILayoutNode)ViewModel.PriorityModal
+                            : Layouts.Empty())
+                    .AsLayout());
     }
 
     private static ILayoutNode BuildTodoList(IReadOnlyList<TodoItem> items, int selectedIndex)
