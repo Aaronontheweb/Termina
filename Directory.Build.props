@@ -9,6 +9,7 @@
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <VersionPrefix>0.1.0-beta1</VersionPrefix>
     <PackageReleaseNotes>Initial release of Termina - a reactive terminal UI (TUI) framework for .NET.
 
