@@ -232,6 +232,10 @@ public sealed class DiffingTerminal : IAnsiTerminal, IDisposable
         var newWidth = Width;
         var newHeight = Height;
 
+        // Skip resize if dimensions are invalid (e.g., headless CI environment)
+        if (newWidth <= 0 || newHeight <= 0)
+            return;
+
         if (newWidth != _pendingFrame.Width || newHeight != _pendingFrame.Height)
         {
             _pendingFrame.Resize(newWidth, newHeight);
