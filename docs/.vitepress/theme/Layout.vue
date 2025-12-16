@@ -1,15 +1,30 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import DefaultTheme from 'vitepress/theme'
-import { useData } from 'vitepress'
+import { useData, useRoute } from 'vitepress'
+import VersionBadge from './VersionBadge.vue'
 
 const { Layout } = DefaultTheme
-const { theme } = useData()
+const { theme, frontmatter } = useData()
+const route = useRoute()
+
+// Show footer on doc pages, but not on changelog (it has its own) or home
+const showFooter = computed(() => {
+  const layout = frontmatter.value.layout
+  const path = route.path
+  return theme.value.footer &&
+         layout !== 'home' &&
+         !path.includes('/changelog')
+})
 </script>
 
 <template>
   <Layout>
+    <template #nav-bar-content-after>
+      <VersionBadge />
+    </template>
     <template #doc-after>
-      <div class="custom-footer" v-if="theme.footer">
+      <div class="custom-footer" v-if="showFooter">
         <p class="message" v-if="theme.footer.message" v-html="theme.footer.message"></p>
         <p class="copyright" v-if="theme.footer.copyright" v-html="theme.footer.copyright"></p>
       </div>
