@@ -3,10 +3,10 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
   title: 'Termina',
   description: 'Reactive Terminal UI Framework for .NET',
-  base: '/Termina/',
+  base: '/termina/',
 
   head: [
-    ['link', { rel: 'icon', href: '/Termina/termina-icon.png' }]
+    ['link', { rel: 'icon', href: '/termina/termina-icon.png' }]
   ],
 
   themeConfig: {

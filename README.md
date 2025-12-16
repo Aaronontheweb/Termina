@@ -1,19 +1,19 @@
 # Termina
 
-![Termina Logo](https://raw.githubusercontent.com/Aaronontheweb/Termina/refs/heads/dev/assets/termina-icon.png)
+![Termina Logo](https://raw.githubusercontent.com/Aaronontheweb/termina/refs/heads/dev/assets/termina-icon.png)
 
-[![NuGet Downloads](https://img.shields.io/nuget/dt/Termina)](https://www.nuget.org/packages/Termina) ![GitHub License](https://img.shields.io/github/license/Aaronontheweb/Termina) ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/Aaronontheweb/Termina/pr_validation.yml) ![GitHub Release](https://img.shields.io/github/v/release/Aaronontheweb/Termina)
+[![NuGet Downloads](https://img.shields.io/nuget/dt/Termina)](https://www.nuget.org/packages/Termina) ![GitHub License](https://img.shields.io/github/license/Aaronontheweb/termina) ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/Aaronontheweb/termina/pr_validation.yml) ![GitHub Release](https://img.shields.io/github/v/release/Aaronontheweb/termina)
 
 **Termina** is a reactive terminal UI (TUI) framework for .NET with declarative layouts and surgical region-based rendering. It provides an MVVM architecture with source-generated reactive properties, ASP.NET Core-style routing, and seamless integration with Microsoft.Extensions.Hosting.
 
 ## Documentation
 
-**[Full Documentation](https://aaronontheweb.github.io/Termina/)**
+**[Full Documentation](https://aaronontheweb.github.io/termina/)**
 
-- [Getting Started Guide](https://aaronontheweb.github.io/Termina/guide/getting-started)
-- [Tutorials](https://aaronontheweb.github.io/Termina/tutorials/)
-- [Component Reference](https://aaronontheweb.github.io/Termina/components/)
-- [Architecture](https://aaronontheweb.github.io/Termina/concepts/architecture)
+- [Getting Started Guide](https://aaronontheweb.github.io/termina/guide/getting-started)
+- [Tutorials](https://aaronontheweb.github.io/termina/tutorials/)
+- [Component Reference](https://aaronontheweb.github.io/termina/components/)
+- [Architecture](https://aaronontheweb.github.io/termina/concepts/architecture)
 
 ## Features
 
