@@ -92,11 +92,57 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode
     }
 
     /// <summary>
+    /// Appends styled text to the buffer and triggers a redraw.
+    /// </summary>
+    /// <param name="text">The text to append.</param>
+    /// <param name="foreground">The foreground color (optional).</param>
+    /// <param name="background">The background color (optional).</param>
+    /// <param name="decoration">Text decorations like bold, italic, etc. (optional).</param>
+    public void Append(string text, Color? foreground = null, Color? background = null,
+        TextDecoration decoration = TextDecoration.None)
+    {
+        var style = new TextStyle(
+            foreground ?? Color.Default,
+            background ?? Color.Default,
+            decoration);
+        _buffer.Append(text, style);
+        NotifyChanged();
+    }
+
+    /// <summary>
+    /// Appends a styled segment to the buffer and triggers a redraw.
+    /// </summary>
+    /// <param name="segment">The styled segment to append.</param>
+    public void Append(StyledSegment segment)
+    {
+        _buffer.Append(segment);
+        NotifyChanged();
+    }
+
+    /// <summary>
     /// Appends a line to the buffer and triggers a redraw.
     /// </summary>
     public void AppendLine(string line)
     {
         _buffer.AppendLine(line);
+        NotifyChanged();
+    }
+
+    /// <summary>
+    /// Appends a styled line to the buffer and triggers a redraw.
+    /// </summary>
+    /// <param name="line">The line to append.</param>
+    /// <param name="foreground">The foreground color (optional).</param>
+    /// <param name="background">The background color (optional).</param>
+    /// <param name="decoration">Text decorations like bold, italic, etc. (optional).</param>
+    public void AppendLine(string line, Color? foreground = null, Color? background = null,
+        TextDecoration decoration = TextDecoration.None)
+    {
+        var style = new TextStyle(
+            foreground ?? Color.Default,
+            background ?? Color.Default,
+            decoration);
+        _buffer.AppendLine(line, style);
         NotifyChanged();
     }
 
@@ -239,31 +285,70 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode
         if (contentWidth <= 0)
             return;
 
-        var visibleLines = _buffer.GetVisibleLines(bounds.Height, contentWidth);
+        // Get styled lines from buffer
+        var styledLines = _buffer.GetVisibleStyledLines(bounds.Height, contentWidth);
 
-        for (var i = 0; i < bounds.Height && i < visibleLines.Count; i++)
+        TextStyle? lastStyle = null;
+
+        for (var i = 0; i < bounds.Height && i < styledLines.Count; i++)
         {
-            var line = visibleLines[i];
+            var styledLine = styledLines[i];
 
             // Draw prefix if any
             if (!string.IsNullOrEmpty(Prefix))
             {
+                context.ResetColors();
                 if (PrefixColor.HasValue)
                     context.SetForeground(PrefixColor.Value);
                 context.WriteAt(0, i, Prefix);
                 context.ResetColors();
+                lastStyle = null;
             }
 
-            // Draw content
-            if (Foreground.HasValue)
-                context.SetForeground(Foreground.Value);
-            if (Background.HasValue)
-                context.SetBackground(Background.Value);
+            // Draw styled segments
+            var x = prefixLen;
+            foreach (var segment in styledLine.Segments)
+            {
+                var text = segment.Text;
+                var availableWidth = contentWidth - (x - prefixLen);
 
-            var truncatedLine = line.Length > contentWidth ? line[..contentWidth] : line;
-            context.WriteAt(prefixLen, i, truncatedLine);
-            context.ResetColors();
+                if (availableWidth <= 0)
+                    break;
+
+                if (text.Length > availableWidth)
+                    text = text[..availableWidth];
+
+                // Determine effective style (segment style with node-level fallback)
+                var effectiveStyle = GetEffectiveStyle(segment.Style);
+
+                // Apply style only if changed (optimization)
+                if (lastStyle == null || !lastStyle.Value.Equals(effectiveStyle))
+                {
+                    context.ResetColors();
+                    context.ApplyStyle(effectiveStyle);
+                    lastStyle = effectiveStyle;
+                }
+
+                context.WriteAt(x, i, text);
+                x += text.Length;
+            }
         }
+
+        context.ResetColors();
+    }
+
+    /// <summary>
+    /// Gets the effective style by combining segment style with node-level defaults.
+    /// </summary>
+    private TextStyle GetEffectiveStyle(TextStyle segmentStyle)
+    {
+        // Use segment colors if set, otherwise fall back to node-level colors
+        var fg = segmentStyle.HasForeground ? segmentStyle.Foreground
+            : (Foreground ?? Color.Default);
+        var bg = segmentStyle.HasBackground ? segmentStyle.Background
+            : (Background ?? Color.Default);
+
+        return new TextStyle(fg, bg, segmentStyle.Decoration);
     }
 
     /// <inheritdoc />

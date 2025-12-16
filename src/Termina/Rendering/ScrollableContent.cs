@@ -331,6 +331,8 @@ public sealed class ScrollableContent : IRenderable
         public void SetForeground(Color color) => _parent.SetForeground(color);
         public void SetBackground(Color color) => _parent.SetBackground(color);
         public void ResetColors() => _parent.ResetColors();
+        public void SetDecoration(Terminal.TextDecoration decoration) => _parent.SetDecoration(decoration);
+        public void ApplyStyle(Terminal.TextStyle style) => _parent.ApplyStyle(style);
 
         public void Fill(int x, int y, int width, int height, char c = ' ')
         {
