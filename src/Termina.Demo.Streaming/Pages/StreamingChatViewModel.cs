@@ -1,17 +1,20 @@
+// Copyright (c) Petabridge, LLC. All rights reserved.
+// Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
+
 using System.Reactive.Linq;
 using Akka.Actor;
 using Akka.Hosting;
-using Termina.Components;
-using Termina.Components.Streaming;
 using Termina.Demo.Streaming.Actors;
 using Termina.Input;
+using Termina.Layout;
 using Termina.Reactive;
+using Termina.Terminal;
 
 namespace Termina.Demo.Streaming.Pages;
 
 /// <summary>
 /// ViewModel for the streaming chat demo.
-/// Components own their state - ViewModel just wires up events.
+/// Uses the new StreamingTextNode and TextInputNode for rendering.
 /// Uses IAsyncEnumerable from Akka Streams for token consumption.
 /// </summary>
 public partial class StreamingChatViewModel : ReactiveViewModel
@@ -21,26 +24,24 @@ public partial class StreamingChatViewModel : ReactiveViewModel
     private CancellationTokenSource? _generationCts;
 
     /// <summary>
-    /// Chat history component - renders all content, uses terminal scrollback for scrolling.
+    /// Chat history component - renders all content with scrolling.
     /// </summary>
-    public StreamingText ChatHistory { get; } = StreamingText.Create();
+    public StreamingTextNode ChatHistory { get; } = StreamingTextNode.Create()
+        .WithPrefix("  ", Color.Gray);
 
     /// <summary>
     /// Thinking indicator component (windowed, rolling).
     /// </summary>
-    public StreamingText ThinkingIndicator { get; } = StreamingText.CreateWindowed(windowSize: 3);
+    public StreamingTextNode ThinkingIndicator { get; } = StreamingTextNode.CreateWindowed(windowSize: 3)
+        .WithPrefix("💭 ", Color.Yellow)
+        .WithForeground(Color.Gray);
 
     /// <summary>
     /// Text input component - handles its own keyboard input.
     /// </summary>
-    public TextInput PromptInput { get; } = new()
-    {
-        Label = "You",
-        Placeholder = "Enter your question...",
-        IsFocused = true,
-        FocusedColor = Spectre.Console.Color.Cyan1,
-        CursorBlink = true
-    };
+    public TextInputNode PromptInput { get; } = new TextInputNode()
+        .WithPlaceholder("Enter your question...")
+        .WithForeground(Color.Cyan);
 
     // Reactive properties for UI state
     [Reactive] private bool _isGenerating = false;
@@ -50,24 +51,13 @@ public partial class StreamingChatViewModel : ReactiveViewModel
     {
         _llmActorProvider = llmActorProvider;
 
-        // Configure streaming components
-        ChatHistory.MaxWidth = 78;
-        ChatHistory.Prefix = "  ";
-        ChatHistory.PrefixStyle = new Spectre.Console.Style(Spectre.Console.Color.Grey);
-
-        // Thinking indicator uses windowed mode (rolling window of last 3 lines)
-        ThinkingIndicator.MaxWidth = 60;
-        ThinkingIndicator.Prefix = "💭 ";
-        ThinkingIndicator.PrefixStyle = new Spectre.Console.Style(Spectre.Console.Color.Yellow);
-        ThinkingIndicator.TextStyle = new Spectre.Console.Style(Spectre.Console.Color.Grey);
-
         // Add initial welcome message
         ChatHistory.AppendLine("🤖 Assistant: Hello! I'm a simulated LLM demo.");
         ChatHistory.AppendLine("   Ask me anything and watch the streaming response!");
         ChatHistory.AppendLine("");
 
         // Wire up submit event from the text input component
-        PromptInput.OnSubmit += HandleSubmit;
+        PromptInput.Submitted += HandleSubmit;
     }
 
     public override void OnActivated()
@@ -79,11 +69,6 @@ public partial class StreamingChatViewModel : ReactiveViewModel
             .DisposeWith(Subscriptions);
 
         ThinkingIndicator.ContentChanged
-            .Subscribe(_ => RequestRedraw())
-            .DisposeWith(Subscriptions);
-
-        // Subscribe to text input content changes (for cursor blinking)
-        PromptInput.ContentChanged
             .Subscribe(_ => RequestRedraw())
             .DisposeWith(Subscriptions);
 
@@ -129,7 +114,7 @@ public partial class StreamingChatViewModel : ReactiveViewModel
                 }
                 else
                 {
-                    PromptInput.Clear();
+                    PromptInput.Text = "";
                     StatusMessage = "Input cleared. Press Esc again to quit.";
                 }
             }
@@ -137,10 +122,9 @@ public partial class StreamingChatViewModel : ReactiveViewModel
         }
 
         // When not generating, let the text input handle keys
-        // (Scrolling is handled by terminal's native scrollback)
         if (!_isGenerating)
         {
-            PromptInput.HandleKey(keyInfo);
+            PromptInput.HandleInput(keyInfo);
         }
     }
 
@@ -154,10 +138,6 @@ public partial class StreamingChatViewModel : ReactiveViewModel
         ChatHistory.AppendLine($"👤 You: {prompt}");
         ChatHistory.AppendLine("");
         ChatHistory.Append("🤖 Assistant: ");
-
-        // Clear input
-        PromptInput.Clear();
-        PromptInput.IsFocused = false;
 
         // Start generation
         IsGenerating = true;
@@ -173,7 +153,6 @@ public partial class StreamingChatViewModel : ReactiveViewModel
         {
             StatusMessage = "Error: Actor not initialized";
             IsGenerating = false;
-            PromptInput.IsFocused = true;
             return;
         }
 
@@ -239,7 +218,6 @@ public partial class StreamingChatViewModel : ReactiveViewModel
 
         ThinkingIndicator.Clear();
         IsGenerating = false;
-        PromptInput.IsFocused = true;
 
         _generationCts?.Dispose();
         _generationCts = null;

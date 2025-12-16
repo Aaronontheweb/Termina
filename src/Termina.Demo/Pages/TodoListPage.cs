@@ -1,72 +1,88 @@
-using Spectre.Console;
-using Spectre.Console.Rendering;
-using Termina.Components;
+// Copyright (c) Petabridge, LLC. All rights reserved.
+// Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
+
+using System.Reactive.Linq;
+using Termina.Extensions;
+using Termina.Layout;
 using Termina.Reactive;
+using Termina.Rendering;
+using Termina.Terminal;
 
 namespace Termina.Demo.Pages;
 
 /// <summary>
 /// Page for the todo list demo.
-/// Demonstrates list components and state binding.
+/// Demonstrates list components and state binding with the new declarative layout API.
 /// </summary>
 public class TodoListPage : ReactivePage<TodoListViewModel>
 {
-    private readonly SelectList _todoList = new()
+    public override ILayoutNode BuildLayout()
     {
-        Title = "Todo List",
-        SelectedColor = Color.Green
-    };
+        return Layouts.Vertical()
+            .WithChild(
+                new PanelNode()
+                    .WithTitle("Todo List Demo")
+                    .WithBorder(BorderStyle.Double)
+                    .WithBorderColor(Color.Cyan)
+                    .WithContent(
+                        ViewModel.ItemsChanged
+                            .CombineLatest(ViewModel.SelectedIndexChanged, (items, selectedIdx) => (items, selectedIdx))
+                            .Select(tuple => BuildTodoList(tuple.items, tuple.selectedIdx))
+                            .AsLayout())
+                    .Fill())
+            .WithChild(
+                new TextNode("[↑/↓] Navigate [Space] Toggle [A] Add [D] Delete [C] Counter [Q] Quit")
+                    .WithForeground(Color.BrightBlack)
+                    .Height(1))
+            .WithChild(
+                ViewModel.StatusMessageChanged
+                    .Select(msg => new TextNode(msg).WithForeground(Color.White))
+                    .AsLayout()
+                    .Height(1));
+    }
 
-    private readonly StatusBar _statusBar = new()
+    private static ILayoutNode BuildTodoList(IReadOnlyList<TodoItem> items, int selectedIndex)
     {
-        Hints = "[↑/↓] Navigate [Space] Toggle [A] Add [D] Delete [C] Counter [Q] Quit"
-    };
+        if (items.Count == 0)
+        {
+            return new TextNode("\n  No items - press [A] to add\n")
+                .WithForeground(Color.DarkGray)
+                .Italic();
+        }
 
-    private IReadOnlyList<TodoItem> _items = Array.Empty<TodoItem>();
+        var completedCount = items.Count(i => i.IsCompleted);
+        var statsText = $"{completedCount}/{items.Count} completed";
 
-    protected override void OnBound()
-    {
-        // Subscribe to items changes
-        ViewModel.ItemsChanged
-            .Subscribe(items =>
+        var container = Layouts.Vertical()
+            .WithChild(
+                new TextNode($"\n  {statsText}\n")
+                    .WithForeground(Color.Gray));
+
+        for (var i = 0; i < items.Count; i++)
+        {
+            var item = items[i];
+            var isSelected = i == selectedIndex;
+            var checkbox = item.IsCompleted ? "[✓]" : "[ ]";
+            var text = $"  {checkbox} {item.Description}";
+
+            var textNode = new TextNode(text);
+
+            if (isSelected)
             {
-                _items = items;
-                _todoList.Options = items.Select(FormatItem).ToList();
-            })
-            .DisposeWith(Subscriptions);
+                textNode = textNode.WithForeground(Color.Black).WithBackground(Color.Green);
+            }
+            else if (item.IsCompleted)
+            {
+                textNode = textNode.WithForeground(Color.DarkGray);
+            }
+            else
+            {
+                textNode = textNode.WithForeground(Color.White);
+            }
 
-        // Subscribe to selected index changes
-        ViewModel.SelectedIndexChanged
-            .Subscribe(idx => _todoList.SelectedIndex = idx)
-            .DisposeWith(Subscriptions);
+            container = container.WithChild(textNode.Height(1));
+        }
 
-        // Subscribe to status message changes
-        ViewModel.StatusMessageChanged
-            .Subscribe(msg => _statusBar.Message = msg)
-            .DisposeWith(Subscriptions);
-    }
-
-    private static string FormatItem(TodoItem item)
-    {
-        var checkbox = item.IsCompleted ? "[✓]" : "[ ]";
-        // Note: Using plain text format - strikethrough styling not supported in SelectList
-        // TODO: Add support for per-item styling in SelectList component
-        return $"{checkbox} {item.Description}";
-    }
-
-    public override IRenderable Render()
-    {
-        var statsText = _items.Count == 0
-            ? "No items"
-            : $"{_items.Count(i => i.IsCompleted)}/{_items.Count} completed";
-
-        var header = new Markup($"[bold cyan]Todo List Demo[/] - {statsText}");
-
-        return new Rows(
-            header,
-            new Text(""),
-            _todoList.Render(),
-            _statusBar.Render()
-        );
+        return container;
     }
 }

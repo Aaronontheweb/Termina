@@ -9,6 +9,7 @@
   <Folder Name="/src/">
     <Project Path="src/Termina/Termina.csproj" />
     <Project Path="src/Termina.Generators/Termina.Generators.csproj" />
+    <Project Path="src/Termina.Demo.V2/Termina.Demo.V2.csproj" />
     <Project Path="src/Termina.Demo/Termina.Demo.csproj" />
     <Project Path="src/Termina.Demo.Streaming/Termina.Demo.Streaming.csproj" />
   </Folder>

@@ -8,7 +8,7 @@ namespace Termina.Input;
 /// </summary>
 public sealed class VirtualInputSource : IInputSource
 {
-    private readonly Channel<KeyPressed> _inputChannel = Channel.CreateUnbounded<KeyPressed>();
+    private readonly Channel<IInputEvent> _inputChannel = Channel.CreateUnbounded<IInputEvent>();
 
     /// <summary>
     /// Enqueue a key event to be processed.
@@ -62,6 +62,45 @@ public sealed class VirtualInputSource : IInputSource
     }
 
     /// <summary>
+    /// Enqueue a mouse event.
+    /// </summary>
+    /// <param name="x">X position (column).</param>
+    /// <param name="y">Y position (row).</param>
+    /// <param name="button">The mouse button.</param>
+    /// <param name="eventType">The type of mouse event.</param>
+    /// <param name="modifiers">Optional keyboard modifiers.</param>
+    public void EnqueueMouse(int x, int y, MouseButton button, MouseEventType eventType, ConsoleModifiers modifiers = 0)
+    {
+        _inputChannel.Writer.TryWrite(new MouseEvent(x, y, button, eventType, modifiers));
+    }
+
+    /// <summary>
+    /// Enqueue a mouse click event.
+    /// </summary>
+    public void EnqueueClick(int x, int y, MouseButton button = MouseButton.Left)
+    {
+        EnqueueMouse(x, y, button, MouseEventType.Press);
+    }
+
+    /// <summary>
+    /// Enqueue a mouse scroll event.
+    /// </summary>
+    public void EnqueueScroll(int x, int y, bool up)
+    {
+        EnqueueMouse(x, y, up ? MouseButton.WheelUp : MouseButton.WheelDown, MouseEventType.Scroll);
+    }
+
+    /// <summary>
+    /// Enqueue a terminal resize event.
+    /// </summary>
+    /// <param name="width">New terminal width.</param>
+    /// <param name="height">New terminal height.</param>
+    public void EnqueueResize(int width, int height)
+    {
+        _inputChannel.Writer.TryWrite(new ResizeEvent(width, height));
+    }
+
+    /// <summary>
     /// Signal that no more input will be provided.
     /// </summary>
     public void Complete()
@@ -73,9 +112,9 @@ public sealed class VirtualInputSource : IInputSource
     public async Task RunAsync(ChannelWriter<object> writer, CancellationToken cancellationToken)
     {
         // Forward all enqueued input to the shared event channel
-        await foreach (var key in _inputChannel.Reader.ReadAllAsync(cancellationToken))
+        await foreach (var evt in _inputChannel.Reader.ReadAllAsync(cancellationToken))
         {
-            await writer.WriteAsync(key, cancellationToken);
+            await writer.WriteAsync(evt, cancellationToken);
         }
     }
 }

@@ -11,17 +11,18 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Spectre.Console"/>
     <PackageReference Include="System.Reactive"/>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions"/>
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions"/>
   </ItemGroup>
 
+  <!--
+    Reference the source generator.
+    - The generator project handles its own packaging into analyzers/dotnet/cs
+    - No PrivateAssets means the dependency flows to NuGet consumers
+  -->
   <ItemGroup>
-    <ProjectReference Include="..\Termina.Generators\Termina.Generators.csproj"
-                      OutputItemType="Analyzer"
-                      ReferenceOutputAssembly="false"
-                      PrivateAssets="all" />
+    <ProjectReference Include="..\Termina.Generators\Termina.Generators.csproj"/>
   </ItemGroup>
 
 </Project>

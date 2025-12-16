@@ -1,4 +1,7 @@
-using Spectre.Console.Rendering;
+// Copyright (c) Petabridge, LLC. All rights reserved.
+// Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
+
+using Termina.Layout;
 using Termina.Reactive;
 
 namespace Termina.Pages;
@@ -22,9 +25,9 @@ public interface IPage
     void OnNavigatingFrom();
 
     /// <summary>
-    /// Render the page as a Spectre.Console renderable.
+    /// Build the layout tree for this page.
     /// </summary>
-    IRenderable Render();
+    ILayoutNode BuildLayout();
 }
 
 /// <summary>
@@ -38,4 +41,9 @@ internal interface IBindablePage : IPage
     /// </summary>
     /// <param name="viewModel">The ViewModel to bind.</param>
     void BindViewModel(ReactiveViewModel viewModel);
+
+    /// <summary>
+    /// Gets the current cached layout root, if any.
+    /// </summary>
+    ILayoutNode? LayoutRoot { get; }
 }
