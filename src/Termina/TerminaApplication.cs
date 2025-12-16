@@ -38,6 +38,7 @@ namespace Termina;
 public sealed class TerminaApplication
 {
     private readonly IAnsiTerminal _terminal;
+    private readonly DiffingTerminal? _diffingTerminal;
     private readonly IServiceProvider? _serviceProvider;
     private readonly Channel<object> _eventChannel;
     private readonly Subject<IInputEvent> _inputSubject = new();
@@ -62,7 +63,25 @@ public sealed class TerminaApplication
     /// <param name="serviceProvider">Optional service provider for resolving ViewModels and input sources.</param>
     public TerminaApplication(IAnsiTerminal terminal, IServiceProvider? serviceProvider = null)
     {
-        _terminal = terminal;
+        // Wrap terminal with DiffingTerminal for flicker-free rendering
+        // unless it's already a DiffingTerminal or VirtualTerminal (for tests)
+        if (terminal is DiffingTerminal diffing)
+        {
+            _terminal = terminal;
+            _diffingTerminal = diffing;
+        }
+        else if (terminal is VirtualTerminal)
+        {
+            // Don't wrap VirtualTerminal - it's used for testing
+            _terminal = terminal;
+            _diffingTerminal = null;
+        }
+        else
+        {
+            _diffingTerminal = new DiffingTerminal(terminal);
+            _terminal = _diffingTerminal;
+        }
+
         _serviceProvider = serviceProvider;
         _eventChannel = Channel.CreateUnbounded<object>();
 
@@ -372,7 +391,8 @@ public sealed class TerminaApplication
                 return;
 
             case ResizeEvent:
-                // Just re-render on resize
+                // Force full refresh on resize since terminal dimensions changed
+                _diffingTerminal?.ForceFullRefresh();
                 return;
         }
 
@@ -394,11 +414,15 @@ public sealed class TerminaApplication
     /// <summary>
     /// Renders the current page directly to the terminal.
     /// </summary>
+    /// <remarks>
+    /// When using DiffingTerminal, ClearScreen() only clears the pending buffer,
+    /// not the actual screen. On Flush(), only changed cells are output.
+    /// </remarks>
     private void RenderCurrentPage()
     {
         var layoutRoot = GetCurrentLayoutRoot() ?? new TextNode("No page active");
 
-        // Clear the screen
+        // Clear the pending buffer (DiffingTerminal) or screen (other terminals)
         _terminal.ClearScreen();
 
         // Measure and render the layout
