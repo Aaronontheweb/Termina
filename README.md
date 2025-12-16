@@ -4,21 +4,33 @@
 
 [![NuGet Downloads](https://img.shields.io/nuget/dt/Termina)](https://www.nuget.org/packages/Termina) ![GitHub License](https://img.shields.io/github/license/Aaronontheweb/Termina) ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/Aaronontheweb/Termina/pr_validation.yml) ![GitHub Release](https://img.shields.io/github/v/release/Aaronontheweb/Termina)
 
-**Termina** is a reactive terminal UI (TUI) framework for .NET built on top of [Spectre.Console](https://spectreconsole.net/). It provides an MVVM architecture with source-generated reactive properties, ASP.NET Core-style routing, and seamless integration with Microsoft.Extensions.Hosting.
+**Termina** is a reactive terminal UI (TUI) framework for .NET with declarative layouts and surgical region-based rendering. It provides an MVVM architecture with source-generated reactive properties, ASP.NET Core-style routing, and seamless integration with Microsoft.Extensions.Hosting.
+
+## Documentation
+
+**[Full Documentation](https://aaronontheweb.github.io/Termina/)**
+
+- [Getting Started Guide](https://aaronontheweb.github.io/Termina/guide/getting-started)
+- [Tutorials](https://aaronontheweb.github.io/Termina/tutorials/)
+- [Component Reference](https://aaronontheweb.github.io/Termina/components/)
+- [Architecture](https://aaronontheweb.github.io/Termina/concepts/architecture)
 
 ## Features
 
 - **Reactive MVVM Architecture** - ViewModels with `[Reactive]` attribute for source-generated observable properties
+- **Declarative Layouts** - Tree-based layout system with size constraints (Fixed, Fill, Auto, Percent)
+- **Surgical Rendering** - Only changed regions re-render, enabling smooth streaming updates
 - **ASP.NET Core-Style Routing** - Route templates with parameters (`/tasks/{id:int}`) and type constraints
-- **Source Generators** - AOT-compatible code generation for reactive properties and route parameter injection
+- **Source Generators** - AOT-compatible code generation for reactive properties and route parameters
+- **Streaming Support** - Native `StreamingTextNode` for real-time content like LLM output
 - **Dependency Injection** - Full integration with `Microsoft.Extensions.DependencyInjection`
-- **Hosting Integration** - Works with `Microsoft.Extensions.Hosting` for clean application lifecycle management
-- **Spectre.Console Rendering** - Beautiful terminal UIs with full Spectre.Console component support
+- **Hosting Integration** - Works with `Microsoft.Extensions.Hosting` for clean lifecycle management
 
 ## Installation
 
 ```bash
 dotnet add package Termina
+dotnet add package Microsoft.Extensions.Hosting
 ```
 
 ## Quick Start
@@ -26,6 +38,8 @@ dotnet add package Termina
 ### 1. Define a ViewModel
 
 ```csharp
+using System.Reactive.Linq;
+using Termina.Input;
 using Termina.Reactive;
 
 public partial class CounterViewModel : ReactiveViewModel
@@ -52,7 +66,7 @@ public partial class CounterViewModel : ReactiveViewModel
                 Count--;
                 Message = $"Count: {Count}";
                 break;
-            case ConsoleKey.Q:
+            case ConsoleKey.Escape:
                 Shutdown();
                 break;
         }
@@ -68,21 +82,34 @@ The `[Reactive]` attribute generates:
 ### 2. Define a Page
 
 ```csharp
-using Spectre.Console;
-using Spectre.Console.Rendering;
-using Termina.Pages;
+using System.Reactive.Linq;
+using Termina.Extensions;
+using Termina.Layout;
+using Termina.Reactive;
+using Termina.Rendering;
+using Termina.Terminal;
 
 public class CounterPage : ReactivePage<CounterViewModel>
 {
-    protected override IRenderable Render(CounterViewModel vm)
+    public override ILayoutNode BuildLayout()
     {
-        return new Panel(
-            new Rows(
-                new FigletText(vm.Count.ToString()).Color(Color.Cyan1),
-                new Text(vm.Message)
-            ))
-            .Header("Counter Demo")
-            .Border(BoxBorder.Rounded);
+        return Layouts.Vertical()
+            .WithChild(
+                new PanelNode()
+                    .WithTitle("Counter Demo")
+                    .WithBorder(BorderStyle.Rounded)
+                    .WithBorderColor(Color.Cyan)
+                    .WithContent(
+                        ViewModel.CountChanged
+                            .Select(count => new TextNode($"Count: {count}")
+                                .WithForeground(Color.BrightCyan))
+                            .AsLayout())
+                    .Height(5))
+            .WithChild(
+                ViewModel.MessageChanged
+                    .Select(msg => new TextNode(msg))
+                    .AsLayout()
+                    .Height(1));
     }
 }
 ```
@@ -98,52 +125,52 @@ var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddTermina("/counter", termina =>
 {
     termina.RegisterRoute<CounterPage, CounterViewModel>("/counter");
-    termina.RegisterRoute<TodoListPage, TodoListViewModel>("/todos");
-    termina.RegisterRoute<TodoDetailPage, TodoDetailViewModel>("/todos/{id:int}");
 });
 
 await builder.Build().RunAsync();
 ```
 
-## Routing
+## Layout System
 
-Termina uses ASP.NET Core-style route templates with parameter support.
-
-### Route Templates
+Termina uses a declarative tree-based layout system:
 
 ```csharp
-// Simple routes
-termina.RegisterRoute<HomePage, HomeViewModel>("/");
-termina.RegisterRoute<TasksPage, TasksViewModel>("/tasks");
+Layouts.Vertical()
+    .WithChild(header.Height(3))           // Fixed height
+    .WithChild(content.Fill())             // Take remaining space
+    .WithChild(sidebar.Width(20))          // Fixed width
+    .WithChild(footer.Height(1));          // Fixed height
 
-// Routes with parameters
-termina.RegisterRoute<TaskDetailPage, TaskDetailViewModel>("/tasks/{id:int}");
-termina.RegisterRoute<UserPage, UserViewModel>("/users/{name}");
-termina.RegisterRoute<DocumentPage, DocumentViewModel>("/docs/{id:guid}");
+Layouts.Horizontal()
+    .WithChild(menu.Width(30))
+    .WithChild(main.Fill(2))               // 2x weight
+    .WithChild(aside.Fill(1));             // 1x weight
 ```
 
-### Supported Type Constraints
+## Routing
 
-| Constraint | C# Type | Example |
-|------------|---------|---------|
-| `:int` | `int` | `/tasks/{id:int}` |
-| `:guid` | `Guid` | `/docs/{id:guid}` |
-| `:bool` | `bool` | `/items/{active:bool}` |
-| (none) | `string` | `/users/{name}` |
+ASP.NET Core-style route templates with parameter support:
+
+```csharp
+builder.Services.AddTermina("/", termina =>
+{
+    termina.RegisterRoute<HomePage, HomeViewModel>("/");
+    termina.RegisterRoute<TasksPage, TasksViewModel>("/tasks");
+    termina.RegisterRoute<TaskDetailPage, TaskDetailViewModel>("/tasks/{id:int}");
+    termina.RegisterRoute<UserPage, UserViewModel>("/users/{name}");
+});
+```
 
 ### Route Parameter Injection
-
-Use `[FromRoute]` to automatically inject route parameters into your ViewModel:
 
 ```csharp
 public partial class TaskDetailViewModel : ReactiveViewModel
 {
-    [FromRoute] private int _id;  // Injected from route before OnActivated
+    [FromRoute] private int _id;  // Injected from route
 
     public override void OnActivated()
     {
-        // Id property is already populated
-        LoadTask(Id);
+        LoadTask(Id);  // Id is already populated
     }
 }
 ```
@@ -151,78 +178,38 @@ public partial class TaskDetailViewModel : ReactiveViewModel
 ### Navigation
 
 ```csharp
-// Navigate by path
 Navigate("/tasks/42");
-
-// Navigate with route values (type-safe)
 NavigateWithParams("/tasks/{id}", new { id = 42 });
-
-// Go back
-// (handled by framework when CanGoBack is true)
+Shutdown();  // Exit the application
 ```
 
-## Reactive Properties
+## Streaming Content
 
-The `[Reactive]` attribute on private fields generates observable properties:
-
-```csharp
-public partial class MyViewModel : ReactiveViewModel
-{
-    [Reactive] private string _name = "default";
-    [Reactive] private int _count;
-    [Reactive] private IReadOnlyList<Item> _items = Array.Empty<Item>();
-}
-```
-
-Generated code provides:
-- `Name`, `Count`, `Items` - public properties with get/set
-- `NameChanged`, `CountChanged`, `ItemsChanged` - `IObservable<T>` for subscriptions
-
-Pages automatically re-render when any reactive property changes.
-
-## Page Lifecycle
+For real-time content like LLM output:
 
 ```csharp
-public partial class MyViewModel : ReactiveViewModel
-{
-    public override void OnActivated()
-    {
-        // Called when navigating TO this page
-        // Set up subscriptions here
-    }
+public StreamingTextNode Output { get; } = StreamingTextNode.Create();
 
-    public override void OnDeactivating()
+private async Task StreamResponse()
+{
+    await foreach (var chunk in GetStreamingData())
     {
-        // Called when navigating AWAY from this page
-        // Clean up if needed (Subscriptions auto-dispose)
+        Output.Append(chunk);  // Character-level updates
     }
 }
-```
-
-## Navigation Behavior
-
-Control how pages behave when navigated to:
-
-```csharp
-// Reset state each time (default)
-termina.RegisterRoute<MyPage, MyViewModel>("/page", NavigationBehavior.ResetOnNavigation);
-
-// Preserve state across navigations
-termina.RegisterRoute<MyPage, MyViewModel>("/page", NavigationBehavior.PreserveState);
 ```
 
 ## Testing
 
-Termina includes `VirtualInputSource` for automated testing:
+`VirtualInputSource` enables automated testing:
 
 ```csharp
 var scriptedInput = new VirtualInputSource();
 builder.Services.AddTerminaVirtualInput(scriptedInput);
 
-// Queue up scripted input
 scriptedInput.EnqueueKey(ConsoleKey.UpArrow);
+scriptedInput.EnqueueString("Hello World");
 scriptedInput.EnqueueKey(ConsoleKey.Enter);
-scriptedInput.EnqueueKey(ConsoleKey.Q);
 scriptedInput.Complete();
 
 await host.RunAsync();
@@ -239,4 +226,4 @@ Apache 2.0 - See [LICENSE](LICENSE) for details.
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit issues and pull requests.
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.

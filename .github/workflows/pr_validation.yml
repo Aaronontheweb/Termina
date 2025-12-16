@@ -178,3 +178,36 @@ jobs:
           else
             ./publish/${{ matrix.runtime }}/Termina.Demo --test
           fi
+
+  docs-validation:
+    name: Docs-Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v6.0.1
+        with:
+          fetch-depth: 0
+
+      - name: "Setup Node.js"
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: "Install npm dependencies"
+        working-directory: docs
+        run: npm install
+
+      - name: "Build VitePress site"
+        working-directory: docs
+        run: npm run build
+
+      - name: "Verify build output"
+        run: |
+          if [ -d "docs/.vitepress/dist" ]; then
+            echo "✓ VitePress build successful"
+            ls -la docs/.vitepress/dist
+          else
+            echo "✗ VitePress build failed - no dist directory"
+            exit 1
+          fi
