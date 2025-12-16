@@ -43,20 +43,24 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
                         : (ILayoutNode)new EmptyNode())
                     .AsLayout())
             .WithChild(new EmptyNode().Height(1))
-            // Input panel
+            // Input panel - NOT reactive to avoid disposing the shared TextInputNode
             .WithChild(
-                ViewModel.IsGeneratingChanged
-                    .Select(isGenerating => BuildInputPanel(isGenerating))
-                    .AsLayout()
+                new PanelNode()
+                    .WithTitle("Your Prompt")
+                    .WithTitleColor(Color.Cyan)
+                    .WithBorder(BorderStyle.Rounded)
+                    .WithBorderColor(Color.Cyan)
+                    .WithContent(ViewModel.PromptInput)
                     .Height(3))
             // Status bar with dynamic hints
             .WithChild(
                 ViewModel.IsGeneratingChanged
                     .Select(isGenerating => new TextNode(
                         isGenerating
-                            ? "[Esc] Cancel generation [↑/↓] Scroll [Ctrl+Q] Quit"
-                            : "[Enter] Send [↑/↓] Scroll [←/→] Edit [Esc] Clear/Quit [Ctrl+Q] Quit")
-                        .WithForeground(Color.BrightBlack))
+                            ? "[Esc] Cancel [PgUp/PgDn] Scroll [Ctrl+Q] Quit"
+                            : "[Enter] Send [↑/↓] History [PgUp/PgDn] Scroll [Esc] Clear/Quit [Ctrl+Q] Quit")
+                        .WithForeground(Color.BrightBlack)
+                        .NoWrap())
                     .AsLayout()
                     .Height(1))
             .WithChild(
@@ -80,14 +84,4 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
                     .Height(5));
     }
 
-    private ILayoutNode BuildInputPanel(bool isGenerating)
-    {
-        var borderColor = isGenerating ? Color.Gray : Color.Cyan;
-        return new PanelNode()
-            .WithTitle("Your Prompt")
-            .WithTitleColor(Color.Cyan)
-            .WithBorder(BorderStyle.Rounded)
-            .WithBorderColor(borderColor)
-            .WithContent(ViewModel.PromptInput);
-    }
 }

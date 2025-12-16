@@ -1,0 +1,192 @@
+// Copyright (c) Petabridge, LLC. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+using Termina.Layout;
+
+namespace Termina.Tests.Layout;
+
+/// <summary>
+/// Tests for the TextInputNode layout component.
+/// </summary>
+public class TextInputNodeTests : IDisposable
+{
+    private readonly TextInputNode _node;
+
+    public TextInputNodeTests()
+    {
+        _node = new TextInputNode();
+    }
+
+    public void Dispose()
+    {
+        _node.Dispose();
+    }
+
+    [Fact]
+    public void HandleInput_UpArrow_ReturnsFalse_ForViewModelToHandle()
+    {
+        // Up arrow should return false so ViewModel can handle history
+        var handled = _node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.UpArrow, false, false, false));
+        Assert.False(handled);
+    }
+
+    [Fact]
+    public void HandleInput_DownArrow_ReturnsFalse_ForViewModelToHandle()
+    {
+        // Down arrow should return false so ViewModel can handle history
+        var handled = _node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.DownArrow, false, false, false));
+        Assert.False(handled);
+    }
+
+    [Fact]
+    public void HandleInput_Enter_DoesNotClearText()
+    {
+        // Type some text
+        TypeText("test text");
+
+        // Press Enter
+        _node.HandleInput(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false));
+
+        // Text should NOT be cleared - ViewModel decides when to clear
+        Assert.Equal("test text", _node.Text);
+    }
+
+    [Fact]
+    public void Clear_ResetsTextAndCursor()
+    {
+        // Type some text
+        TypeText("test text");
+
+        // Clear
+        _node.Clear();
+
+        // Text should be cleared
+        Assert.Equal("", _node.Text);
+    }
+
+    [Fact]
+    public void Submitted_EventFired_OnEnter()
+    {
+        string? submittedText = null;
+        _node.Submitted += text => submittedText = text;
+
+        TypeText("test submission");
+        _node.HandleInput(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false));
+
+        Assert.Equal("test submission", submittedText);
+    }
+
+    [Fact]
+    public void TextChanged_EventFired_OnCharacterInput()
+    {
+        var changeCount = 0;
+        _node.TextChanged += _ => changeCount++;
+
+        TypeText("abc");
+
+        Assert.Equal(3, changeCount);
+    }
+
+    [Fact]
+    public void TextChanged_EventFired_OnClear()
+    {
+        TypeText("test");
+
+        string? changedText = null;
+        _node.TextChanged += text => changedText = text;
+
+        _node.Clear();
+
+        Assert.Equal("", changedText);
+    }
+
+    [Fact]
+    public void HandleInput_LeftArrow_MovesCursor()
+    {
+        TypeText("hello");
+
+        // Move left
+        _node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.LeftArrow, false, false, false));
+        _node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.LeftArrow, false, false, false));
+
+        // Type at cursor position
+        _node.HandleInput(new ConsoleKeyInfo('X', (ConsoleKey)0, false, false, false));
+
+        Assert.Equal("helXlo", _node.Text);
+    }
+
+    [Fact]
+    public void HandleInput_RightArrow_MovesCursor()
+    {
+        TypeText("hello");
+
+        // Move to start
+        _node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.Home, false, false, false));
+
+        // Move right twice
+        _node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, false, false, false));
+        _node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, false, false, false));
+
+        // Type at cursor position
+        _node.HandleInput(new ConsoleKeyInfo('X', (ConsoleKey)0, false, false, false));
+
+        Assert.Equal("heXllo", _node.Text);
+    }
+
+    [Fact]
+    public void HandleInput_Home_MovesCursorToStart()
+    {
+        TypeText("hello");
+        _node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.Home, false, false, false));
+        _node.HandleInput(new ConsoleKeyInfo('X', (ConsoleKey)0, false, false, false));
+
+        Assert.Equal("Xhello", _node.Text);
+    }
+
+    [Fact]
+    public void HandleInput_End_MovesCursorToEnd()
+    {
+        TypeText("hello");
+        _node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.Home, false, false, false));
+        _node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.End, false, false, false));
+        _node.HandleInput(new ConsoleKeyInfo('X', (ConsoleKey)0, false, false, false));
+
+        Assert.Equal("helloX", _node.Text);
+    }
+
+    [Fact]
+    public void HandleInput_Backspace_DeletesCharacter()
+    {
+        TypeText("hello");
+        _node.HandleInput(new ConsoleKeyInfo('\b', ConsoleKey.Backspace, false, false, false));
+
+        Assert.Equal("hell", _node.Text);
+    }
+
+    [Fact]
+    public void HandleInput_Delete_DeletesCharacterAhead()
+    {
+        TypeText("hello");
+        _node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.Home, false, false, false));
+        _node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.Delete, false, false, false));
+
+        Assert.Equal("ello", _node.Text);
+    }
+
+    [Fact]
+    public void HandleInput_Escape_ClearsText()
+    {
+        TypeText("hello");
+        _node.HandleInput(new ConsoleKeyInfo('\x1b', ConsoleKey.Escape, false, false, false));
+
+        Assert.Equal("", _node.Text);
+    }
+
+    private void TypeText(string text)
+    {
+        foreach (var c in text)
+        {
+            _node.HandleInput(new ConsoleKeyInfo(c, (ConsoleKey)0, false, false, false));
+        }
+    }
+}

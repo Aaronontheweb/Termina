@@ -145,6 +145,47 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode
         }
     }
 
+    /// <summary>
+    /// Handle keyboard input for scrolling. Returns true if the input was handled.
+    /// </summary>
+    /// <param name="key">The key info to handle.</param>
+    /// <param name="viewportHeight">The height of the visible area (for page scrolling).</param>
+    /// <param name="viewportWidth">The width of the visible area (for word wrap calculations).</param>
+    public bool HandleInput(ConsoleKeyInfo key, int viewportHeight, int viewportWidth)
+    {
+        // Only PersistedStreamBuffer supports scrolling
+        if (_buffer is not PersistedStreamBuffer)
+            return false;
+
+        switch (key.Key)
+        {
+            case ConsoleKey.PageUp:
+                ScrollUp(Math.Max(1, viewportHeight - 1), viewportWidth);
+                return true;
+
+            case ConsoleKey.PageDown:
+                ScrollDown(Math.Max(1, viewportHeight - 1));
+                return true;
+
+            case ConsoleKey.Home when key.Modifiers.HasFlag(ConsoleModifiers.Control):
+                // Ctrl+Home scrolls to top
+                if (_buffer is PersistedStreamBuffer persisted)
+                {
+                    persisted.ScrollToTop(viewportWidth);
+                    NotifyChanged();
+                }
+                return true;
+
+            case ConsoleKey.End when key.Modifiers.HasFlag(ConsoleModifiers.Control):
+                // Ctrl+End scrolls to bottom
+                ScrollToBottom();
+                return true;
+
+            default:
+                return false;
+        }
+    }
+
     private void NotifyChanged()
     {
         _contentChanged.OnNext(Unit.Default);

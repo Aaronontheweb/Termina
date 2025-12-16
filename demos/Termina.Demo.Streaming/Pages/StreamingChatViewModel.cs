@@ -20,6 +20,8 @@ namespace Termina.Demo.Streaming.Pages;
 public partial class StreamingChatViewModel : ReactiveViewModel
 {
     private readonly IRequiredActor<LlmSimulatorActor> _llmActorProvider;
+    private readonly List<string> _promptHistory = new();
+    private int _historyIndex = -1;
     private IActorRef? _llmActor;
     private CancellationTokenSource? _generationCts;
 
@@ -101,7 +103,7 @@ public partial class StreamingChatViewModel : ReactiveViewModel
         // Escape handling
         if (keyInfo.Key == ConsoleKey.Escape)
         {
-            if (_isGenerating)
+            if (IsGenerating)
             {
                 CancelGeneration();
             }
@@ -121,10 +123,64 @@ public partial class StreamingChatViewModel : ReactiveViewModel
             return;
         }
 
-        // When not generating, let the text input handle keys
-        if (!_isGenerating)
+        // Page Up/Down always scroll chat history (works during generation too)
+        // Use reasonable defaults for viewport (scrolls ~10 lines per page)
+        if (ChatHistory.HandleInput(keyInfo, viewportHeight: 10, viewportWidth: 80))
         {
+            return;
+        }
+
+        // When not generating, handle input
+        if (!IsGenerating)
+        {
+            // Handle history navigation (Up/Down arrows)
+            if (keyInfo.Key == ConsoleKey.UpArrow)
+            {
+                NavigateHistoryUp();
+                return;
+            }
+            if (keyInfo.Key == ConsoleKey.DownArrow)
+            {
+                NavigateHistoryDown();
+                return;
+            }
+
+            // Let the text input handle other keys
             PromptInput.HandleInput(keyInfo);
+        }
+    }
+
+    private void NavigateHistoryUp()
+    {
+        if (_promptHistory.Count == 0)
+            return;
+
+        if (_historyIndex < 0)
+        {
+            _historyIndex = _promptHistory.Count - 1;
+        }
+        else if (_historyIndex > 0)
+        {
+            _historyIndex--;
+        }
+
+        PromptInput.Text = _promptHistory[_historyIndex];
+    }
+
+    private void NavigateHistoryDown()
+    {
+        if (_historyIndex < 0)
+            return;
+
+        if (_historyIndex < _promptHistory.Count - 1)
+        {
+            _historyIndex++;
+            PromptInput.Text = _promptHistory[_historyIndex];
+        }
+        else
+        {
+            _historyIndex = -1;
+            PromptInput.Text = "";
         }
     }
 
@@ -133,6 +189,13 @@ public partial class StreamingChatViewModel : ReactiveViewModel
         prompt = prompt.Trim();
         if (string.IsNullOrEmpty(prompt))
             return;
+
+        // Add to history and reset index
+        _promptHistory.Add(prompt);
+        _historyIndex = -1;
+
+        // Clear the input
+        PromptInput.Clear();
 
         // Add user message to chat
         ChatHistory.AppendLine($"👤 You: {prompt}");
@@ -156,6 +219,7 @@ public partial class StreamingChatViewModel : ReactiveViewModel
             return;
         }
 
+        var completedNormally = false;
         try
         {
             // Ask actor for the stream
@@ -186,6 +250,7 @@ public partial class StreamingChatViewModel : ReactiveViewModel
                     case LlmMessages.GenerationComplete:
                         CleanupGeneration();
                         StatusMessage = "Ready. Enter another question.";
+                        completedNormally = true;
                         break;
                 }
             }
@@ -198,6 +263,15 @@ public partial class StreamingChatViewModel : ReactiveViewModel
         {
             CleanupGeneration($" [error: {ex.Message}]");
             StatusMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            // Ensure IsGenerating is always reset, even if stream ends unexpectedly
+            if (!completedNormally && IsGenerating)
+            {
+                CleanupGeneration();
+                StatusMessage = "Ready. Enter another question.";
+            }
         }
     }
 
