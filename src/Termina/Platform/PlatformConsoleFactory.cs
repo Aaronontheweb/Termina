@@ -26,7 +26,13 @@ public static class PlatformConsoleFactory
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            return new WindowsConsole();
+            // Only use WindowsConsole if we have a real console (not redirected/piped)
+            if (WindowsConsole.IsConsoleAvailable())
+            {
+                return new WindowsConsole();
+            }
+            // Fall back to polling-based console for piped/redirected scenarios
+            return new FallbackConsole();
         }
 
         // Unix implementation deferred (issue #80) - current polling works fine on Linux

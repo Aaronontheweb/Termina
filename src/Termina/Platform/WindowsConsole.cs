@@ -174,6 +174,20 @@ public sealed class WindowsConsole : IPlatformConsole
     private bool _initialized;
     private bool _disposed;
 
+    /// <summary>
+    /// Check if a Windows console is available (not redirected/piped).
+    /// </summary>
+    /// <returns>True if a real console is available.</returns>
+    public static bool IsConsoleAvailable()
+    {
+        var inputHandle = GetStdHandle(STD_INPUT_HANDLE);
+        if (inputHandle == IntPtr.Zero || inputHandle == new IntPtr(-1))
+            return false;
+
+        // Try to get console mode - this fails if handle isn't a real console
+        return GetConsoleMode(inputHandle, out _);
+    }
+
     /// <inheritdoc />
     public bool SupportsEventDrivenInput => true;
 
@@ -214,8 +228,10 @@ public sealed class WindowsConsole : IPlatformConsole
         // - Enable window input events (for resize)
         // - Disable line input (get each key immediately)
         // - Disable echo (we render ourselves)
-        // - Enable virtual terminal input (for proper escape sequence handling)
-        var newInputMode = (_originalInputMode | ENABLE_WINDOW_INPUT | ENABLE_VIRTUAL_TERMINAL_INPUT)
+        // NOTE: Do NOT use ENABLE_VIRTUAL_TERMINAL_INPUT - it converts keys to VT sequences
+        // which interferes with ReadConsoleInputW that expects KEY_EVENT records
+        // NOTE: Keep ENABLE_PROCESSED_INPUT so Ctrl+C works as expected
+        var newInputMode = (_originalInputMode | ENABLE_WINDOW_INPUT)
                           & ~ENABLE_LINE_INPUT
                           & ~ENABLE_ECHO_INPUT;
 
@@ -230,8 +246,10 @@ public sealed class WindowsConsole : IPlatformConsole
 
         if (!SetConsoleMode(_outputHandle, newOutputMode))
         {
-            // VT100 might not be supported - continue anyway but log
-            // This can happen on older Windows versions
+            // VT100 might not be supported on older Windows versions
+            // Log error but continue - some terminals handle VT natively
+            System.Diagnostics.Debug.WriteLine(
+                $"Failed to enable VT100 processing: {Marshal.GetLastWin32Error()}");
         }
 
         // Ensure UTF-8 output encoding
