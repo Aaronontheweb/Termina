@@ -33,7 +33,9 @@ public sealed class FocusManager : IFocusManager, IDisposable
         ArgumentNullException.ThrowIfNull(focusable);
 
         if (!focusable.CanFocus)
+        {
             return;
+        }
 
         // Blur the current focus if any
         if (_focusStack.Count > 0)
@@ -112,13 +114,17 @@ public sealed class FocusManager : IFocusManager, IDisposable
     public bool RouteInput(ConsoleKeyInfo key)
     {
         if (_focusStack.Count == 0)
+        {
             return false;
+        }
 
         // Route to the topmost focused component
         var current = _focusStack.Peek();
 
         if (!current.CanFocus)
+        {
             return false;
+        }
 
         return current.HandleInput(key);
     }

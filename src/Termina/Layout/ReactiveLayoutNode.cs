@@ -35,8 +35,11 @@ public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
         _subscription = source.Subscribe(
             onNext: node =>
             {
-                // Dispose old child
-                _currentChild.Dispose();
+                // Deactivate old child instead of disposing (active/inactive pattern)
+                if (_currentChild is LayoutNode oldChild)
+                {
+                    oldChild.OnDeactivate();
+                }
                 _currentChild = node;
 
                 // Activate the new child if we're currently active
@@ -81,8 +84,11 @@ public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
             _subscription = _source.Subscribe(
                 onNext: node =>
                 {
-                    // Dispose old child
-                    _currentChild.Dispose();
+                    // Deactivate old child instead of disposing (active/inactive pattern)
+                    if (_currentChild is LayoutNode oldChild)
+                    {
+                        oldChild.OnDeactivate();
+                    }
                     _currentChild = node;
 
                     // Activate the new child if we're currently active
@@ -162,7 +168,11 @@ public sealed class ReactiveLayoutNode<T> : LayoutNode, IInvalidatingNode
         _subscription = source.Subscribe(
             onNext: value =>
             {
-                _currentChild.Dispose();
+                // Deactivate old child instead of disposing (active/inactive pattern)
+                if (_currentChild is LayoutNode oldChild)
+                {
+                    oldChild.OnDeactivate();
+                }
                 _currentChild = _transform(value);
 
                 // Activate the new child if we're currently active
@@ -205,7 +215,11 @@ public sealed class ReactiveLayoutNode<T> : LayoutNode, IInvalidatingNode
             _subscription = _source.Subscribe(
                 onNext: value =>
                 {
-                    _currentChild.Dispose();
+                    // Deactivate old child instead of disposing (active/inactive pattern)
+                    if (_currentChild is LayoutNode oldChild)
+                    {
+                        oldChild.OnDeactivate();
+                    }
                     _currentChild = _transform(value);
 
                     // Activate the new child if we're currently active
