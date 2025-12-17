@@ -1,6 +1,8 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
+using System.Reactive;
+using System.Reactive.Subjects;
 using Termina.Rendering;
 
 namespace Termina.Layout;
@@ -141,9 +143,14 @@ public abstract class LayoutNode : ILayoutNode
 /// <summary>
 /// Base class for container nodes that arrange children.
 /// </summary>
-public abstract class ContainerNode : LayoutNode, IContainerNode
+public abstract class ContainerNode : LayoutNode, IContainerNode, IInvalidatingNode
 {
     private readonly List<ILayoutNode> _children = new();
+    private readonly List<IDisposable> _childInvalidationSubscriptions = new();
+    private readonly Subject<Unit> _invalidated = new();
+
+    /// <inheritdoc />
+    public IObservable<Unit> Invalidated => _invalidated;
 
     /// <inheritdoc />
     public IReadOnlyList<ILayoutNode> Children => _children;
@@ -154,6 +161,7 @@ public abstract class ContainerNode : LayoutNode, IContainerNode
     protected void AddChild(ILayoutNode child)
     {
         _children.Add(child);
+        SubscribeToChildInvalidation(child);
     }
 
     /// <summary>
@@ -161,12 +169,40 @@ public abstract class ContainerNode : LayoutNode, IContainerNode
     /// </summary>
     protected void AddChildren(IEnumerable<ILayoutNode> children)
     {
-        _children.AddRange(children);
+        foreach (var child in children)
+        {
+            _children.Add(child);
+            SubscribeToChildInvalidation(child);
+        }
+    }
+
+    /// <summary>
+    /// Subscribe to a child's invalidation events and propagate them upward.
+    /// </summary>
+    private void SubscribeToChildInvalidation(ILayoutNode child)
+    {
+        if (child is IInvalidatingNode invalidating)
+        {
+            var subscription = invalidating.Invalidated.Subscribe(_ => _invalidated.OnNext(Unit.Default));
+            _childInvalidationSubscriptions.Add(subscription);
+        }
     }
 
     /// <inheritdoc />
     public override void Dispose()
     {
+        // Dispose child invalidation subscriptions
+        foreach (var subscription in _childInvalidationSubscriptions)
+        {
+            subscription.Dispose();
+        }
+        _childInvalidationSubscriptions.Clear();
+
+        // Complete and dispose our invalidation subject
+        _invalidated.OnCompleted();
+        _invalidated.Dispose();
+
+        // Dispose children
         foreach (var child in _children)
         {
             child.Dispose();
