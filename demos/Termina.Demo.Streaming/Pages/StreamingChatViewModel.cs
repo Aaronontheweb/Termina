@@ -6,7 +6,9 @@ using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using Akka.Actor;
 using Akka.Hosting;
+using Termina.Components.Streaming;
 using Termina.Demo.Streaming.Actors;
+using Termina.Layout;
 using Termina.Reactive;
 using Termina.Terminal;
 
@@ -14,12 +16,19 @@ namespace Termina.Demo.Streaming.Pages;
 
 /// <summary>
 /// Represents a styled text segment for chat display.
+/// Supports both regular text and tracked segment operations.
 /// </summary>
 public readonly record struct ChatTextSegment(
     string Text,
     Color? Foreground = null,
     TextDecoration Decoration = TextDecoration.None,
-    bool IsNewLine = false);
+    bool IsNewLine = false,
+    ITextSegment? AppendTracked = null,        // If set, append this tracked segment with TrackedId
+    SegmentId? TrackedId = null,               // The ID to use when appending a tracked segment
+    SegmentId? RemoveSegmentId = null,         // If set, remove the tracked segment with this ID
+    ITextSegment? ReplaceWith = null,          // If set with ReplaceSegmentId, replace that segment with this
+    SegmentId? ReplaceSegmentId = null,        // The ID of the segment to replace
+    bool ReplaceKeepTracked = false);          // Whether the replaced segment should remain tracked
 
 /// <summary>
 /// ViewModel for the streaming chat demo.
@@ -28,11 +37,15 @@ public readonly record struct ChatTextSegment(
 /// </summary>
 public partial class StreamingChatViewModel : ReactiveViewModel
 {
+    // Predefined segment IDs for tracked elements
+    private static readonly SegmentId ThinkingSpinnerId = new(1);
+
     private readonly IRequiredActor<LlmSimulatorActor> _llmActorProvider;
     private readonly List<string> _promptHistory = new();
     private int _historyIndex = -1;
     private IActorRef? _llmActor;
     private CancellationTokenSource? _generationCts;
+    private SpinnerSegment? _currentSpinner;
 
     // Subjects for chat output - Page subscribes to these
     private readonly Subject<ChatTextSegment> _chatOutput = new();
@@ -40,6 +53,7 @@ public partial class StreamingChatViewModel : ReactiveViewModel
 
     /// <summary>
     /// Observable for chat history content.
+    /// Includes both regular text and tracked segment operations.
     /// </summary>
     public IObservable<ChatTextSegment> ChatOutput => _chatOutput.AsObservable();
 
@@ -150,7 +164,17 @@ public partial class StreamingChatViewModel : ReactiveViewModel
         _chatOutput.OnNext(new ChatTextSegment(prompt, Color.White, IsNewLine: true));
         _chatOutput.OnNext(new ChatTextSegment("", IsNewLine: true));
 
-        // Start generation - don't emit Assistant prefix yet, let the reactive layout show spinner
+        // Add Assistant prefix and append animated spinner
+        _chatOutput.OnNext(new ChatTextSegment("🤖 ", Color.Yellow));
+        _chatOutput.OnNext(new ChatTextSegment("Assistant: ", Color.Green, TextDecoration.Bold));
+
+        // Append tracked spinner - will be removed when first text arrives
+        _currentSpinner = new SpinnerSegment(Components.Streaming.SpinnerStyle.Dots, Color.Red);
+        _chatOutput.OnNext(new ChatTextSegment("",
+            AppendTracked: _currentSpinner,
+            TrackedId: ThinkingSpinnerId));
+
+        // Start generation
         IsGenerating = true;
         HasReceivedText = false;
         StatusMessage = "Generating response...";
@@ -185,11 +209,15 @@ public partial class StreamingChatViewModel : ReactiveViewModel
                         break;
 
                     case LlmMessages.TextChunk chunk:
-                        // On first text chunk, emit the Assistant prefix
+                        // On first text chunk, replace the spinner with static empty segment
                         if (!HasReceivedText)
                         {
-                            _chatOutput.OnNext(new ChatTextSegment("🤖 ", Color.Yellow));
-                            _chatOutput.OnNext(new ChatTextSegment("Assistant: ", Color.Green, TextDecoration.Bold));
+                            _chatOutput.OnNext(new ChatTextSegment("",
+                                ReplaceWith: new StaticTextSegment("", TextStyle.Default),
+                                ReplaceSegmentId: ThinkingSpinnerId,
+                                ReplaceKeepTracked: false));
+                            _currentSpinner?.Dispose();
+                            _currentSpinner = null;
                             HasReceivedText = true;
                         }
 
@@ -237,6 +265,7 @@ public partial class StreamingChatViewModel : ReactiveViewModel
 
     public override void Dispose()
     {
+        _currentSpinner?.Dispose();
         _chatOutput.Dispose();
         _promptTextChanged.Dispose();
         DisposeReactiveFields();

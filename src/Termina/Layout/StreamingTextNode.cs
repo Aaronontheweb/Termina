@@ -21,6 +21,17 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode
     private readonly IStreamingTextBuffer _buffer;
     private readonly Subject<Unit> _invalidated = new();
 
+    // Tracked segment infrastructure
+    private readonly List<ContentElement> _content = new();  // Ordered list of all content
+    private readonly Dictionary<SegmentId, int> _segmentIndices = new();  // ID -> index in _content
+    private readonly Dictionary<SegmentId, IDisposable> _subscriptions = new();  // Animation subscriptions
+    private readonly object _contentLock = new();  // Thread safety for content mutations
+
+    // Content element types for tracking
+    private abstract record ContentElement;
+    private record StaticElement(StyledSegment Segment) : ContentElement;  // Untracked text
+    private record TrackedElement(SegmentId Id, ITextSegment Segment) : ContentElement;  // Tracked segment
+
     /// <inheritdoc />
     public IObservable<Unit> Invalidated => _invalidated;
 
@@ -84,15 +95,22 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode
 
     /// <summary>
     /// Appends text to the buffer and triggers a redraw.
+    /// Untracked - cannot be removed or replaced later.
     /// </summary>
     public void Append(string text)
     {
-        _buffer.Append(text);
+        lock (_contentLock)
+        {
+            var segment = new StyledSegment(text, TextStyle.Default);
+            _content.Add(new StaticElement(segment));
+            _buffer.Append(text);
+        }
         NotifyChanged();
     }
 
     /// <summary>
     /// Appends styled text to the buffer and triggers a redraw.
+    /// Untracked - cannot be removed or replaced later.
     /// </summary>
     /// <param name="text">The text to append.</param>
     /// <param name="foreground">The foreground color (optional).</param>
@@ -105,31 +123,49 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode
             foreground ?? Color.Default,
             background ?? Color.Default,
             decoration);
-        _buffer.Append(text, style);
+        var segment = new StyledSegment(text, style);
+
+        lock (_contentLock)
+        {
+            _content.Add(new StaticElement(segment));
+            _buffer.Append(segment);
+        }
         NotifyChanged();
     }
 
     /// <summary>
     /// Appends a styled segment to the buffer and triggers a redraw.
+    /// Untracked - cannot be removed or replaced later.
     /// </summary>
     /// <param name="segment">The styled segment to append.</param>
     public void Append(StyledSegment segment)
     {
-        _buffer.Append(segment);
+        lock (_contentLock)
+        {
+            _content.Add(new StaticElement(segment));
+            _buffer.Append(segment);
+        }
         NotifyChanged();
     }
 
     /// <summary>
     /// Appends a line to the buffer and triggers a redraw.
+    /// Untracked - cannot be removed or replaced later.
     /// </summary>
     public void AppendLine(string line)
     {
-        _buffer.AppendLine(line);
+        lock (_contentLock)
+        {
+            var segment = new StyledSegment(line + "\n", TextStyle.Default);
+            _content.Add(new StaticElement(segment));
+            _buffer.AppendLine(line);
+        }
         NotifyChanged();
     }
 
     /// <summary>
     /// Appends a styled line to the buffer and triggers a redraw.
+    /// Untracked - cannot be removed or replaced later.
     /// </summary>
     /// <param name="line">The line to append.</param>
     /// <param name="foreground">The foreground color (optional).</param>
@@ -142,16 +178,219 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode
             foreground ?? Color.Default,
             background ?? Color.Default,
             decoration);
-        _buffer.AppendLine(line, style);
+        var segment = new StyledSegment(line + "\n", style);
+
+        lock (_contentLock)
+        {
+            _content.Add(new StaticElement(segment));
+            _buffer.AppendLine(line, style);
+        }
         NotifyChanged();
     }
 
     /// <summary>
-    /// Clears all content from the buffer.
+    /// Appends a tracked text segment that can be removed or replaced later.
+    /// The caller provides the ID to reference this segment.
+    /// </summary>
+    /// <param name="id">The unique identifier for this segment (provided by caller).</param>
+    /// <param name="segment">The text segment to append.</param>
+    /// <exception cref="ArgumentException">Thrown if the ID is already in use.</exception>
+    public void AppendTracked(SegmentId id, ITextSegment segment)
+    {
+        lock (_contentLock)
+        {
+            if (id == SegmentId.None)
+                throw new ArgumentException("SegmentId.None cannot be used for tracked segments", nameof(id));
+
+            if (_segmentIndices.ContainsKey(id))
+                throw new ArgumentException($"SegmentId {id.Value} is already in use", nameof(id));
+
+            var element = new TrackedElement(id, segment);
+            var index = _content.Count;
+
+            _content.Add(element);
+            _segmentIndices[id] = index;
+            _buffer.Append(segment.GetCurrentSegment());
+
+            // Subscribe to animation invalidation if this is an animated segment
+            if (segment is IAnimatedTextSegment animated)
+            {
+                var subscription = animated.Invalidated.Subscribe(_ =>
+                {
+                    // On animation frame change, rebuild buffer to show new frame
+                    RebuildBuffer();
+                    NotifyChanged();
+                });
+                _subscriptions[id] = subscription;
+            }
+
+            NotifyChanged();
+        }
+    }
+
+    /// <summary>
+    /// Removes a tracked segment by ID and rebuilds the buffer.
+    /// </summary>
+    /// <param name="id">The segment ID to remove.</param>
+    /// <returns>True if the segment was found and removed, false otherwise.</returns>
+    public bool Remove(SegmentId id)
+    {
+        lock (_contentLock)
+        {
+            if (!_segmentIndices.TryGetValue(id, out var index))
+                return false;
+
+            // Dispose animation subscription if present
+            if (_subscriptions.TryGetValue(id, out var subscription))
+            {
+                subscription.Dispose();
+                _subscriptions.Remove(id);
+            }
+
+            // Dispose the segment itself
+            if (_content[index] is TrackedElement { Segment: var segment })
+            {
+                segment.Dispose();
+            }
+
+            // Remove from content list
+            _content.RemoveAt(index);
+            _segmentIndices.Remove(id);
+
+            // Update indices for all segments after this one
+            for (var i = index; i < _content.Count; i++)
+            {
+                if (_content[i] is TrackedElement { Id: var otherId })
+                {
+                    _segmentIndices[otherId] = i;
+                }
+            }
+
+            // Rebuild buffer from remaining content
+            RebuildBuffer();
+            NotifyChanged();
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Replaces a tracked segment with a new segment.
+    /// </summary>
+    /// <param name="id">The segment ID to replace.</param>
+    /// <param name="newSegment">The new segment to replace it with.</param>
+    /// <param name="keepTracked">If true, keeps the segment tracked with the same ID. If false, converts to untracked static content.</param>
+    /// <returns>True if the segment was found and replaced, false otherwise.</returns>
+    public bool Replace(SegmentId id, ITextSegment newSegment, bool keepTracked = true)
+    {
+        lock (_contentLock)
+        {
+            if (!_segmentIndices.TryGetValue(id, out var index))
+                return false;
+
+            // Dispose old animation subscription if present
+            if (_subscriptions.TryGetValue(id, out var oldSubscription))
+            {
+                oldSubscription.Dispose();
+                _subscriptions.Remove(id);
+            }
+
+            // Dispose old segment
+            if (_content[index] is TrackedElement { Segment: var oldSegment })
+            {
+                oldSegment.Dispose();
+            }
+
+            if (keepTracked)
+            {
+                // Replace with new tracked segment
+                _content[index] = new TrackedElement(id, newSegment);
+
+                // Subscribe to new animation if applicable
+                if (newSegment is IAnimatedTextSegment animated)
+                {
+                    var subscription = animated.Invalidated.Subscribe(_ =>
+                    {
+                        RebuildBuffer();
+                        NotifyChanged();
+                    });
+                    _subscriptions[id] = subscription;
+                }
+            }
+            else
+            {
+                // Replace with static element (no longer tracked)
+                var staticSegment = newSegment.GetCurrentSegment();
+                _content[index] = new StaticElement(staticSegment);
+                _segmentIndices.Remove(id);
+
+                // Dispose the new segment since we only needed its current content
+                newSegment.Dispose();
+
+                // Update indices for all segments after this one
+                for (var i = index + 1; i < _content.Count; i++)
+                {
+                    if (_content[i] is TrackedElement { Id: var otherId })
+                    {
+                        _segmentIndices[otherId] = i;
+                    }
+                }
+            }
+
+            // Rebuild buffer with new content
+            RebuildBuffer();
+            NotifyChanged();
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Rebuilds the buffer from the content list.
+    /// Called when tracked segments are added, removed, or replaced.
+    /// </summary>
+    private void RebuildBuffer()
+    {
+        _buffer.Clear();
+
+        foreach (var element in _content)
+        {
+            var segment = element switch
+            {
+                StaticElement s => s.Segment,
+                TrackedElement t => t.Segment.GetCurrentSegment(),
+                _ => throw new InvalidOperationException($"Unknown content element type: {element.GetType()}")
+            };
+
+            _buffer.Append(segment);
+        }
+    }
+
+    /// <summary>
+    /// Clears all content from the buffer, including tracked segments.
     /// </summary>
     public void Clear()
     {
-        _buffer.Clear();
+        lock (_contentLock)
+        {
+            // Dispose all subscriptions
+            foreach (var subscription in _subscriptions.Values)
+            {
+                subscription.Dispose();
+            }
+            _subscriptions.Clear();
+
+            // Dispose all tracked segments
+            foreach (var element in _content)
+            {
+                if (element is TrackedElement { Segment: var segment })
+                {
+                    segment.Dispose();
+                }
+            }
+
+            _content.Clear();
+            _segmentIndices.Clear();
+            _buffer.Clear();
+        }
         NotifyChanged();
     }
 
@@ -353,6 +592,28 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode
     /// <inheritdoc />
     public override void Dispose()
     {
+        lock (_contentLock)
+        {
+            // Dispose all subscriptions
+            foreach (var subscription in _subscriptions.Values)
+            {
+                subscription.Dispose();
+            }
+            _subscriptions.Clear();
+
+            // Dispose all tracked segments
+            foreach (var element in _content)
+            {
+                if (element is TrackedElement { Segment: var segment })
+                {
+                    segment.Dispose();
+                }
+            }
+
+            _content.Clear();
+            _segmentIndices.Clear();
+        }
+
         _invalidated.OnCompleted();
         _invalidated.Dispose();
         base.Dispose();

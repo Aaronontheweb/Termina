@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
 using System.Reactive.Linq;
+using Termina.Components.Streaming;
 using Termina.Extensions;
 using Termina.Input;
 using Termina.Layout;
@@ -35,10 +36,29 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
         ViewModel.ChatOutput
             .Subscribe(segment =>
             {
-                if (segment.IsNewLine)
-                    _chatHistory.AppendLine(segment.Text, segment.Foreground, null, segment.Decoration);
+                // Handle tracked segment append
+                if (segment.AppendTracked != null && segment.TrackedId.HasValue)
+                {
+                    _chatHistory.AppendTracked(segment.TrackedId.Value, segment.AppendTracked);
+                }
+                // Handle tracked segment replacement
+                else if (segment.ReplaceSegmentId.HasValue && segment.ReplaceWith != null)
+                {
+                    _chatHistory.Replace(segment.ReplaceSegmentId.Value, segment.ReplaceWith, segment.ReplaceKeepTracked);
+                }
+                // Handle tracked segment removal
+                else if (segment.RemoveSegmentId.HasValue)
+                {
+                    _chatHistory.Remove(segment.RemoveSegmentId.Value);
+                }
+                // Handle regular text append
                 else
-                    _chatHistory.Append(segment.Text, segment.Foreground, null, segment.Decoration);
+                {
+                    if (segment.IsNewLine)
+                        _chatHistory.AppendLine(segment.Text, segment.Foreground, null, segment.Decoration);
+                    else
+                        _chatHistory.Append(segment.Text, segment.Foreground, null, segment.Decoration);
+                }
             })
             .DisposeWith(Subscriptions);
 
@@ -131,25 +151,7 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
                     .WithTitleColor(Color.Yellow)
                     .WithBorder(BorderStyle.Rounded)
                     .WithBorderColor(Color.Gray)
-                    .WithContent(
-                        Layouts.Vertical()
-                            .WithChild(_chatHistory.Fill())
-                            .WithChild(
-                                ViewModel.IsGeneratingChanged
-                                    .CombineLatest(ViewModel.HasReceivedTextChanged, (isGenerating, hasText) => (isGenerating, hasText))
-                                    .Select(state => state.isGenerating && !state.hasText
-                                        ? Layouts.Horizontal()
-                                            .WithChild(new TextNode("  🤖 ")
-                                                .WithForeground(Color.Yellow)
-                                                .Width(5))
-                                            .WithChild(new TextNode("Assistant: ")
-                                                .WithForeground(Color.Green)
-                                                .Bold())
-                                            .WithChild(new SpinnerNode(SpinnerStyle.Dots)
-                                                .WithSpinnerColor(Color.Red))
-                                            as ILayoutNode
-                                        : new EmptyNode())
-                                    .AsLayout()))
+                    .WithContent(_chatHistory.Fill())
                     .Fill())
             .WithChild(new EmptyNode().Height(1))
             // Input panel
