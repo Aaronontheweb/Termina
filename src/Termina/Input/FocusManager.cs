@@ -3,6 +3,7 @@
 
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
+using Termina.Diagnostics;
 using Termina.Layout;
 
 namespace Termina.Input;
@@ -34,6 +35,7 @@ public sealed class FocusManager : IFocusManager, IDisposable
 
         if (!focusable.CanFocus)
         {
+            TerminaTrace.Focus.Debug(this, "PushFocus rejected: {0} CanFocus=false", focusable.GetType().Name);
             return;
         }
 
@@ -41,6 +43,7 @@ public sealed class FocusManager : IFocusManager, IDisposable
         if (_focusStack.Count > 0)
         {
             var current = _focusStack.Peek();
+            TerminaTrace.Focus.Debug(this, "Blurring current: {0}", current.GetType().Name);
             current.OnBlurred();
         }
 
@@ -48,27 +51,34 @@ public sealed class FocusManager : IFocusManager, IDisposable
         _focusStack.Push(focusable);
         focusable.OnFocused();
         _focusChanged.OnNext(focusable);
+        TerminaTrace.Focus.Debug(this, "PushFocus: {0}, stack depth={1}", focusable.GetType().Name, _focusStack.Count);
     }
 
     /// <inheritdoc />
     public void PopFocus()
     {
         if (_focusStack.Count == 0)
+        {
+            TerminaTrace.Focus.Debug(this, "PopFocus: stack empty, nothing to pop");
             return;
+        }
 
         // Blur and remove the current focus
         var current = _focusStack.Pop();
+        TerminaTrace.Focus.Debug(this, "PopFocus: popped {0}, stack depth={1}", current.GetType().Name, _focusStack.Count);
         current.OnBlurred();
 
         // Focus the previous component if any
         if (_focusStack.Count > 0)
         {
             var previous = _focusStack.Peek();
+            TerminaTrace.Focus.Debug(this, "PopFocus: restoring focus to {0}", previous.GetType().Name);
             previous.OnFocused();
             _focusChanged.OnNext(previous);
         }
         else
         {
+            TerminaTrace.Focus.Debug(this, "PopFocus: no previous focus, stack now empty");
             _focusChanged.OnNext(null);
         }
     }
@@ -115,6 +125,7 @@ public sealed class FocusManager : IFocusManager, IDisposable
     {
         if (_focusStack.Count == 0)
         {
+            TerminaTrace.Input.Trace(this, "RouteInput: no focus, key={0} not handled", key.Key);
             return false;
         }
 
@@ -123,10 +134,13 @@ public sealed class FocusManager : IFocusManager, IDisposable
 
         if (!current.CanFocus)
         {
+            TerminaTrace.Input.Debug(this, "RouteInput: {0} CanFocus=false, key={1} not handled", current.GetType().Name, key.Key);
             return false;
         }
 
-        return current.HandleInput(key);
+        var handled = current.HandleInput(key);
+        TerminaTrace.Input.Trace(this, "RouteInput: {0} key={1} handled={2}", current.GetType().Name, key.Key, handled);
+        return handled;
     }
 
     /// <summary>
