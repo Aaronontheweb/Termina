@@ -1,6 +1,8 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
+using System.Reactive;
+using System.Reactive.Subjects;
 using Termina.Rendering;
 using Termina.Terminal;
 
@@ -9,9 +11,14 @@ namespace Termina.Layout;
 /// <summary>
 /// A layout node that renders a bordered panel with optional title and content.
 /// </summary>
-public sealed class PanelNode : LayoutNode
+public sealed class PanelNode : LayoutNode, IInvalidatingNode
 {
     private ILayoutNode _content = new EmptyNode();
+    private IDisposable? _contentInvalidationSubscription;
+    private readonly Subject<Unit> _invalidated = new();
+
+    /// <inheritdoc />
+    public IObservable<Unit> Invalidated => _invalidated;
 
     /// <summary>
     /// Panel title (displayed in top border).
@@ -86,8 +93,20 @@ public sealed class PanelNode : LayoutNode
     /// </summary>
     public PanelNode WithContent(ILayoutNode content)
     {
+        // Dispose old content and subscription
+        _contentInvalidationSubscription?.Dispose();
         _content.Dispose();
+
+        // Set new content
         _content = content;
+
+        // Subscribe to new content's invalidation events
+        if (content is IInvalidatingNode invalidating)
+        {
+            _contentInvalidationSubscription = invalidating.Invalidated
+                .Subscribe(_ => _invalidated.OnNext(Unit.Default));
+        }
+
         return this;
     }
 
@@ -212,8 +231,31 @@ public sealed class PanelNode : LayoutNode
     }
 
     /// <inheritdoc />
+    public override void OnActivate()
+    {
+        if (_content is LayoutNode contentNode)
+        {
+            contentNode.OnActivate();
+        }
+        base.OnActivate();
+    }
+
+    /// <inheritdoc />
+    public override void OnDeactivate()
+    {
+        if (_content is LayoutNode contentNode)
+        {
+            contentNode.OnDeactivate();
+        }
+        base.OnDeactivate();
+    }
+
+    /// <inheritdoc />
     public override void Dispose()
     {
+        _contentInvalidationSubscription?.Dispose();
+        _invalidated.OnCompleted();
+        _invalidated.Dispose();
         _content.Dispose();
         base.Dispose();
     }
