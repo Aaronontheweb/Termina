@@ -67,31 +67,61 @@ new TextInputNode()
 
 ## Handling Input
 
-TextInputNode exposes observables and the `HandleInput` method for integration with your ViewModel:
+TextInputNode is a layout node that should be **owned by the Page**. There are two patterns for input handling:
+
+### Pattern 1: Inside a Modal (Recommended)
+
+When TextInputNode is inside a Modal, Focus automatically routes input:
 
 ```csharp
-public partial class MyViewModel : ReactiveViewModel
+public class MyPage : ReactivePage<MyViewModel>
 {
-    public TextInputNode PromptInput { get; } = new TextInputNode()
-        .WithPlaceholder("Enter command...");
+    private TextInputNode _textInput = null!;
+    private ModalNode _modal = null!;
 
-    public override void OnActivated()
+    protected override void OnBound()
     {
-        // Handle keyboard input
-        Input.OfType<KeyPressed>()
-            .Subscribe(key => PromptInput.HandleInput(key.KeyInfo))
+        _textInput = new TextInputNode().WithPlaceholder("Enter command...");
+        _modal = Layouts.Modal().WithContent(_textInput);
+
+        _textInput.Submitted
+            .Subscribe(text => ViewModel.OnTextSubmitted(text))
+            .DisposeWith(Subscriptions);
+
+        // When showing modal, Focus handles input routing automatically
+        ViewModel.IsShowingModalChanged
+            .Where(show => show)
+            .Subscribe(_ => Focus.PushFocus(_modal))
+            .DisposeWith(Subscriptions);
+    }
+}
+```
+
+### Pattern 2: Always-Visible Input
+
+For always-visible text inputs, route input via `ViewModel.Input`:
+
+```csharp
+public class MyPage : ReactivePage<MyViewModel>
+{
+    private TextInputNode _promptInput = null!;
+
+    protected override void OnBound()
+    {
+        _promptInput = new TextInputNode().WithPlaceholder("Enter command...");
+
+        // Route input from ViewModel to the text input
+        ViewModel.Input.OfType<KeyPressed>()
+            .Subscribe(key => _promptInput.HandleInput(key.KeyInfo))
             .DisposeWith(Subscriptions);
 
         // Handle submission
-        PromptInput.Submitted
-            .Subscribe(OnSubmitted)
+        _promptInput.Submitted
+            .Subscribe(text => {
+                ViewModel.OnTextSubmitted(text);
+                _promptInput.Clear();
+            })
             .DisposeWith(Subscriptions);
-    }
-
-    private void OnSubmitted(string text)
-    {
-        // Process submitted text
-        PromptInput.Clear();
     }
 }
 ```

@@ -43,6 +43,12 @@ internal interface IBindablePage : IPage
     void BindViewModel(ReactiveViewModel viewModel);
 
     /// <summary>
+    /// Wires up focus management to this page.
+    /// </summary>
+    /// <param name="focusManager">The focus manager.</param>
+    void WireUpFocus(Input.IFocusManager focusManager);
+
+    /// <summary>
     /// Gets the current cached layout root, if any.
     /// </summary>
     ILayoutNode? LayoutRoot { get; }

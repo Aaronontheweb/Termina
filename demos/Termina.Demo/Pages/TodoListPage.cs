@@ -12,10 +12,111 @@ namespace Termina.Demo.Pages;
 
 /// <summary>
 /// Page for the todo list demo.
-/// Demonstrates list components and state binding with modal dialogs.
+/// Handles all UI concerns including layout nodes and focus management.
+/// Reacts to ViewModel state changes.
 /// </summary>
 public class TodoListPage : ReactivePage<TodoListViewModel>
 {
+    // Layout nodes owned by the Page
+    private ModalNode _addModal = null!;
+    private ModalNode _priorityModal = null!;
+    private SelectionListNode<string> _priorityList = null!;
+    private TextInputNode _textInput = null!;
+
+    protected override void OnBound()
+    {
+        // Create the text input for the add modal
+        _textInput = new TextInputNode()
+            .WithPlaceholder("Enter task description...");
+
+        // Subscribe to text input submission
+        _textInput.Submitted
+            .Subscribe(text => ViewModel.OnTextInputSubmitted(text))
+            .DisposeWith(Subscriptions);
+
+        // Create priority selection list
+        _priorityList = Layouts.SelectionList("High", "Medium", "Low")
+            .WithMode(SelectionMode.Single)
+            .WithShowNumbers(true)
+            .WithHighlightColors(Color.Black, Color.Cyan)
+            .WithOtherOption("Custom priority...");
+
+        // Subscribe to priority selection events
+        _priorityList.SelectionConfirmed
+            .Subscribe(selected =>
+            {
+                var priority = selected.FirstOrDefault() ?? "Normal";
+                ViewModel.OnPrioritySelected(priority);
+            })
+            .DisposeWith(Subscriptions);
+
+        _priorityList.OtherSelected
+            .Subscribe(customPriority => ViewModel.OnPrioritySelected(customPriority))
+            .DisposeWith(Subscriptions);
+
+        _priorityList.Cancelled
+            .Subscribe(_ => ViewModel.OnPriorityCancelled())
+            .DisposeWith(Subscriptions);
+
+        // Create modals
+        _addModal = Layouts.Modal()
+            .WithTitle("Add New Task")
+            .WithBorder(BorderStyle.Rounded)
+            .WithBorderColor(Color.Cyan)
+            .WithBackdrop(BackdropStyle.Dim)
+            .WithPosition(ModalPosition.Center)
+            .WithPadding(1)
+            .WithContent(_textInput)
+            .WithDismissOnEscape(true);
+
+        _addModal.Dismissed
+            .Subscribe(_ => ViewModel.OnAddModalDismissed())
+            .DisposeWith(Subscriptions);
+
+        _priorityModal = Layouts.Modal()
+            .WithTitle("Select Priority")
+            .WithBorder(BorderStyle.Rounded)
+            .WithBorderColor(Color.Yellow)
+            .WithBackdrop(BackdropStyle.Dim)
+            .WithPosition(ModalPosition.Center)
+            .WithPadding(1)
+            .WithContent(_priorityList)
+            .WithDismissOnEscape(true);
+
+        _priorityModal.Dismissed
+            .Subscribe(_ => ViewModel.OnPriorityModalDismissed())
+            .DisposeWith(Subscriptions);
+
+        // React to state changes for focus management
+        // When IsAddingItem becomes true (and not showing priority), focus add modal
+        ViewModel.IsAddingItemChanged
+            .CombineLatest(ViewModel.ShowPriorityModalChanged, (adding, showPriority) => (adding, showPriority))
+            .Subscribe(state =>
+            {
+                if (state.adding && !state.showPriority)
+                {
+                    _textInput.Clear();
+                    Focus.PushFocus(_addModal);
+                }
+                else if (!state.adding && !state.showPriority)
+                {
+                    Focus.ClearFocus();
+                }
+            })
+            .DisposeWith(Subscriptions);
+
+        // When ShowPriorityModal becomes true, switch focus to priority modal
+        ViewModel.ShowPriorityModalChanged
+            .Where(show => show)
+            .Subscribe(_ =>
+            {
+                Focus.PopFocus(); // Remove add modal focus
+                Focus.PushFocus(_priorityModal);
+                Focus.PushFocus(_priorityList);
+            })
+            .DisposeWith(Subscriptions);
+    }
+
     public override ILayoutNode BuildLayout()
     {
         // Build the main content
@@ -42,26 +143,20 @@ public class TodoListPage : ReactivePage<TodoListViewModel>
                     .Height(1));
 
         // Build the layer with modal overlays
-        // The stack layout renders children in order, with later children on top
-        //
-        // We use Layouts.Deferred() because modals are created in OnActivated (which runs
-        // after BuildLayout) and we don't want the modal to be disposed when hidden.
         return Layouts.Stack()
             .WithChild(mainContent)
             .WithChild(
-                // Show add modal when IsAddingItem is true and ShowPriorityModal is false
                 ViewModel.IsAddingItemChanged
                     .CombineLatest(ViewModel.ShowPriorityModalChanged, (adding, showPriority) => adding && !showPriority)
                     .Select(showModal => showModal
-                        ? Layouts.Deferred(() => ViewModel.AddModal)
-                        : (ILayoutNode)Layouts.Empty())
+                        ? (ILayoutNode)_addModal
+                        : Layouts.Empty())
                     .AsLayout())
             .WithChild(
-                // Show priority selection modal when ShowPriorityModal is true
                 ViewModel.ShowPriorityModalChanged
                     .Select(showPriority => showPriority
-                        ? Layouts.Deferred(() => ViewModel.PriorityModal)
-                        : (ILayoutNode)Layouts.Empty())
+                        ? (ILayoutNode)_priorityModal
+                        : Layouts.Empty())
                     .AsLayout());
     }
 

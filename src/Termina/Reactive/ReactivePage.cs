@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
 using System.Reactive.Disposables;
+using Termina.Input;
 using Termina.Layout;
 using Termina.Pages;
 
@@ -54,6 +55,12 @@ public abstract class ReactivePage<TViewModel> : IBindablePage
     protected CompositeDisposable Subscriptions => _subscriptions;
 
     /// <summary>
+    /// Focus manager for this page.
+    /// Use this to manage focus for modals and interactive controls.
+    /// </summary>
+    protected IFocusManager Focus { get; private set; } = null!;
+
+    /// <summary>
     /// Build the layout tree for this page.
     /// Override this to compose your page's UI declaratively.
     /// </summary>
@@ -74,6 +81,14 @@ public abstract class ReactivePage<TViewModel> : IBindablePage
     void IBindablePage.BindViewModel(ReactiveViewModel viewModel)
     {
         Bind((TViewModel)viewModel);
+    }
+
+    /// <summary>
+    /// Wires up focus management to this page.
+    /// </summary>
+    void IBindablePage.WireUpFocus(IFocusManager focusManager)
+    {
+        Focus = focusManager;
     }
 
     /// <summary>

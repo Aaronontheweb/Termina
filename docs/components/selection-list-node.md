@@ -128,57 +128,100 @@ list.SelectionConfirmed.Subscribe(selected => {
 
 ## Inside a Modal
 
-SelectionListNode works seamlessly with ModalNode:
+SelectionListNode works seamlessly with ModalNode. The **Page owns both nodes** and **manages Focus**:
 
 ```csharp
-// Create selection list
-var priorityList = Layouts.SelectionList("High", "Medium", "Low")
-    .WithMode(SelectionMode.Single)
-    .WithShowNumbers(true)
-    .WithHighlightColors(Color.Black, Color.Cyan)
-    .WithOtherOption("Custom...");
+public class MyPage : ReactivePage<MyViewModel>
+{
+    private SelectionListNode<string> _priorityList = null!;
+    private ModalNode _priorityModal = null!;
 
-// Create modal with selection list
-var modal = Layouts.Modal()
-    .WithTitle("Select Priority")
-    .WithBorder(BorderStyle.Rounded)
-    .WithBorderColor(Color.Yellow)
-    .WithBackdrop(BackdropStyle.Dim)
-    .WithContent(priorityList);
+    protected override void OnBound()
+    {
+        _priorityList = Layouts.SelectionList("High", "Medium", "Low")
+            .WithMode(SelectionMode.Single)
+            .WithShowNumbers(true)
+            .WithHighlightColors(Color.Black, Color.Cyan)
+            .WithOtherOption("Custom...");
 
-// Handle selections
-priorityList.SelectionConfirmed.Subscribe(selected => {
-    HandleSelection(selected.First());
-    Focus.PopFocus();
-});
+        _priorityModal = Layouts.Modal()
+            .WithTitle("Select Priority")
+            .WithBorder(BorderStyle.Rounded)
+            .WithBorderColor(Color.Yellow)
+            .WithBackdrop(BackdropStyle.Dim)
+            .WithContent(_priorityList);
 
-priorityList.OtherSelected.Subscribe(custom => {
-    HandleSelection(custom);
-    Focus.PopFocus();
-});
+        // Handle selections - call ViewModel methods
+        _priorityList.SelectionConfirmed.Subscribe(selected =>
+            ViewModel.OnPrioritySelected(selected.First()))
+            .DisposeWith(Subscriptions);
 
-priorityList.Cancelled.Subscribe(_ => {
-    Focus.PopFocus();
-});
+        _priorityList.OtherSelected.Subscribe(custom =>
+            ViewModel.OnPrioritySelected(custom))
+            .DisposeWith(Subscriptions);
 
-// Show modal
-Focus.PushFocus(modal);
-Focus.PushFocus(priorityList);  // List needs focus for keyboard input
+        _priorityList.Cancelled.Subscribe(_ =>
+            ViewModel.OnPriorityCancelled())
+            .DisposeWith(Subscriptions);
+
+        // React to ViewModel state to manage Focus
+        ViewModel.ShowPriorityModalChanged
+            .Subscribe(show => {
+                if (show)
+                {
+                    Focus.PushFocus(_priorityModal);
+                    Focus.PushFocus(_priorityList);
+                }
+                else
+                {
+                    Focus.ClearFocus();
+                }
+            })
+            .DisposeWith(Subscriptions);
+    }
+}
 ```
 
 ## Complete Example
+
+Here's the recommended pattern where **ViewModel handles state** and **Page owns layout nodes and Focus**:
+
+**ViewModel** - State and business logic:
 
 ```csharp
 public partial class SettingsViewModel : ReactiveViewModel
 {
     [Reactive] private bool _showThemeSelector;
+    [Reactive] private string _currentTheme = "System Default";
 
-    private SelectionListNode<string>? _themeList;
-    private ModalNode? _themeModal;
+    public void OnThemeSelected(string theme)
+    {
+        CurrentTheme = theme;
+        ApplyTheme(theme);
+        ShowThemeSelector = false;
+    }
 
-    public ModalNode? ThemeModal => _themeModal;
+    public void OnThemeSelectorCancelled()
+    {
+        ShowThemeSelector = false;
+    }
 
-    public override void OnActivated()
+    public void OpenThemeSelector()
+    {
+        ShowThemeSelector = true;
+    }
+}
+```
+
+**Page** - Owns nodes and manages Focus:
+
+```csharp
+public class SettingsPage : ReactivePage<SettingsViewModel>
+{
+    private SelectionListNode<string> _themeList = null!;
+    private ModalNode _themeModal = null!;
+
+    protected override void OnBound()
     {
         _themeList = Layouts.SelectionList("Light", "Dark", "System Default")
             .WithMode(SelectionMode.Single)
@@ -186,14 +229,11 @@ public partial class SettingsViewModel : ReactiveViewModel
             .WithHighlightColors(Color.Black, Color.White);
 
         _themeList.SelectionConfirmed
-            .Subscribe(selected => {
-                ApplyTheme(selected.First());
-                HideThemeSelector();
-            })
+            .Subscribe(selected => ViewModel.OnThemeSelected(selected.First()))
             .DisposeWith(Subscriptions);
 
         _themeList.Cancelled
-            .Subscribe(_ => HideThemeSelector())
+            .Subscribe(_ => ViewModel.OnThemeSelectorCancelled())
             .DisposeWith(Subscriptions);
 
         _themeModal = Layouts.Modal()
@@ -202,21 +242,33 @@ public partial class SettingsViewModel : ReactiveViewModel
             .WithContent(_themeList);
 
         _themeModal.Dismissed
-            .Subscribe(_ => HideThemeSelector())
+            .Subscribe(_ => ViewModel.OnThemeSelectorCancelled())
+            .DisposeWith(Subscriptions);
+
+        // React to ViewModel state to manage Focus
+        ViewModel.ShowThemeSelectorChanged
+            .Subscribe(show => {
+                if (show)
+                {
+                    Focus.PushFocus(_themeModal);
+                    Focus.PushFocus(_themeList);
+                }
+                else
+                {
+                    Focus.ClearFocus();
+                }
+            })
             .DisposeWith(Subscriptions);
     }
 
-    private void ShowThemeSelector()
+    public override ILayoutNode BuildLayout()
     {
-        ShowThemeSelector = true;
-        Focus.PushFocus(_themeModal!);
-        Focus.PushFocus(_themeList!);
-    }
-
-    private void HideThemeSelector()
-    {
-        ShowThemeSelector = false;
-        Focus.ClearFocus();
+        return Layouts.Stack()
+            .WithChild(mainContent)
+            .WithChild(
+                ViewModel.ShowThemeSelectorChanged
+                    .Select(show => show ? (ILayoutNode)_themeModal : Layouts.Empty())
+                    .AsLayout());
     }
 }
 ```
