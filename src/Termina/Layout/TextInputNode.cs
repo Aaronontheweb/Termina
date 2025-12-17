@@ -256,7 +256,9 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     {
         // Don't process input if disposed
         if (_disposed)
+        {
             return false;
+        }
 
         // Reset cursor to visible on any input
         _cursorVisible = true;

@@ -3,6 +3,7 @@
 
 using System.Reactive.Linq;
 using Termina.Extensions;
+using Termina.Input;
 using Termina.Layout;
 using Termina.Reactive;
 using Termina.Rendering;
@@ -25,21 +26,17 @@ public class TodoListPage : ReactivePage<TodoListViewModel>
 
     protected override void OnBound()
     {
-        // Create the text input for the add modal
-        _textInput = new TextInputNode()
-            .WithPlaceholder("Enter task description...");
+        // Layout nodes will be created in BuildLayout() where they're used
+    }
+
+    public override void OnNavigatedTo()
+    {
+        base.OnNavigatedTo();
 
         // Subscribe to text input submission
         _textInput.Submitted
             .Subscribe(text => ViewModel.OnTextInputSubmitted(text))
             .DisposeWith(Subscriptions);
-
-        // Create priority selection list
-        _priorityList = Layouts.SelectionList("High", "Medium", "Low")
-            .WithMode(SelectionMode.Single)
-            .WithShowNumbers(true)
-            .WithHighlightColors(Color.Black, Color.Cyan)
-            .WithOtherOption("Custom priority...");
 
         // Subscribe to priority selection events
         _priorityList.SelectionConfirmed
@@ -58,30 +55,9 @@ public class TodoListPage : ReactivePage<TodoListViewModel>
             .Subscribe(_ => ViewModel.OnPriorityCancelled())
             .DisposeWith(Subscriptions);
 
-        // Create modals
-        _addModal = Layouts.Modal()
-            .WithTitle("Add New Task")
-            .WithBorder(BorderStyle.Rounded)
-            .WithBorderColor(Color.Cyan)
-            .WithBackdrop(BackdropStyle.Dim)
-            .WithPosition(ModalPosition.Center)
-            .WithPadding(1)
-            .WithContent(_textInput)
-            .WithDismissOnEscape(true);
-
         _addModal.Dismissed
             .Subscribe(_ => ViewModel.OnAddModalDismissed())
             .DisposeWith(Subscriptions);
-
-        _priorityModal = Layouts.Modal()
-            .WithTitle("Select Priority")
-            .WithBorder(BorderStyle.Rounded)
-            .WithBorderColor(Color.Yellow)
-            .WithBackdrop(BackdropStyle.Dim)
-            .WithPosition(ModalPosition.Center)
-            .WithPadding(1)
-            .WithContent(_priorityList)
-            .WithDismissOnEscape(true);
 
         _priorityModal.Dismissed
             .Subscribe(_ => ViewModel.OnPriorityModalDismissed())
@@ -90,13 +66,17 @@ public class TodoListPage : ReactivePage<TodoListViewModel>
         // React to state changes for focus management
         // When IsAddingItem becomes true (and not showing priority), focus add modal
         ViewModel.IsAddingItemChanged
-            .CombineLatest(ViewModel.ShowPriorityModalChanged, (adding, showPriority) => (adding, showPriority))
+            .CombineLatest(
+                ViewModel.ShowPriorityModalChanged,
+                (adding, showPriority) => (adding, showPriority))
+            .DistinctUntilChanged()
             .Subscribe(state =>
             {
                 if (state.adding && !state.showPriority)
                 {
                     _textInput.Clear();
                     Focus.PushFocus(_addModal);
+                    Focus.PushFocus(_textInput);
                 }
                 else if (!state.adding && !state.showPriority)
                 {
@@ -119,6 +99,36 @@ public class TodoListPage : ReactivePage<TodoListViewModel>
 
     public override ILayoutNode BuildLayout()
     {
+        // Create layout nodes as part of the layout tree lifecycle
+        _textInput = new TextInputNode()
+            .WithPlaceholder("Enter task description...");
+
+        _priorityList = Layouts.SelectionList("High", "Medium", "Low")
+            .WithMode(SelectionMode.Single)
+            .WithShowNumbers(true)
+            .WithHighlightColors(Color.Black, Color.Cyan)
+            .WithOtherOption("Custom priority...");
+
+        _addModal = Layouts.Modal()
+            .WithTitle("Add New Task")
+            .WithBorder(BorderStyle.Rounded)
+            .WithBorderColor(Color.Cyan)
+            .WithBackdrop(BackdropStyle.Dim)
+            .WithPosition(ModalPosition.Center)
+            .WithPadding(1)
+            .WithContent(_textInput)
+            .WithDismissOnEscape(true);
+
+        _priorityModal = Layouts.Modal()
+            .WithTitle("Select Priority")
+            .WithBorder(BorderStyle.Rounded)
+            .WithBorderColor(Color.Yellow)
+            .WithBackdrop(BackdropStyle.Dim)
+            .WithPosition(ModalPosition.Center)
+            .WithPadding(1)
+            .WithContent(_priorityList)
+            .WithDismissOnEscape(true);
+
         // Build the main content
         var mainContent = Layouts.Vertical()
             .WithChild(
