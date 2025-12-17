@@ -109,6 +109,7 @@ export default defineConfig({
       '/advanced/': [
         { text: 'Advanced Topics', link: '/advanced/' },
         { text: 'Testing', link: '/advanced/testing' },
+        { text: 'Diagnostics', link: '/advanced/diagnostics' },
         { text: 'Custom Components', link: '/advanced/custom-components' },
         { text: 'AOT Compilation', link: '/advanced/aot' },
         { text: 'Akka.NET Integration', link: '/advanced/akka-integration' }
