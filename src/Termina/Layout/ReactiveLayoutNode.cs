@@ -38,6 +38,13 @@ public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
                 // Dispose old child
                 _currentChild.Dispose();
                 _currentChild = node;
+
+                // Activate the new child if we're currently active
+                if (_isActive && node is LayoutNode newChildNode)
+                {
+                    newChildNode.OnActivate();
+                }
+
                 _invalidated.OnNext(Unit.Default);
             },
             onError: _ => { },
@@ -77,6 +84,13 @@ public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
                     // Dispose old child
                     _currentChild.Dispose();
                     _currentChild = node;
+
+                    // Activate the new child if we're currently active
+                    if (_isActive && node is LayoutNode newChildNode)
+                    {
+                        newChildNode.OnActivate();
+                    }
+
                     _invalidated.OnNext(Unit.Default);
                 },
                 onError: _ => { },
@@ -150,6 +164,13 @@ public sealed class ReactiveLayoutNode<T> : LayoutNode, IInvalidatingNode
             {
                 _currentChild.Dispose();
                 _currentChild = _transform(value);
+
+                // Activate the new child if we're currently active
+                if (_isActive && _currentChild is LayoutNode newChildNode)
+                {
+                    newChildNode.OnActivate();
+                }
+
                 _invalidated.OnNext(Unit.Default);
             },
             onError: _ => { },
@@ -186,6 +207,13 @@ public sealed class ReactiveLayoutNode<T> : LayoutNode, IInvalidatingNode
                 {
                     _currentChild.Dispose();
                     _currentChild = _transform(value);
+
+                    // Activate the new child if we're currently active
+                    if (_isActive && _currentChild is LayoutNode newChildNode)
+                    {
+                        newChildNode.OnActivate();
+                    }
+
                     _invalidated.OnNext(Unit.Default);
                 },
                 onError: _ => { },
