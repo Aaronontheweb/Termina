@@ -1,6 +1,8 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
+using System.Reactive;
+using System.Reactive.Linq;
 using Termina.Components.Streaming;
 using Termina.Layout;
 using Termina.Terminal;
@@ -185,15 +187,17 @@ public class StreamingTextNodeTrackedSegmentTests
     }
 
     [Fact]
-    public void SpinnerSegment_AnimationFramesChange()
+    public async Task SpinnerSegment_AnimationFramesChange()
     {
         var spinner = new SpinnerSegment(SpinnerStyle.Line, Color.Yellow, intervalMs: 10);
 
         // Get initial frame
         var frame1 = spinner.GetCurrentSegment().Text;
 
-        // Wait for animation to tick
-        Thread.Sleep(50);
+        // Wait for actual invalidation event instead of sleeping
+        await spinner.Invalidated
+            .FirstAsync()
+            .Timeout(TimeSpan.FromSeconds(1));
 
         var frame2 = spinner.GetCurrentSegment().Text;
 
@@ -204,17 +208,16 @@ public class StreamingTextNodeTrackedSegmentTests
     }
 
     [Fact]
-    public void SpinnerSegment_InvalidatedEventFires()
+    public async Task SpinnerSegment_InvalidatedEventFires()
     {
         var spinner = new SpinnerSegment(SpinnerStyle.Dots, intervalMs: 10);
-        var eventFired = false;
 
-        spinner.Invalidated.Subscribe(_ => eventFired = true);
+        // Wait for actual invalidation event instead of sleeping
+        await spinner.Invalidated
+            .FirstAsync()
+            .Timeout(TimeSpan.FromSeconds(1));
 
-        // Wait for at least one timer tick
-        Thread.Sleep(50);
-
-        Assert.True(eventFired);
+        // If we get here without timeout, the event fired
         spinner.Dispose();
     }
 
@@ -282,7 +285,7 @@ public class StreamingTextNodeTrackedSegmentTests
     }
 
     [Fact]
-    public void Replace_KeepTracked_SubscribesToNewAnimation()
+    public async Task Replace_KeepTracked_SubscribesToNewAnimation()
     {
         var node = StreamingTextNode.Create();
         var id = new SegmentId(1);
@@ -293,14 +296,12 @@ public class StreamingTextNodeTrackedSegmentTests
         var newSpinner = new SpinnerSegment(SpinnerStyle.Dots, intervalMs: 10);
         node.Replace(id, newSpinner, keepTracked: true);
 
-        var eventFired = false;
-        // Give animation time to invalidate
-        var subscription = node.ContentChanged.Subscribe(_ => eventFired = true);
+        // Wait for actual content change event instead of sleeping
+        await node.ContentChanged
+            .FirstAsync()
+            .Timeout(TimeSpan.FromSeconds(1));
 
-        Thread.Sleep(50);
-
-        Assert.True(eventFired);
-        subscription.Dispose();
+        // If we get here without timeout, the event fired
         newSpinner.Dispose();
     }
 }
