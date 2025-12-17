@@ -4,6 +4,7 @@
 using System.Reactive.Subjects;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using System.Threading.Channels;
 using Termina.Diagnostics;
 
 namespace Termina.Platform;
@@ -174,6 +175,8 @@ public sealed class WindowsConsole : IPlatformConsole
     private uint _originalOutputMode;
     private bool _initialized;
     private bool _disposed;
+    private int _lastWidth;
+    private int _lastHeight;
 
     /// <summary>
     /// Check if a Windows console is available (not redirected/piped).
@@ -312,6 +315,12 @@ public sealed class WindowsConsole : IPlatformConsole
         Console.OutputEncoding = System.Text.Encoding.UTF8;
         TerminaTrace.Platform.Debug(this, "Set Console.OutputEncoding to UTF-8");
 
+        // Capture initial window size for resize event deduplication
+        var initialSize = GetSize();
+        _lastWidth = initialSize.Width;
+        _lastHeight = initialSize.Height;
+        TerminaTrace.Platform.Debug(this, "Initial window size: {0}x{1}", _lastWidth, _lastHeight);
+
         _initialized = true;
         TerminaTrace.Platform.Info(this, "WindowsConsole.Initialize() completed successfully");
     }
@@ -375,13 +384,16 @@ public sealed class WindowsConsole : IPlatformConsole
 
             if (waitResult == WAIT_TIMEOUT)
             {
-                // No input yet, check cancellation and continue waiting
-                // Log every 100 loops (~5 seconds) to show we're still alive
-                if (loopCount % 100 == 0)
+                // No input yet, use a short async delay to yield properly
+                // Task.Delay integrates better with async scheduler than Task.Yield
+                try
                 {
-                    TerminaTrace.Platform.Trace(this, "ReadInputAsync waiting... loop {0}", loopCount);
+                    await Task.Delay(1, cancellationToken);
                 }
-                await Task.Yield(); // Yield to allow other async work to proceed
+                catch (OperationCanceledException)
+                {
+                    return null;
+                }
                 continue;
             }
 
@@ -418,10 +430,21 @@ public sealed class WindowsConsole : IPlatformConsole
                     break;
 
                 case WINDOW_BUFFER_SIZE_EVENT:
+                    // Windows fires WINDOW_BUFFER_SIZE_EVENT for many reasons, not just actual resizes
+                    // Only emit if the size actually changed to prevent excessive re-renders
                     var size = record.WindowBufferSizeEvent.dwSize;
-                    var resizeEvent = new ConsoleResizeEvent(size.X, size.Y);
-                    _resized.OnNext(resizeEvent);
-                    return resizeEvent;
+                    if (size.X != _lastWidth || size.Y != _lastHeight)
+                    {
+                        _lastWidth = size.X;
+                        _lastHeight = size.Y;
+                        TerminaTrace.Platform.Debug(this, "Window resized: {0}x{1}", size.X, size.Y);
+                        var resizeEvent = new ConsoleResizeEvent(size.X, size.Y);
+                        _resized.OnNext(resizeEvent);
+                        return resizeEvent;
+                    }
+                    // Size didn't change - ignore this event and continue reading
+                    TerminaTrace.Platform.Trace(this, "Ignoring phantom resize event (size unchanged)");
+                    break;
 
                 case MOUSE_EVENT:
                     var mouseEvent = ConvertMouseEvent(record.MouseEvent);
