@@ -476,6 +476,45 @@ public sealed class TerminaApplication
         // Fall back to building the layout fresh
         return _currentPage.BuildLayout();
     }
+
+    /// <summary>
+    /// Clears the page cache and disposes all cached pages.
+    /// </summary>
+    private void ClearPageCache()
+    {
+        foreach (var (page, viewModel) in _cachedPages.Values)
+        {
+            // Properly dispose cached pages
+            if (page is IDisposable disposablePage)
+                disposablePage.Dispose();
+            viewModel.Dispose();
+        }
+        _cachedPages.Clear();
+    }
+
+    /// <summary>
+    /// Disposes the application and cleans up resources.
+    /// </summary>
+    public void Dispose()
+    {
+        // Dispose current page if it's disposable
+        if (_currentPage is IDisposable currentDisposable)
+            currentDisposable.Dispose();
+
+        // Clear and dispose all cached pages
+        ClearPageCache();
+
+        // Complete and dispose the input subject
+        _inputSubject.OnCompleted();
+        _inputSubject.Dispose();
+
+        // Dispose all input sources
+        foreach (var source in _inputSources)
+        {
+            if (source is IDisposable disposable)
+                disposable.Dispose();
+        }
+    }
 }
 
 /// <summary>

@@ -40,6 +40,32 @@ public abstract class LayoutNode : ILayoutNode
     }
 
     /// <summary>
+    /// Called when the node becomes active (page navigated to).
+    /// Override to resume subscriptions, start timers, and restore active state.
+    /// </summary>
+    /// <remarks>
+    /// Default implementation does nothing. Override in derived classes that need
+    /// to resume resource-consuming operations when the page becomes active.
+    /// </remarks>
+    public virtual void OnActivate()
+    {
+        // Default: no action needed
+    }
+
+    /// <summary>
+    /// Called when the node becomes inactive (navigating away from page).
+    /// Override to pause subscriptions, stop timers, but preserve state.
+    /// </summary>
+    /// <remarks>
+    /// Default implementation does nothing. Override in derived classes that need
+    /// to pause resource-consuming operations when the page becomes inactive.
+    /// </remarks>
+    public virtual void OnDeactivate()
+    {
+        // Default: no action needed
+    }
+
+    /// <summary>
     /// Set width to a fixed value.
     /// </summary>
     public LayoutNode Width(int value)
@@ -146,5 +172,31 @@ public abstract class ContainerNode : LayoutNode, IContainerNode
             child.Dispose();
         }
         base.Dispose();
+    }
+
+    /// <summary>
+    /// Activates this container and all children.
+    /// </summary>
+    public override void OnActivate()
+    {
+        foreach (var child in _children)
+        {
+            if (child is LayoutNode node)
+                node.OnActivate();
+        }
+        base.OnActivate();
+    }
+
+    /// <summary>
+    /// Deactivates this container and all children.
+    /// </summary>
+    public override void OnDeactivate()
+    {
+        foreach (var child in _children)
+        {
+            if (child is LayoutNode node)
+                node.OnDeactivate();
+        }
+        base.OnDeactivate();
     }
 }

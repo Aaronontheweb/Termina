@@ -170,7 +170,8 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
         HeightConstraint = new SizeConstraint.Fixed(1);
         WidthConstraint = new SizeConstraint.Fill();
 
-        Start();
+        // Don't auto-start - animation should only start when focused
+        // Start() will be called by OnFocused() when the node gains focus
     }
 
     /// <summary>
@@ -669,6 +670,25 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
                 context.ResetColors();
             }
         }
+    }
+
+    /// <inheritdoc />
+    public override void OnActivate()
+    {
+        // Resume cursor blinking if this node has focus
+        if (_hasFocus)
+        {
+            Start();
+        }
+        base.OnActivate();
+    }
+
+    /// <inheritdoc />
+    public override void OnDeactivate()
+    {
+        // Stop cursor blinking to conserve resources
+        Stop();
+        base.OnDeactivate();
     }
 
     /// <inheritdoc />

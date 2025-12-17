@@ -92,11 +92,16 @@ termina.RegisterRoute<DetailPage, DetailViewModel>(
 
 ### PreserveState
 
-- Reuses existing Page and ViewModel
+- Reuses existing Page and ViewModel instances
 - State persists across navigations
-- `OnDeactivating()` disposes subscriptions
-- `OnActivated()` recreates subscriptions
-- Use for pages with expensive state or data caching
+- **Layout tree is preserved and reactivated**, not disposed
+- ViewModel lifecycle:
+  - `OnDeactivating()` disposes subscriptions
+  - `OnActivated()` recreates subscriptions
+- Layout lifecycle:
+  - `OnDeactivate()` pauses timers, stops animations, pauses observable subscriptions
+  - `OnActivate()` resumes timers, animations, and subscriptions
+- Use for pages with expensive state, data caching, or complex UI state (e.g., form inputs, scroll positions)
 
 ## Lifecycle Methods
 

@@ -84,11 +84,23 @@ Only changed regions are re-rendered, not the entire screen. This provides:
 
 ### On Navigation
 
+**ResetOnNavigation (default):**
 1. `Navigate("/path")` called
 2. Current ViewModel's `OnDeactivating()` called
-3. New Page/ViewModel resolved
-4. New ViewModel's `OnActivated()` called
-5. Full layout rebuild and render
+3. Current Page's `OnNavigatingFrom()` called (deactivates layout)
+4. New Page/ViewModel created
+5. New ViewModel's `OnActivated()` called
+6. New Page's `OnNavigatedTo()` called (builds and activates layout)
+7. Full render
+
+**PreserveState:**
+1. `Navigate("/path")` called
+2. Current ViewModel's `OnDeactivating()` called (disposes subscriptions)
+3. Current Page's `OnNavigatingFrom()` called (calls `OnDeactivate()` on layout tree)
+4. Cached Page/ViewModel retrieved (or created on first visit)
+5. ViewModel's `OnActivated()` called (recreates subscriptions)
+6. Page's `OnNavigatedTo()` called (calls `OnActivate()` on layout tree)
+7. Render (layout preserved, just reactivated)
 
 ## The Rendering Pipeline
 

@@ -365,6 +365,32 @@ public sealed class ModalNode : IFocusable, IInvalidatingNode
             _invalidated.OnNext(Unit.Default);
     }
 
+    /// <summary>
+    /// Called when the node becomes active (page navigated to).
+    /// Propagates activation to the content if it's a LayoutNode.
+    /// </summary>
+    public void OnActivate()
+    {
+        // Activate content if it's a LayoutNode
+        if (_content is LayoutNode contentNode)
+        {
+            contentNode.OnActivate();
+        }
+    }
+
+    /// <summary>
+    /// Called when the node becomes inactive (navigating away from page).
+    /// Propagates deactivation to the content if it's a LayoutNode.
+    /// </summary>
+    public void OnDeactivate()
+    {
+        // Deactivate content if it's a LayoutNode
+        if (_content is LayoutNode contentNode)
+        {
+            contentNode.OnDeactivate();
+        }
+    }
+
     /// <inheritdoc />
     public void Dispose()
     {

@@ -12,11 +12,13 @@ namespace Termina.Layout;
 /// </summary>
 public sealed class ConditionalNode : LayoutNode, IInvalidatingNode
 {
-    private readonly IDisposable _subscription;
+    private readonly IObservable<bool> _source;
+    private IDisposable? _subscription;
     private readonly Subject<Unit> _invalidated = new();
     private bool _condition;
     private readonly ILayoutNode _thenNode;
     private readonly ILayoutNode _elseNode;
+    private bool _isActive = true;
 
     /// <inheritdoc />
     public IObservable<Unit> Invalidated => _invalidated;
@@ -29,6 +31,7 @@ public sealed class ConditionalNode : LayoutNode, IInvalidatingNode
     /// <param name="elseNode">Node to show when condition is false (optional).</param>
     public ConditionalNode(IObservable<bool> condition, ILayoutNode thenNode, ILayoutNode? elseNode = null)
     {
+        _source = condition;
         _thenNode = thenNode;
         _elseNode = elseNode ?? new EmptyNode();
 
@@ -60,9 +63,65 @@ public sealed class ConditionalNode : LayoutNode, IInvalidatingNode
     }
 
     /// <inheritdoc />
+    public override void OnActivate()
+    {
+        _isActive = true;
+
+        // If subscription was disposed during deactivation, recreate it
+        if (_subscription == null || _subscription is System.Reactive.Disposables.BooleanDisposable { IsDisposed: true })
+        {
+            _subscription = _source.Subscribe(
+                onNext: value =>
+                {
+                    if (_condition != value)
+                    {
+                        _condition = value;
+                        _invalidated.OnNext(Unit.Default);
+                    }
+                },
+                onError: _ => { },
+                onCompleted: () => { });
+        }
+
+        // Activate both branches (both are always kept in memory)
+        if (_thenNode is LayoutNode thenLayoutNode)
+        {
+            thenLayoutNode.OnActivate();
+        }
+        if (_elseNode is LayoutNode elseLayoutNode)
+        {
+            elseLayoutNode.OnActivate();
+        }
+
+        base.OnActivate();
+    }
+
+    /// <inheritdoc />
+    public override void OnDeactivate()
+    {
+        _isActive = false;
+
+        // Deactivate both branches
+        if (_thenNode is LayoutNode thenLayoutNode)
+        {
+            thenLayoutNode.OnDeactivate();
+        }
+        if (_elseNode is LayoutNode elseLayoutNode)
+        {
+            elseLayoutNode.OnDeactivate();
+        }
+
+        // Dispose subscription to pause updates
+        _subscription?.Dispose();
+        _subscription = null;
+
+        base.OnDeactivate();
+    }
+
+    /// <inheritdoc />
     public override void Dispose()
     {
-        _subscription.Dispose();
+        _subscription?.Dispose();
         _invalidated.OnCompleted();
         _invalidated.Dispose();
         _thenNode.Dispose();
