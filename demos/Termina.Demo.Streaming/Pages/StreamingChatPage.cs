@@ -20,7 +20,6 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
     // Layout nodes owned by the Page
     private StreamingTextNode _chatHistory = null!;
     private TextInputNode _promptInput = null!;
-    private SpinnerNode _thinkingSpinner = null!;
 
     protected override void OnBound()
     {
@@ -31,9 +30,6 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
         _promptInput = new TextInputNode()
             .WithPlaceholder("Enter your question...")
             .WithForeground(Color.Cyan);
-
-        _thinkingSpinner = new SpinnerNode(SpinnerStyle.Dots)
-            .WithSpinnerColor(Color.BrightBlack);
 
         // Subscribe to ViewModel chat output and update nodes
         ViewModel.ChatOutput
@@ -143,11 +139,11 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
                                     .Select(isGenerating => isGenerating
                                         ? Layouts.Horizontal()
                                             .WithChild(new TextNode("  ").Width(2))
-                                            .WithChild(_thinkingSpinner)
-                                            .Height(1) as ILayoutNode
-                                        : new EmptyNode().Height(0))
-                                    .AsLayout()
-                                    .Height(1)))
+                                            .WithChild(new SpinnerNode(SpinnerStyle.Dots)
+                                                .WithSpinnerColor(Color.BrightBlack))
+                                            as ILayoutNode
+                                        : new EmptyNode())
+                                    .AsLayout()))
                     .Fill())
             .WithChild(new EmptyNode().Height(1))
             // Input panel
