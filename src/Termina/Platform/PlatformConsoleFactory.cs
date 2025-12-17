@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Runtime.InteropServices;
+using Termina.Diagnostics;
 
 namespace Termina.Platform;
 
@@ -10,6 +11,9 @@ namespace Termina.Platform;
 /// </summary>
 public static class PlatformConsoleFactory
 {
+    // Dummy instance for trace logging (static class can't use 'this')
+    private static readonly object TraceSource = new();
+
     /// <summary>
     /// Create the appropriate <see cref="IPlatformConsole"/> for the current platform.
     /// </summary>
@@ -24,14 +28,26 @@ public static class PlatformConsoleFactory
     /// </remarks>
     public static IPlatformConsole Create()
     {
+        TerminaTrace.Platform.Debug(TraceSource, "PlatformConsoleFactory.Create() called");
+        TerminaTrace.Platform.Debug(TraceSource, "OS: {0}, Framework: {1}",
+            RuntimeInformation.OSDescription, RuntimeInformation.FrameworkDescription);
+
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
+            TerminaTrace.Platform.Debug(TraceSource, "Detected Windows platform");
+
             // Only use WindowsConsole if we have a real console (not redirected/piped)
-            if (WindowsConsole.IsConsoleAvailable())
+            var isConsoleAvailable = WindowsConsole.IsConsoleAvailable();
+            TerminaTrace.Platform.Debug(TraceSource, "WindowsConsole.IsConsoleAvailable() = {0}", isConsoleAvailable);
+
+            if (isConsoleAvailable)
             {
+                TerminaTrace.Platform.Info(TraceSource, "Creating WindowsConsole (native P/Invoke)");
                 return new WindowsConsole();
             }
+
             // Fall back to polling-based console for piped/redirected scenarios
+            TerminaTrace.Platform.Info(TraceSource, "Creating FallbackConsole (console not available - piped/redirected?)");
             return new FallbackConsole();
         }
 
@@ -42,6 +58,7 @@ public static class PlatformConsoleFactory
         //     return new UnixConsole();
         // }
 
+        TerminaTrace.Platform.Info(TraceSource, "Creating FallbackConsole (non-Windows platform)");
         return new FallbackConsole();
     }
 

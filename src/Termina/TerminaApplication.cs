@@ -344,25 +344,32 @@ public sealed class TerminaApplication
         }
 
         // Create linked token - cancelled by either external token OR Shutdown()
+        TerminaTrace.Input.Debug(this, "Creating linked cancellation token");
         _shutdownCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var linkedToken = _shutdownCts.Token;
+        TerminaTrace.Input.Debug(this, "Linked token created");
 
         // Start each input source - they push to the shared channel
+        TerminaTrace.Input.Debug(this, "Starting {0} input source(s)...", _inputSources.Count);
         var inputTasks = _inputSources
             .Select(source => source.RunAsync(_eventChannel.Writer, linkedToken))
             .ToList();
 
-        TerminaTrace.Input.Debug(this, "Started {0} input source(s)", _inputSources.Count);
+        TerminaTrace.Input.Debug(this, "Input tasks started, count={0}", inputTasks.Count);
 
         try
         {
             // Enter alternate screen and hide cursor
+            TerminaTrace.Render.Debug(this, "About to enter alternate screen");
             _terminal.EnterAlternateScreen();
             _terminal.SetCursorVisible(false);
-            TerminaTrace.Render.Debug(this, "Entered alternate screen, cursor hidden");
+            _terminal.Flush();
+            TerminaTrace.Render.Debug(this, "Entered alternate screen, cursor hidden, flushed");
 
             // Initial render
+            TerminaTrace.Render.Debug(this, "Starting initial render");
             RenderCurrentPage();
+            TerminaTrace.Render.Debug(this, "Initial render complete");
 
             // Single-threaded event loop - all input sources merge here
             await foreach (var evt in _eventChannel.Reader.ReadAllAsync(linkedToken))

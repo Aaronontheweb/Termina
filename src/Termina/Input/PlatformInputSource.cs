@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Threading.Channels;
+using Termina.Diagnostics;
 using Termina.Platform;
 
 namespace Termina.Input;
@@ -36,6 +37,8 @@ public sealed class PlatformInputSource : IInputSource
     /// <inheritdoc />
     public async Task RunAsync(ChannelWriter<object> writer, CancellationToken cancellationToken)
     {
+        TerminaTrace.Input.Debug(this, "PlatformInputSource.RunAsync starting");
+
         // Subscribe to resize events from the platform console
         // These come through the observable for signal-based notifications (Unix)
         // or through ReadInputAsync for Windows (WINDOW_BUFFER_SIZE_EVENT)
@@ -47,6 +50,8 @@ public sealed class PlatformInputSource : IInputSource
 
         try
         {
+            TerminaTrace.Input.Debug(this, "PlatformInputSource entering input loop");
+
             while (!cancellationToken.IsCancellationRequested)
             {
                 var inputEvent = await _console.ReadInputAsync(cancellationToken).ConfigureAwait(false);
@@ -57,10 +62,13 @@ public sealed class PlatformInputSource : IInputSource
                     continue;
                 }
 
+                TerminaTrace.Input.Debug(this, "Received input event: {0}", inputEvent.GetType().Name);
+
                 // Convert platform events to application events
                 switch (inputEvent)
                 {
                     case ConsoleKeyEvent keyEvent:
+                        TerminaTrace.Input.Trace(this, "KeyEvent: {0}", keyEvent.KeyInfo.Key);
                         await writer.WriteAsync(new KeyPressed(keyEvent.KeyInfo), cancellationToken)
                             .ConfigureAwait(false);
                         break;
@@ -68,6 +76,7 @@ public sealed class PlatformInputSource : IInputSource
                     case ConsoleResizeEvent resizeEvent:
                         // Resize events are also returned from ReadInputAsync on Windows
                         // We emit them here too in case the observable subscription missed them
+                        TerminaTrace.Input.Debug(this, "ResizeEvent: {0}x{1}", resizeEvent.Width, resizeEvent.Height);
                         await writer.WriteAsync(new ResizeEvent(resizeEvent.Width, resizeEvent.Height), cancellationToken)
                             .ConfigureAwait(false);
                         break;
@@ -77,9 +86,17 @@ public sealed class PlatformInputSource : IInputSource
                         break;
                 }
             }
+
+            TerminaTrace.Input.Debug(this, "PlatformInputSource loop exited (cancellation requested)");
+        }
+        catch (Exception ex)
+        {
+            TerminaTrace.Input.Error(this, "PlatformInputSource exception: {0}", ex.Message);
+            throw;
         }
         finally
         {
+            TerminaTrace.Input.Debug(this, "PlatformInputSource cleaning up");
             _resizeSubscription?.Dispose();
             _resizeSubscription = null;
         }

@@ -4,6 +4,7 @@
 using System.Reactive.Subjects;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using Termina.Diagnostics;
 
 namespace Termina.Platform;
 
@@ -199,30 +200,47 @@ public sealed class WindowsConsole : IPlatformConsole
     {
         if (_initialized) return;
 
+        TerminaTrace.Platform.Debug(this, "WindowsConsole.Initialize() starting");
+
         // Get console handles
         _inputHandle = GetStdHandle(STD_INPUT_HANDLE);
         _outputHandle = GetStdHandle(STD_OUTPUT_HANDLE);
 
+        TerminaTrace.Platform.Debug(this, "Console handles: input=0x{0:X}, output=0x{1:X}",
+            _inputHandle.ToInt64(), _outputHandle.ToInt64());
+
         if (_inputHandle == IntPtr.Zero || _inputHandle == new IntPtr(-1))
         {
+            TerminaTrace.Platform.Error(this, "Invalid input handle: 0x{0:X}", _inputHandle.ToInt64());
             throw new InvalidOperationException("Failed to get console input handle");
         }
 
         if (_outputHandle == IntPtr.Zero || _outputHandle == new IntPtr(-1))
         {
+            TerminaTrace.Platform.Error(this, "Invalid output handle: 0x{0:X}", _outputHandle.ToInt64());
             throw new InvalidOperationException("Failed to get console output handle");
         }
 
         // Save original modes for restoration
         if (!GetConsoleMode(_inputHandle, out _originalInputMode))
         {
-            throw new InvalidOperationException($"Failed to get console input mode: {Marshal.GetLastWin32Error()}");
+            var error = Marshal.GetLastWin32Error();
+            TerminaTrace.Platform.Error(this, "GetConsoleMode(input) failed: error={0}", error);
+            throw new InvalidOperationException($"Failed to get console input mode: {error}");
         }
 
         if (!GetConsoleMode(_outputHandle, out _originalOutputMode))
         {
-            throw new InvalidOperationException($"Failed to get console output mode: {Marshal.GetLastWin32Error()}");
+            var error = Marshal.GetLastWin32Error();
+            TerminaTrace.Platform.Error(this, "GetConsoleMode(output) failed: error={0}", error);
+            throw new InvalidOperationException($"Failed to get console output mode: {error}");
         }
+
+        TerminaTrace.Platform.Debug(this, "Original modes: input=0x{0:X4}, output=0x{1:X4}",
+            _originalInputMode, _originalOutputMode);
+
+        // Log which flags are currently set on output
+        LogOutputModeFlags("Original output flags", _originalOutputMode);
 
         // Configure input mode:
         // - Enable window input events (for resize)
@@ -235,27 +253,78 @@ public sealed class WindowsConsole : IPlatformConsole
                           & ~ENABLE_LINE_INPUT
                           & ~ENABLE_ECHO_INPUT;
 
+        TerminaTrace.Platform.Debug(this, "Setting input mode: 0x{0:X4} -> 0x{1:X4}",
+            _originalInputMode, newInputMode);
+
         if (!SetConsoleMode(_inputHandle, newInputMode))
         {
-            throw new InvalidOperationException($"Failed to set console input mode: {Marshal.GetLastWin32Error()}");
+            var error = Marshal.GetLastWin32Error();
+            TerminaTrace.Platform.Error(this, "SetConsoleMode(input) failed: error={0}", error);
+            throw new InvalidOperationException($"Failed to set console input mode: {error}");
+        }
+
+        // Verify input mode was set correctly
+        if (GetConsoleMode(_inputHandle, out var verifyInputMode))
+        {
+            TerminaTrace.Platform.Debug(this, "Verified input mode: 0x{0:X4} (expected: 0x{1:X4})",
+                verifyInputMode, newInputMode);
         }
 
         // Configure output mode:
         // - Enable virtual terminal processing (VT100/ANSI sequences)
         var newOutputMode = _originalOutputMode | ENABLE_VIRTUAL_TERMINAL_PROCESSING;
 
+        TerminaTrace.Platform.Debug(this, "Setting output mode: 0x{0:X4} -> 0x{1:X4}",
+            _originalOutputMode, newOutputMode);
+        LogOutputModeFlags("New output flags", newOutputMode);
+
         if (!SetConsoleMode(_outputHandle, newOutputMode))
         {
+            var error = Marshal.GetLastWin32Error();
             // VT100 might not be supported on older Windows versions
             // Log error but continue - some terminals handle VT natively
+            TerminaTrace.Platform.Warning(this,
+                "SetConsoleMode(output) failed for VT100: error={0} - ANSI sequences may not render", error);
             System.Diagnostics.Debug.WriteLine(
-                $"Failed to enable VT100 processing: {Marshal.GetLastWin32Error()}");
+                $"Failed to enable VT100 processing: {error}");
+        }
+        else
+        {
+            TerminaTrace.Platform.Info(this, "VT100 processing enabled successfully");
+        }
+
+        // Verify output mode was set correctly
+        if (GetConsoleMode(_outputHandle, out var verifyOutputMode))
+        {
+            TerminaTrace.Platform.Debug(this, "Verified output mode: 0x{0:X4} (expected: 0x{1:X4})",
+                verifyOutputMode, newOutputMode);
+            LogOutputModeFlags("Verified output flags", verifyOutputMode);
+
+            // Critical check: is VT processing actually enabled?
+            if ((verifyOutputMode & ENABLE_VIRTUAL_TERMINAL_PROCESSING) == 0)
+            {
+                TerminaTrace.Platform.Error(this,
+                    "CRITICAL: VT100 processing NOT enabled after SetConsoleMode succeeded!");
+            }
         }
 
         // Ensure UTF-8 output encoding
         Console.OutputEncoding = System.Text.Encoding.UTF8;
+        TerminaTrace.Platform.Debug(this, "Set Console.OutputEncoding to UTF-8");
 
         _initialized = true;
+        TerminaTrace.Platform.Info(this, "WindowsConsole.Initialize() completed successfully");
+    }
+
+    private void LogOutputModeFlags(string prefix, uint mode)
+    {
+        var flags = new System.Collections.Generic.List<string>();
+        if ((mode & ENABLE_PROCESSED_OUTPUT) != 0) flags.Add("PROCESSED_OUTPUT");
+        if ((mode & ENABLE_WRAP_AT_EOL_OUTPUT) != 0) flags.Add("WRAP_AT_EOL");
+        if ((mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING) != 0) flags.Add("VT_PROCESSING");
+        if ((mode & DISABLE_NEWLINE_AUTO_RETURN) != 0) flags.Add("DISABLE_NEWLINE_AUTO");
+
+        TerminaTrace.Platform.Debug(this, "{0}: [{1}]", prefix, string.Join(", ", flags));
     }
 
     /// <inheritdoc />
@@ -282,35 +351,53 @@ public sealed class WindowsConsole : IPlatformConsole
     {
         if (!_initialized)
         {
+            TerminaTrace.Platform.Error(this, "ReadInputAsync called but console not initialized");
             throw new InvalidOperationException("Console not initialized. Call Initialize() first.");
         }
 
+        TerminaTrace.Platform.Debug(this, "ReadInputAsync starting, handle=0x{0:X}", _inputHandle.ToInt64());
+
         var inputRecords = new INPUT_RECORD[1];
+        var loopCount = 0;
 
         while (!cancellationToken.IsCancellationRequested)
         {
+            loopCount++;
+
             // Wait for input with timeout to allow cancellation checks
             var waitResult = WaitForSingleObject(_inputHandle, 50); // 50ms timeout
 
             if (cancellationToken.IsCancellationRequested)
             {
+                TerminaTrace.Platform.Debug(this, "ReadInputAsync cancelled after {0} loops", loopCount);
                 return null;
             }
 
             if (waitResult == WAIT_TIMEOUT)
             {
                 // No input yet, check cancellation and continue waiting
+                // Log every 100 loops (~5 seconds) to show we're still alive
+                if (loopCount % 100 == 0)
+                {
+                    TerminaTrace.Platform.Trace(this, "ReadInputAsync waiting... loop {0}", loopCount);
+                }
+                await Task.Yield(); // Yield to allow other async work to proceed
                 continue;
             }
 
             if (waitResult == WAIT_FAILED)
             {
-                throw new InvalidOperationException($"WaitForSingleObject failed: {Marshal.GetLastWin32Error()}");
+                var error = Marshal.GetLastWin32Error();
+                TerminaTrace.Platform.Error(this, "WaitForSingleObject FAILED: error={0}, loops={1}", error, loopCount);
+                throw new InvalidOperationException($"WaitForSingleObject failed: {error}");
             }
+
+            TerminaTrace.Platform.Debug(this, "WaitForSingleObject signaled, waitResult={0}", waitResult);
 
             // Read the input record
             if (!ReadConsoleInputW(_inputHandle, inputRecords, 1, out var eventsRead) || eventsRead == 0)
             {
+                TerminaTrace.Platform.Debug(this, "ReadConsoleInputW returned no events");
                 continue;
             }
 
