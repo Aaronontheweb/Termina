@@ -25,7 +25,7 @@ namespace Termina.Layout;
 /// </code>
 /// </para>
 /// </remarks>
-public sealed class ModalNode : IFocusable, IInvalidatingNode
+public sealed class ModalNode : LayoutNode, IFocusable, IInvalidatingNode
 {
     private readonly Subject<Unit> _invalidated = new();
     private readonly Subject<Unit> _dismissed = new();
@@ -66,10 +66,10 @@ public sealed class ModalNode : IFocusable, IInvalidatingNode
     public IObservable<Unit> Dismissed => _dismissed.AsObservable();
 
     /// <inheritdoc />
-    public SizeConstraint WidthConstraint => SizeConstraint.FillRemaining();
+    public new SizeConstraint WidthConstraint => SizeConstraint.FillRemaining();
 
     /// <inheritdoc />
-    public SizeConstraint HeightConstraint => SizeConstraint.FillRemaining();
+    public new SizeConstraint HeightConstraint => SizeConstraint.FillRemaining();
 
     /// <inheritdoc />
     public bool CanFocus => true;
@@ -229,14 +229,14 @@ public sealed class ModalNode : IFocusable, IInvalidatingNode
     }
 
     /// <inheritdoc />
-    public Size Measure(Size available)
+    public override Size Measure(Size available)
     {
         // Modal takes full available space (for backdrop)
         return available;
     }
 
     /// <inheritdoc />
-    public void Render(IRenderContext context, Rect bounds)
+    public override void Render(IRenderContext context, Rect bounds)
     {
         // Draw backdrop
         RenderBackdrop(context, bounds);
@@ -365,34 +365,30 @@ public sealed class ModalNode : IFocusable, IInvalidatingNode
             _invalidated.OnNext(Unit.Default);
     }
 
-    /// <summary>
-    /// Called when the node becomes active (page navigated to).
-    /// Propagates activation to the content if it's a LayoutNode.
-    /// </summary>
-    public void OnActivate()
+    /// <inheritdoc />
+    public override void OnActivate()
     {
         // Activate content if it's a LayoutNode
         if (_content is LayoutNode contentNode)
         {
             contentNode.OnActivate();
         }
+        base.OnActivate();
     }
 
-    /// <summary>
-    /// Called when the node becomes inactive (navigating away from page).
-    /// Propagates deactivation to the content if it's a LayoutNode.
-    /// </summary>
-    public void OnDeactivate()
+    /// <inheritdoc />
+    public override void OnDeactivate()
     {
         // Deactivate content if it's a LayoutNode
         if (_content is LayoutNode contentNode)
         {
             contentNode.OnDeactivate();
         }
+        base.OnDeactivate();
     }
 
     /// <inheritdoc />
-    public void Dispose()
+    public override void Dispose()
     {
         if (_disposed)
             return;
@@ -403,5 +399,6 @@ public sealed class ModalNode : IFocusable, IInvalidatingNode
         _dismissed.OnCompleted();
         _dismissed.Dispose();
         _content?.Dispose();
+        base.Dispose();
     }
 }
