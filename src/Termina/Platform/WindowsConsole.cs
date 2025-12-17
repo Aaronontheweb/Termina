@@ -364,95 +364,43 @@ public sealed class WindowsConsole : IPlatformConsole
             throw new InvalidOperationException("Console not initialized. Call Initialize() first.");
         }
 
-        TerminaTrace.Platform.Debug(this, "ReadInputAsync starting, handle=0x{0:X}", _inputHandle.ToInt64());
-
-        var inputRecords = new INPUT_RECORD[1];
-        var loopCount = 0;
+        // Simple blocking approach using Console.ReadKey
+        // This is interrupt-driven - blocks until a key is available
+        // The input task is separate from the main loop via the channel architecture,
+        // so blocking here is correct behavior
 
         while (!cancellationToken.IsCancellationRequested)
         {
-            loopCount++;
-
-            // Wait for input with timeout to allow cancellation checks
-            var waitResult = WaitForSingleObject(_inputHandle, 50); // 50ms timeout
-
-            if (cancellationToken.IsCancellationRequested)
+            // Check if a key is available without blocking
+            if (Console.KeyAvailable)
             {
-                TerminaTrace.Platform.Debug(this, "ReadInputAsync cancelled after {0} loops", loopCount);
+                // Key is available - read it immediately (no blocking)
+                var key = Console.ReadKey(intercept: true);
+                TerminaTrace.Platform.Trace(this, "Key pressed: {0}", key.Key);
+                return new ConsoleKeyEvent(key);
+            }
+
+            // Check for window resize while we wait
+            var currentSize = GetSize();
+            if (currentSize.Width != _lastWidth || currentSize.Height != _lastHeight)
+            {
+                _lastWidth = currentSize.Width;
+                _lastHeight = currentSize.Height;
+                TerminaTrace.Platform.Debug(this, "Window resized: {0}x{1}", _lastWidth, _lastHeight);
+                var resizeEvent = new ConsoleResizeEvent(_lastWidth, _lastHeight);
+                _resized.OnNext(resizeEvent);
+                return resizeEvent;
+            }
+
+            // Brief yield to allow cancellation and other async work
+            // Using 1ms delay for minimal latency while still allowing cancellation
+            try
+            {
+                await Task.Delay(1, cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
                 return null;
-            }
-
-            if (waitResult == WAIT_TIMEOUT)
-            {
-                // No input yet, use a short async delay to yield properly
-                // Task.Delay integrates better with async scheduler than Task.Yield
-                try
-                {
-                    await Task.Delay(1, cancellationToken);
-                }
-                catch (OperationCanceledException)
-                {
-                    return null;
-                }
-                continue;
-            }
-
-            if (waitResult == WAIT_FAILED)
-            {
-                var error = Marshal.GetLastWin32Error();
-                TerminaTrace.Platform.Error(this, "WaitForSingleObject FAILED: error={0}, loops={1}", error, loopCount);
-                throw new InvalidOperationException($"WaitForSingleObject failed: {error}");
-            }
-
-            TerminaTrace.Platform.Debug(this, "WaitForSingleObject signaled, waitResult={0}", waitResult);
-
-            // Read the input record
-            if (!ReadConsoleInputW(_inputHandle, inputRecords, 1, out var eventsRead) || eventsRead == 0)
-            {
-                TerminaTrace.Platform.Debug(this, "ReadConsoleInputW returned no events");
-                continue;
-            }
-
-            var record = inputRecords[0];
-
-            switch (record.EventType)
-            {
-                case KEY_EVENT:
-                    // Only process key down events (ignore key up)
-                    if (record.KeyEvent.bKeyDown != 0)
-                    {
-                        var keyEvent = ConvertKeyEvent(record.KeyEvent);
-                        if (keyEvent.HasValue)
-                        {
-                            return keyEvent.Value;
-                        }
-                    }
-                    break;
-
-                case WINDOW_BUFFER_SIZE_EVENT:
-                    // Windows fires WINDOW_BUFFER_SIZE_EVENT for many reasons, not just actual resizes
-                    // Only emit if the size actually changed to prevent excessive re-renders
-                    var size = record.WindowBufferSizeEvent.dwSize;
-                    if (size.X != _lastWidth || size.Y != _lastHeight)
-                    {
-                        _lastWidth = size.X;
-                        _lastHeight = size.Y;
-                        TerminaTrace.Platform.Debug(this, "Window resized: {0}x{1}", size.X, size.Y);
-                        var resizeEvent = new ConsoleResizeEvent(size.X, size.Y);
-                        _resized.OnNext(resizeEvent);
-                        return resizeEvent;
-                    }
-                    // Size didn't change - ignore this event and continue reading
-                    TerminaTrace.Platform.Trace(this, "Ignoring phantom resize event (size unchanged)");
-                    break;
-
-                case MOUSE_EVENT:
-                    var mouseEvent = ConvertMouseEvent(record.MouseEvent);
-                    if (mouseEvent.HasValue)
-                    {
-                        return mouseEvent.Value;
-                    }
-                    break;
             }
         }
 
