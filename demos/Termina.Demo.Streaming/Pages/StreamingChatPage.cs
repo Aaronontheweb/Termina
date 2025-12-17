@@ -19,9 +19,7 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
 {
     // Layout nodes owned by the Page
     private StreamingTextNode _chatHistory = null!;
-    private StreamingTextNode _thinkingIndicator = null!;
     private TextInputNode _promptInput = null!;
-    private SpinnerNode _thinkingSpinner = null!;
 
     protected override void OnBound()
     {
@@ -29,18 +27,9 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
         _chatHistory = StreamingTextNode.Create()
             .WithPrefix("  ", Color.Gray);
 
-        _thinkingIndicator = StreamingTextNode.CreateWindowed(windowSize: 3)
-            .WithPrefix("💭 ", Color.Yellow)
-            .WithForeground(Color.Gray);
-
         _promptInput = new TextInputNode()
             .WithPlaceholder("Enter your question...")
             .WithForeground(Color.Cyan);
-
-        _thinkingSpinner = new SpinnerNode(SpinnerStyle.Dots)
-            .WithLabel("Thinking...")
-            .WithSpinnerColor(Color.Yellow)
-            .WithLabelColor(Color.Gray);
 
         // Subscribe to ViewModel chat output and update nodes
         ViewModel.ChatOutput
@@ -51,20 +40,6 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
                 else
                     _chatHistory.Append(segment.Text, segment.Foreground, null, segment.Decoration);
             })
-            .DisposeWith(Subscriptions);
-
-        ViewModel.ThinkingOutput
-            .Subscribe(segment =>
-            {
-                if (segment.IsNewLine)
-                    _thinkingIndicator.AppendLine(segment.Text, segment.Foreground, null, segment.Decoration);
-                else
-                    _thinkingIndicator.Append(segment.Text, segment.Foreground, null, segment.Decoration);
-            })
-            .DisposeWith(Subscriptions);
-
-        ViewModel.ClearThinking
-            .Subscribe(_ => _thinkingIndicator.Clear())
             .DisposeWith(Subscriptions);
 
         ViewModel.PromptTextChanged
@@ -158,13 +133,6 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
                     .WithBorderColor(Color.Gray)
                     .WithContent(_chatHistory)
                     .Fill())
-            // Thinking indicator - conditionally shown
-            .WithChild(
-                ViewModel.IsGeneratingChanged
-                    .Select(isGenerating => isGenerating
-                        ? BuildThinkingPanel()
-                        : (ILayoutNode)new EmptyNode())
-                    .AsLayout())
             .WithChild(new EmptyNode().Height(1))
             // Input panel
             .WithChild(
@@ -193,21 +161,4 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
                     .Height(1));
     }
 
-    private ILayoutNode BuildThinkingPanel()
-    {
-        return Layouts.Vertical()
-            .WithChild(new EmptyNode().Height(1))
-            .WithChild(
-                new PanelNode()
-                    .WithTitle("Thinking...")
-                    .WithTitleColor(Color.Yellow)
-                    .WithBorder(BorderStyle.Rounded)
-                    .WithBorderColor(Color.Yellow)
-                    .WithContent(
-                        Layouts.Vertical()
-                            .WithChild(_thinkingSpinner.Height(1))
-                            .WithChild(new EmptyNode().Height(1))
-                            .WithChild(_thinkingIndicator))
-                    .Height(6));
-    }
 }

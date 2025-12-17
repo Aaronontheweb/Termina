@@ -33,27 +33,19 @@ public partial class StreamingChatViewModel : ReactiveViewModel
     private int _historyIndex = -1;
     private IActorRef? _llmActor;
     private CancellationTokenSource? _generationCts;
+    private int _spinnerFrame = 0;
+
+    // Spinner frames for thinking animation
+    private static readonly string[] SpinnerFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
     // Subjects for chat output - Page subscribes to these
     private readonly Subject<ChatTextSegment> _chatOutput = new();
-    private readonly Subject<ChatTextSegment> _thinkingOutput = new();
-    private readonly Subject<Unit> _clearThinking = new();
     private readonly Subject<string> _promptTextChanged = new();
 
     /// <summary>
     /// Observable for chat history content.
     /// </summary>
     public IObservable<ChatTextSegment> ChatOutput => _chatOutput.AsObservable();
-
-    /// <summary>
-    /// Observable for thinking indicator content.
-    /// </summary>
-    public IObservable<ChatTextSegment> ThinkingOutput => _thinkingOutput.AsObservable();
-
-    /// <summary>
-    /// Observable that fires when thinking indicator should be cleared.
-    /// </summary>
-    public IObservable<Unit> ClearThinking => _clearThinking.AsObservable();
 
     /// <summary>
     /// Observable for prompt text changes (for history navigation).
@@ -192,12 +184,29 @@ public partial class StreamingChatViewModel : ReactiveViewModel
             {
                 switch (token)
                 {
-                    case LlmMessages.ThinkingToken thinking:
-                        _thinkingOutput.OnNext(new ChatTextSegment(thinking.Text, Color.BrightBlack, TextDecoration.Italic, IsNewLine: true));
+                    case LlmMessages.ThinkingToken:
+                        // Emit animated spinner frame
+                        var frame = SpinnerFrames[_spinnerFrame % SpinnerFrames.Length];
+
+                        if (_spinnerFrame > 0)
+                        {
+                            // Backspace to remove previous frame (spinner chars are typically 1 wide in terminal)
+                            _chatOutput.OnNext(new ChatTextSegment("\b", Color.BrightBlack));
+                        }
+
+                        _chatOutput.OnNext(new ChatTextSegment(frame, Color.BrightBlack));
+                        _spinnerFrame++;
                         break;
 
                     case LlmMessages.TextChunk chunk:
-                        _clearThinking.OnNext(Unit.Default);
+                        // Clear spinner if it was showing
+                        if (_spinnerFrame > 0)
+                        {
+                            // Backspace to remove spinner, then add a space for separation
+                            _chatOutput.OnNext(new ChatTextSegment("\b ", Color.White));
+                            _spinnerFrame = 0;
+                        }
+
                         _chatOutput.OnNext(new ChatTextSegment(chunk.Text));
                         break;
 
@@ -235,17 +244,15 @@ public partial class StreamingChatViewModel : ReactiveViewModel
     {
         _chatOutput.OnNext(new ChatTextSegment("", IsNewLine: true));
         _chatOutput.OnNext(new ChatTextSegment("", IsNewLine: true));
-        _clearThinking.OnNext(Unit.Default);
         IsGenerating = false;
         _generationCts?.Dispose();
         _generationCts = null;
+        _spinnerFrame = 0; // Reset spinner for next generation
     }
 
     public override void Dispose()
     {
         _chatOutput.Dispose();
-        _thinkingOutput.Dispose();
-        _clearThinking.Dispose();
         _promptTextChanged.Dispose();
         DisposeReactiveFields();
         base.Dispose();
