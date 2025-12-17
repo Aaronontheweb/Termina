@@ -11,7 +11,7 @@
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="$(MicrosoftExtensionsVersion)" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="$(MicrosoftExtensionsVersion)" />
     <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="$(MicrosoftExtensionsVersion)" />
-    <PackageVersion Include="Akka.Hosting" Version="1.5.55.1" />
+    <PackageVersion Include="Akka.Hosting" Version="1.5.57" />
   </ItemGroup>
   <!-- Test dependencies -->
   <ItemGroup>
