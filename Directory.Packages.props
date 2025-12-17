@@ -4,6 +4,7 @@
     <!-- NuGet package versions -->
     <SystemReactiveVersion>6.1.0</SystemReactiveVersion>
     <MicrosoftExtensionsVersion>9.0.0</MicrosoftExtensionsVersion>
+    <RoslynVersion>5.0.0</RoslynVersion>
   </PropertyGroup>
   <!-- App dependencies -->
   <ItemGroup>
@@ -30,12 +31,12 @@
   </ItemGroup>
   <!-- Source generator dependencies -->
   <ItemGroup>
-    <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.12.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="$(RoslynVersion)" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="$(RoslynVersion)" />
   </ItemGroup>
   <!-- Analyzer testing dependencies -->
   <ItemGroup>
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing.XUnit" Version="1.1.2" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.12.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="$(RoslynVersion)" />
   </ItemGroup>
 </Project>
