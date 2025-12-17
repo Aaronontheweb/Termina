@@ -4,6 +4,7 @@
 using System.Reactive;
 using System.Reactive.Subjects;
 using System.Timers;
+using Termina.Diagnostics;
 using Termina.Rendering;
 using Termina.Terminal;
 using Timer = System.Timers.Timer;
@@ -63,6 +64,7 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     /// <inheritdoc />
     public void OnFocused()
     {
+        TerminaTrace.Focus.Debug(this, "OnFocused");
         _hasFocus = true;
         _cursorVisible = true;
         Start(); // Ensure cursor is blinking
@@ -72,6 +74,7 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     /// <inheritdoc />
     public void OnBlurred()
     {
+        TerminaTrace.Focus.Debug(this, "OnBlurred");
         _hasFocus = false;
         Stop(); // Stop cursor blinking when not focused
         _invalidated.OnNext(Unit.Default);
@@ -257,8 +260,11 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
         // Don't process input if disposed
         if (_disposed)
         {
+            TerminaTrace.Input.Debug(this, "HandleInput rejected: disposed");
             return false;
         }
+
+        TerminaTrace.Input.Trace(this, "HandleInput: key={0}, char='{1}'", key.Key, key.KeyChar);
 
         // Reset cursor to visible on any input
         _cursorVisible = true;
@@ -280,6 +286,8 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
             _ when key.KeyChar != '\0' && !char.IsControl(key.KeyChar) => HandleCharacter(key.KeyChar, key.Modifiers),
             _ => false
         };
+
+        TerminaTrace.Input.Trace(this, "HandleInput result: handled={0}", handled);
 
         if (handled)
         {
@@ -462,6 +470,7 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
 
     private bool HandleEnter()
     {
+        TerminaTrace.Input.Debug(this, "HandleEnter: submitting text length={0}", _text.Length);
         // Emit to observable - ViewModel decides what to do (add to history, clear text, etc.)
         _submitted.OnNext(_text);
         return true;

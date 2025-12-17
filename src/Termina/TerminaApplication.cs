@@ -5,6 +5,7 @@ using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Threading.Channels;
 using Microsoft.Extensions.DependencyInjection;
+using Termina.Diagnostics;
 using Termina.Hosting;
 using Termina.Input;
 using Termina.Layout;
@@ -198,9 +199,12 @@ public sealed class TerminaApplication
         ReactivePageRegistration registration,
         IReadOnlyDictionary<string, object>? parameters)
     {
+        TerminaTrace.Page.Info(this, "Navigating to: {0}", path);
+
         // Notify current page/ViewModel they're leaving
         if (_currentPage != null && _currentViewModel != null)
         {
+            TerminaTrace.Page.Debug(this, "Deactivating current page: {0}", _currentPage.GetType().Name);
             _currentPage.OnNavigatingFrom();
             _currentViewModel.OnDeactivating();
         }
@@ -209,6 +213,7 @@ public sealed class TerminaApplication
         if (_currentPath != null && _currentPath != path)
         {
             _history.Push((_currentPath, _currentParameters));
+            TerminaTrace.Page.Debug(this, "Pushed to history: {0}, depth={1}", _currentPath, _history.Count);
         }
 
         // Generate a cache key that includes parameters for PreserveState pages
@@ -218,6 +223,7 @@ public sealed class TerminaApplication
         if (registration.Behavior == NavigationBehavior.PreserveState &&
             _cachedPages.TryGetValue(cacheKey, out var cached))
         {
+            TerminaTrace.Page.Debug(this, "Using cached page: {0}", cacheKey);
             _currentPage = cached.Page;
             _currentViewModel = cached.ViewModel;
 
@@ -229,6 +235,7 @@ public sealed class TerminaApplication
         }
         else
         {
+            TerminaTrace.Page.Debug(this, "Creating new page, behavior={0}", registration.Behavior);
             _currentPage = registration.PageFactory();
             _currentViewModel = registration.ViewModelFactory();
 
@@ -249,6 +256,7 @@ public sealed class TerminaApplication
             if (registration.Behavior == NavigationBehavior.PreserveState)
             {
                 _cachedPages[cacheKey] = (_currentPage, _currentViewModel);
+                TerminaTrace.Page.Debug(this, "Cached page: {0}", cacheKey);
             }
         }
 
@@ -259,6 +267,7 @@ public sealed class TerminaApplication
         // Notify new page/ViewModel they're active
         _currentPage.OnNavigatedTo();
         _currentViewModel.OnActivated();
+        TerminaTrace.Page.Info(this, "Navigation complete: {0}, page={1}", path, _currentPage.GetType().Name);
     }
 
     /// <summary>
@@ -319,10 +328,13 @@ public sealed class TerminaApplication
     /// <param name="cancellationToken">Optional cancellation token.</param>
     public async Task RunAsync(CancellationToken cancellationToken = default)
     {
+        TerminaTrace.Page.Info(this, "RunAsync starting");
+
         if (_inputSources.Count == 0)
         {
             // Add default console input source if none configured
             _inputSources.Add(new ConsoleInputSource());
+            TerminaTrace.Input.Debug(this, "Added default ConsoleInputSource");
         }
 
         // Create linked token - cancelled by either external token OR Shutdown()
@@ -334,11 +346,14 @@ public sealed class TerminaApplication
             .Select(source => source.RunAsync(_eventChannel.Writer, linkedToken))
             .ToList();
 
+        TerminaTrace.Input.Debug(this, "Started {0} input source(s)", _inputSources.Count);
+
         try
         {
             // Enter alternate screen and hide cursor
             _terminal.EnterAlternateScreen();
             _terminal.SetCursorVisible(false);
+            TerminaTrace.Render.Debug(this, "Entered alternate screen, cursor hidden");
 
             // Initial render
             RenderCurrentPage();
@@ -393,22 +408,28 @@ public sealed class TerminaApplication
     /// </summary>
     private void ProcessEvent(object evt)
     {
+        TerminaTrace.Input.Trace(this, "ProcessEvent: {0}", evt.GetType().Name);
+
         // Handle system events
         switch (evt)
         {
             case ShutdownRequested:
+                TerminaTrace.Page.Info(this, "ShutdownRequested received");
                 Shutdown();
                 return;
 
             case NavigationRequested navReq:
+                TerminaTrace.Page.Debug(this, "NavigationRequested: {0}", navReq.PageKey);
                 NavigateTo(navReq.PageKey);
                 return;
 
             case NavigationBackRequested:
+                TerminaTrace.Page.Debug(this, "NavigationBackRequested, canGoBack={0}", CanGoBack);
                 GoBack();
                 return;
 
-            case ResizeEvent:
+            case ResizeEvent resize:
+                TerminaTrace.Render.Debug(this, "ResizeEvent: {0}x{1}", resize.Width, resize.Height);
                 // Force full refresh on resize since terminal dimensions changed
                 _diffingTerminal?.ForceFullRefresh();
                 return;
@@ -420,11 +441,16 @@ public sealed class TerminaApplication
             // For key presses, give focused components first chance to handle
             if (inputEvent is KeyPressed keyPressed)
             {
+                TerminaTrace.Input.Trace(this, "KeyPressed: key={0}, mods={1}", keyPressed.KeyInfo.Key, keyPressed.KeyInfo.Modifiers);
                 if (_focusManager.RouteInput(keyPressed.KeyInfo))
+                {
+                    TerminaTrace.Input.Trace(this, "Key consumed by focused component");
                     return; // Input was consumed by focused component
+                }
             }
 
             // If not consumed, route to ViewModel via observable
+            TerminaTrace.Input.Trace(this, "Routing input to ViewModel");
             _inputSubject.OnNext(inputEvent);
         }
     }

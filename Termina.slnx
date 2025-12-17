@@ -18,4 +18,7 @@
   <Folder Name="/tests/">
     <Project Path="tests/Termina.Tests/Termina.Tests.csproj" />
   </Folder>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/Termina.Benchmarks/Termina.Benchmarks.csproj" />
+  </Folder>
 </Solution>
