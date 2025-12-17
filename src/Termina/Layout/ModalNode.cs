@@ -198,6 +198,13 @@ public sealed class ModalNode : LayoutNode, IFocusable, IInvalidatingNode
     public void OnFocused()
     {
         _hasFocus = true;
+
+        // Forward focus to content if it's focusable
+        if (_content is IFocusable focusableContent)
+        {
+            focusableContent.OnFocused();
+        }
+
         Invalidate();
     }
 
@@ -205,6 +212,13 @@ public sealed class ModalNode : LayoutNode, IFocusable, IInvalidatingNode
     public void OnBlurred()
     {
         _hasFocus = false;
+
+        // Forward blur to content if it's focusable
+        if (_content is IFocusable focusableContent)
+        {
+            focusableContent.OnBlurred();
+        }
+
         Invalidate();
     }
 
