@@ -22,9 +22,9 @@ dotnet add package Termina
 
 Termina uses an MVVM pattern with three key pieces:
 
-1. **ViewModel** - Manages state with `[Reactive]` properties
-2. **Page** - Builds the UI layout from state
-3. **Host** - Wires everything together with routing
+1. **ViewModel** - Manages state with `[Reactive]` properties, handles keyboard input, and provides navigation/shutdown actions
+2. **Page** - Builds the UI layout from state, manages focus for modals and interactive controls
+3. **Host** - Wires everything together with routing and dependency injection
 
 ## Example: Counter Demo
 

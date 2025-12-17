@@ -10,14 +10,14 @@ Termina uses a reactive MVVM architecture with declarative layouts and surgical 
 ├─────────────────────────────────────────────────────────────┤
 │  ┌─────────────┐    ┌──────────────┐    ┌───────────────┐  │
 │  │  ViewModel  │───▶│    Page      │───▶│  Layout Tree  │  │
-│  │  [Reactive] │    │ BuildLayout()│    │  (ILayoutNode)│  │
+│  │ Input,State │    │ Focus,Layout │    │  (ILayoutNode)│  │
 │  └─────────────┘    └──────────────┘    └───────────────┘  │
-│         ▲                                       │          │
-│         │                                       ▼          │
-│  ┌─────────────┐                        ┌───────────────┐  │
-│  │    Input    │                        │   Renderer    │  │
-│  │   Handler   │                        │  (ANSI out)   │  │
-│  └─────────────┘                        └───────────────┘  │
+│         ▲                  │                    │          │
+│         │                  ▼                    ▼          │
+│  ┌─────────────┐    ┌──────────────┐    ┌───────────────┐  │
+│  │   Keyboard  │    │    Focus     │    │   Renderer    │  │
+│  │    Input    │    │   Manager    │    │  (ANSI out)   │  │
+│  └─────────────┘    └──────────────┘    └───────────────┘  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -25,9 +25,9 @@ Termina uses a reactive MVVM architecture with declarative layouts and surgical 
 
 ### 1. Separation of Concerns
 
-- **ViewModels** own state and handle input
-- **Pages** build layouts from state
-- **Layout Nodes** render to terminal
+- **ViewModels** own state, handle keyboard input, and expose observable properties
+- **Pages** own focus management, build layouts from ViewModel state, and manage interactive layout nodes (modals, text inputs)
+- **Layout Nodes** render to terminal and may handle routed input when focused
 
 ### 2. Reactive by Default
 
@@ -74,12 +74,13 @@ Only changed regions are re-rendered, not the entire screen. This provides:
 
 ### On Input
 
-1. Key press captured
-2. Input event sent to current ViewModel
-3. ViewModel updates state
-4. Reactive bindings emit new values
-5. Affected layout nodes invalidate
-6. Changed regions re-render
+1. Key press captured by application
+2. Input event sent to ViewModel's `Input` observable
+3. ViewModel subscribes and handles input (updates state, navigates, etc.)
+4. For focused interactive nodes (modals, text inputs), Page can route input via `Focus.RouteInput()`
+5. Reactive bindings emit new values from state changes
+6. Affected layout nodes invalidate
+7. Changed regions re-render
 
 ### On Navigation
 

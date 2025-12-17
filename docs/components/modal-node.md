@@ -102,34 +102,58 @@ Focus.PushFocus(modal);
 
 ## Complete Example
 
-Here's a real-world example from a todo list application:
+Here's the recommended pattern where the **Page owns layout nodes** (including modals) and **manages Focus**, while the **ViewModel handles state**:
+
+**ViewModel** - State and business logic only:
 
 ```csharp
 public partial class MyViewModel : ReactiveViewModel
 {
-    private ModalNode? _confirmModal;
-    private TextInputNode? _textInput;
+    [Reactive] private bool _isShowingModal;
 
-    public ModalNode? ConfirmModal => _confirmModal;
+    // Called by Page when text is submitted
+    public void OnTextSubmitted(string text)
+    {
+        if (!string.IsNullOrWhiteSpace(text))
+        {
+            AddTask(text);
+        }
+        IsShowingModal = false;
+    }
 
-    public override void OnActivated()
+    // Called by Page when modal is dismissed
+    public void OnModalDismissed()
+    {
+        IsShowingModal = false;
+    }
+
+    private void ShowAddModal()
+    {
+        IsShowingModal = true;
+    }
+}
+```
+
+**Page** - Owns modals and manages Focus:
+
+```csharp
+public class MyPage : ReactivePage<MyViewModel>
+{
+    private ModalNode _modal = null!;
+    private TextInputNode _textInput = null!;
+
+    protected override void OnBound()
     {
         // Create text input
         _textInput = new TextInputNode()
             .WithPlaceholder("Enter task description...");
 
         _textInput.Submitted
-            .Subscribe(text => {
-                if (!string.IsNullOrWhiteSpace(text))
-                {
-                    AddTask(text);
-                }
-                HideModal();
-            })
+            .Subscribe(text => ViewModel.OnTextSubmitted(text))
             .DisposeWith(Subscriptions);
 
         // Create modal
-        _confirmModal = Layouts.Modal()
+        _modal = Layouts.Modal()
             .WithTitle("Add New Task")
             .WithBorder(BorderStyle.Rounded)
             .WithBorderColor(Color.Cyan)
@@ -138,39 +162,37 @@ public partial class MyViewModel : ReactiveViewModel
             .WithContent(_textInput)
             .WithDismissOnEscape(true);
 
-        _confirmModal.Dismissed
-            .Subscribe(_ => HideModal())
+        _modal.Dismissed
+            .Subscribe(_ => ViewModel.OnModalDismissed())
+            .DisposeWith(Subscriptions);
+
+        // React to ViewModel state to manage Focus
+        ViewModel.IsShowingModalChanged
+            .Subscribe(show => {
+                if (show)
+                {
+                    _textInput.Clear();
+                    Focus.PushFocus(_modal);
+                }
+                else
+                {
+                    Focus.PopFocus();
+                }
+            })
             .DisposeWith(Subscriptions);
     }
 
-    private void ShowModal()
+    public override ILayoutNode BuildLayout()
     {
-        IsShowingModal = true;
-        _textInput?.Clear();
-        Focus.PushFocus(_confirmModal!);
+        return Layouts.Stack()
+            .WithChild(mainContent)
+            .WithChild(
+                ViewModel.IsShowingModalChanged
+                    .Select(show => show
+                        ? (ILayoutNode)_modal
+                        : Layouts.Empty())
+                    .AsLayout());
     }
-
-    private void HideModal()
-    {
-        IsShowingModal = false;
-        Focus.PopFocus();
-    }
-}
-```
-
-In your page, use `Layouts.Deferred()` to prevent modal disposal when hidden:
-
-```csharp
-public override ILayoutNode BuildLayout()
-{
-    return Layouts.Stack()
-        .WithChild(mainContent)
-        .WithChild(
-            ViewModel.IsShowingModalChanged
-                .Select(show => show
-                    ? Layouts.Deferred(() => ViewModel.ConfirmModal)
-                    : (ILayoutNode)Layouts.Empty())
-                .AsLayout());
 }
 ```
 

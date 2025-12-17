@@ -38,47 +38,30 @@ The ViewModel manages chat state and coordinates with Akka actors.
 
 ### Key Points
 
-**Streaming Components**
+**Streaming Output via Observables**
+
+The ViewModel exposes observables for chat content that the Page subscribes to:
 
 ```csharp
-public StreamingTextNode ChatHistory { get; } = StreamingTextNode.Create()
-    .WithPrefix("  ", Color.Gray);
+// ViewModel exposes output streams
+public IObservable<ChatTextSegment> ChatOutput => _chatOutput.AsObservable();
+public IObservable<ChatTextSegment> ThinkingOutput => _thinkingOutput.AsObservable();
+public IObservable<Unit> ClearThinking => _clearThinking.AsObservable();
 
-public StreamingTextNode ThinkingIndicator { get; } = StreamingTextNode.CreateWindowed(3)
-    .WithPrefix("💭 ", Color.Yellow);
+// Emit chat content
+_chatOutput.OnNext(new ChatTextSegment("Hello!", Color.White, IsNewLine: true));
 ```
 
-`StreamingTextNode` handles character-by-character updates efficiently:
-- `Create()` - Full scrolling buffer
-- `CreateWindowed(n)` - Rolling window of last n lines
+**Text Input Coordination**
 
-**Text Input Component**
+The ViewModel exposes an observable for prompt text changes (for history navigation):
 
 ```csharp
-public TextInputNode PromptInput { get; } = new TextInputNode()
-    .WithPlaceholder("Enter your question...")
-    .WithForeground(Color.Cyan);
+public IObservable<string> PromptTextChanged => _promptTextChanged.AsObservable();
 
-// Wire up submit observable
-PromptInput.Submitted
-    .Subscribe(HandleSubmit)
-    .DisposeWith(Subscriptions);
+// Navigate history
+_promptTextChanged.OnNext(_promptHistory[_historyIndex]);
 ```
-
-`TextInputNode` provides full text editing with cursor, selection, and history.
-
-**Content Change Notifications**
-
-```csharp
-public override void OnActivated()
-{
-    ChatHistory.ContentChanged
-        .Subscribe(_ => RequestRedraw())
-        .DisposeWith(Subscriptions);
-}
-```
-
-Subscribe to `ContentChanged` and call `RequestRedraw()` to trigger UI updates for streaming content.
 
 **Async Stream Consumption**
 
@@ -106,41 +89,56 @@ The Page renders the chat interface.
 
 ### Key Points
 
-**Shared Components**
+**Page Owns Layout Nodes**
+
+The Page creates and owns interactive layout nodes:
 
 ```csharp
-.WithChild(
-    new PanelNode()
-        .WithContent(ViewModel.ChatHistory)  // Shared instance
-        .Fill())
+private StreamingTextNode _chatHistory = null!;
+private TextInputNode _promptInput = null!;
+
+protected override void OnBound()
+{
+    _chatHistory = StreamingTextNode.Create().WithPrefix("  ", Color.Gray);
+    _promptInput = new TextInputNode().WithPlaceholder("Enter your question...");
+
+    // Subscribe to ViewModel's output streams
+    ViewModel.ChatOutput.Subscribe(segment => _chatHistory.Append(segment.Text));
+}
 ```
 
-Pass component instances directly - they manage their own state.
+**Input Routing via ViewModel.Input**
+
+The Page accesses `ViewModel.Input` to route input to interactive layout nodes:
+
+```csharp
+// Page subscribes to ViewModel's input for routing to layout nodes
+ViewModel.Input.OfType<KeyPressed>()
+    .Subscribe(HandleKeyPress)
+    .DisposeWith(Subscriptions);
+
+private void HandleKeyPress(KeyPressed key)
+{
+    // Route to scrollable chat history
+    if (_chatHistory.HandleInput(key.KeyInfo, viewportHeight: 10, viewportWidth: 80))
+        return;
+
+    // Route to text input
+    _promptInput.HandleInput(key.KeyInfo);
+}
+```
 
 **Conditional Panels**
 
 ```csharp
 ViewModel.IsGeneratingChanged
-    .Select(isGenerating => isGenerating && ViewModel.ThinkingIndicator.HasContent
+    .Select(isGenerating => isGenerating && _thinkingIndicator.Buffer.HasContent
         ? BuildThinkingPanel()
         : new EmptyNode())
     .AsLayout()
 ```
 
 Show/hide panels based on state.
-
-**Dynamic Status Bar**
-
-```csharp
-ViewModel.IsGeneratingChanged
-    .Select(isGenerating => new TextNode(
-        isGenerating
-            ? "[Esc] Cancel [PgUp/PgDn] Scroll"
-            : "[Enter] Send [↑/↓] History [Esc] Quit"))
-    .AsLayout()
-```
-
-Change help text based on current state.
 
 ## Step 3: Create the Actor
 
@@ -252,18 +250,18 @@ private void CancelGeneration()
 }
 ```
 
-### Input Component Observables
+### Page-ViewModel Communication
 
 ```csharp
-PromptInput.Submitted
-    .Subscribe(HandleSubmit)
+// Page subscribes to TextInputNode events and calls ViewModel methods
+_promptInput.Submitted
+    .Subscribe(text => ViewModel.HandleSubmit(text))
     .DisposeWith(Subscriptions);
 
-// In input handling:
-if (ChatHistory.HandleInput(keyInfo, viewportHeight: 10, viewportWidth: 80))
-{
-    return;  // Component handled the input
-}
+// Page routes input to layout nodes via ViewModel.Input
+ViewModel.Input.OfType<KeyPressed>()
+    .Subscribe(key => _chatHistory.HandleInput(key.KeyInfo, 10, 80))
+    .DisposeWith(Subscriptions);
 ```
 
 ### State-Based UI Updates

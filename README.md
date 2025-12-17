@@ -185,16 +185,27 @@ Shutdown();  // Exit the application
 
 ## Streaming Content
 
-For real-time content like LLM output:
+For real-time content like LLM output, Pages own `StreamingTextNode` and subscribe to ViewModel observables:
 
 ```csharp
-public StreamingTextNode Output { get; } = StreamingTextNode.Create();
+// In Page
+private StreamingTextNode _output = null!;
+
+protected override void OnBound()
+{
+    _output = StreamingTextNode.Create();
+    ViewModel.StreamOutput.Subscribe(chunk => _output.Append(chunk));
+}
+
+// In ViewModel
+public IObservable<string> StreamOutput => _streamOutput.AsObservable();
+private readonly Subject<string> _streamOutput = new();
 
 private async Task StreamResponse()
 {
     await foreach (var chunk in GetStreamingData())
     {
-        Output.Append(chunk);  // Character-level updates
+        _streamOutput.OnNext(chunk);  // Character-level updates
     }
 }
 ```

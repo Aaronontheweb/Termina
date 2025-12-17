@@ -2,6 +2,31 @@
 
 Termina provides an observable stream of input events for keyboard, mouse, and terminal resize handling.
 
+## Input Ownership
+
+The `Input` observable is owned by the **ViewModel** and is public, allowing both ViewModels and Pages to subscribe:
+
+- **ViewModels** handle input to update state and business logic (most common)
+- **Pages** can access `ViewModel.Input` to route input to interactive layout nodes (TextInputNode, scrollable content)
+
+```csharp
+// In ViewModel - handle input for state changes
+public override void OnActivated()
+{
+    Input.OfType<KeyPressed>()
+        .Subscribe(HandleKey)
+        .DisposeWith(Subscriptions);
+}
+
+// In Page - route input to interactive layout nodes
+protected override void OnBound()
+{
+    ViewModel.Input.OfType<KeyPressed>()
+        .Subscribe(key => _textInput.HandleInput(key.KeyInfo))
+        .DisposeWith(Subscriptions);
+}
+```
+
 ## Input Events
 
 All input events implement `IInputEvent`. The framework provides:
