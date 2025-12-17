@@ -44,19 +44,49 @@ export default defineConfig({
       ],
       '/components/': [
         { text: 'Component Library', link: '/components/' },
-        { text: 'TextNode', link: '/components/text-node' },
-        { text: 'PanelNode', link: '/components/panel-node' },
-        { text: 'TextInputNode', link: '/components/text-input-node' },
-        { text: 'SelectionListNode', link: '/components/selection-list-node' },
-        { text: 'SpinnerNode', link: '/components/spinner-node' },
-        { text: 'StreamingTextNode', link: '/components/streaming-text-node' },
-        { text: 'ScrollableContainerNode', link: '/components/scrollable-container' },
-        { text: 'StackLayout', link: '/components/stack-layout' },
-        { text: 'ModalNode', link: '/components/modal-node' },
-        { text: 'ReactiveLayoutNode', link: '/components/reactive-layout' },
-        { text: 'ConditionalNode', link: '/components/conditional-node' },
-        { text: 'EmptyNode', link: '/components/empty-node' },
-        { text: 'DeferredNode', link: '/components/deferred-node' }
+        {
+          text: 'Display Components',
+          collapsed: false,
+          items: [
+            { text: 'TextNode', link: '/components/text-node' },
+            { text: 'StreamingTextNode', link: '/components/streaming-text-node' },
+            { text: 'PanelNode', link: '/components/panel-node' },
+            { text: 'SpinnerNode', link: '/components/spinner-node' }
+          ]
+        },
+        {
+          text: 'Input Components',
+          collapsed: false,
+          items: [
+            { text: 'TextInputNode', link: '/components/text-input-node' },
+            { text: 'SelectionListNode', link: '/components/selection-list-node' }
+          ]
+        },
+        {
+          text: 'Container Components',
+          collapsed: false,
+          items: [
+            { text: 'ScrollableContainer', link: '/components/scrollable-container' },
+            { text: 'StackLayout', link: '/components/stack-layout' },
+            { text: 'ModalNode', link: '/components/modal-node' }
+          ]
+        },
+        {
+          text: 'Reactive Components',
+          collapsed: false,
+          items: [
+            { text: 'ReactiveLayoutNode', link: '/components/reactive-layout' },
+            { text: 'ConditionalNode', link: '/components/conditional-node' }
+          ]
+        },
+        {
+          text: 'Utility Components',
+          collapsed: false,
+          items: [
+            { text: 'EmptyNode', link: '/components/empty-node' },
+            { text: 'DeferredNode', link: '/components/deferred-node' }
+          ]
+        }
       ],
       '/styling/': [
         { text: 'Styling Guide', link: '/styling/' },
