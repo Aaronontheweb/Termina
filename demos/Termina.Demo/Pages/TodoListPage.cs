@@ -150,6 +150,10 @@ public class TodoListPage : ReactivePage<TodoListViewModel>
                 ViewModel.StatusMessageChanged
                     .Select(msg => new TextNode(msg).WithForeground(Color.White))
                     .AsLayout()
+                    .Height(1))
+            .WithChild(
+                new TextNode($"Trace log: {ViewModel.TraceFilePath}")
+                    .WithForeground(Color.DarkGray)
                     .Height(1));
 
         // Build the layer with modal overlays

@@ -39,6 +39,10 @@ public class CounterPage : ReactivePage<CounterViewModel>
                 ViewModel.StatusMessageChanged
                     .Select(msg => new TextNode(msg).WithForeground(Color.White))
                     .AsLayout()
+                    .Height(1))
+            .WithChild(
+                new TextNode($"Trace log: {ViewModel.TraceFilePath}")
+                    .WithForeground(Color.DarkGray)
                     .Height(1));
     }
 }

@@ -4,6 +4,10 @@ This section covers advanced Termina topics for building production-quality appl
 
 ## Topics
 
+### [Diagnostic Tracing](/advanced/diagnostics)
+
+Debug and monitor your applications with Termina's built-in tracing system. Zero-cost when disabled, with category and level filtering.
+
 ### [Testing](/advanced/testing)
 
 Learn to write automated tests for your Termina applications using `VirtualInputSource` to simulate user input without a real terminal.

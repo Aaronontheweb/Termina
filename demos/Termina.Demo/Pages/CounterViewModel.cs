@@ -10,8 +10,20 @@ namespace Termina.Demo.Pages;
 /// </summary>
 public partial class CounterViewModel : ReactiveViewModel
 {
+    private readonly TraceFileInfo _traceFileInfo;
+
     [Reactive] private int _count;
     [Reactive] private string _statusMessage = "Press Up/Down to change count, T for todos, Q to quit";
+
+    public CounterViewModel(TraceFileInfo traceFileInfo)
+    {
+        _traceFileInfo = traceFileInfo;
+    }
+
+    /// <summary>
+    /// Gets the path to the trace log file for display in the UI.
+    /// </summary>
+    public string TraceFilePath => _traceFileInfo.FilePath;
 
     public override void OnActivated()
     {

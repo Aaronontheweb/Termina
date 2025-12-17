@@ -1,5 +1,8 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Termina.Demo;
 using Termina.Demo.Pages;
+using Termina.Diagnostics;
 using Termina.Hosting;
 using Termina.Input;
 using Termina.Pages;
@@ -7,7 +10,16 @@ using Termina.Pages;
 // Check for --test flag (used in CI/CD to run scripted test and exit)
 var testMode = args.Contains("--test");
 
+// Set up diagnostic tracing with timestamped log file in temp directory
+var traceDir = Path.Combine(Path.GetTempPath(), "termina-logs");
+Directory.CreateDirectory(traceDir);
+var traceFile = Path.Combine(traceDir, $"trace-{DateTime.Now:yyyyMMdd-HHmmss}.log");
+
 var builder = Host.CreateApplicationBuilder(args);
+
+// Enable file tracing and register the path for UI display
+builder.Services.AddTerminaFileTracing(traceFile, TerminaTraceCategory.All, TerminaTraceLevel.Debug);
+builder.Services.AddSingleton(new TraceFileInfo(traceFile));
 
 // Set up input source based on mode
 VirtualInputSource? scriptedInput = null;

@@ -10,6 +10,18 @@ namespace Termina.Demo.Pages;
 /// </summary>
 public partial class TodoListViewModel : ReactiveViewModel
 {
+    private readonly TraceFileInfo _traceFileInfo;
+
+    public TodoListViewModel(TraceFileInfo traceFileInfo)
+    {
+        _traceFileInfo = traceFileInfo;
+    }
+
+    /// <summary>
+    /// Gets the path to the trace log file for display in the UI.
+    /// </summary>
+    public string TraceFilePath => _traceFileInfo.FilePath;
+
     [Reactive] private IReadOnlyList<TodoItem> _items = new List<TodoItem>
     {
         new("Learn Termina reactive patterns", false),
