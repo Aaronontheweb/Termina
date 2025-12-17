@@ -33,10 +33,6 @@ public partial class StreamingChatViewModel : ReactiveViewModel
     private int _historyIndex = -1;
     private IActorRef? _llmActor;
     private CancellationTokenSource? _generationCts;
-    private int _spinnerFrame = 0;
-
-    // Spinner frames for thinking animation
-    private static readonly string[] SpinnerFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
     // Subjects for chat output - Page subscribes to these
     private readonly Subject<ChatTextSegment> _chatOutput = new();
@@ -185,28 +181,10 @@ public partial class StreamingChatViewModel : ReactiveViewModel
                 switch (token)
                 {
                     case LlmMessages.ThinkingToken:
-                        // Emit animated spinner frame
-                        var frame = SpinnerFrames[_spinnerFrame % SpinnerFrames.Length];
-
-                        if (_spinnerFrame > 0)
-                        {
-                            // Backspace to remove previous frame (spinner chars are typically 1 wide in terminal)
-                            _chatOutput.OnNext(new ChatTextSegment("\b", Color.BrightBlack));
-                        }
-
-                        _chatOutput.OnNext(new ChatTextSegment(frame, Color.BrightBlack));
-                        _spinnerFrame++;
+                        // Skip thinking tokens - status bar already shows "Generating response..."
                         break;
 
                     case LlmMessages.TextChunk chunk:
-                        // Clear spinner if it was showing
-                        if (_spinnerFrame > 0)
-                        {
-                            // Backspace to remove spinner, then add a space for separation
-                            _chatOutput.OnNext(new ChatTextSegment("\b ", Color.White));
-                            _spinnerFrame = 0;
-                        }
-
                         _chatOutput.OnNext(new ChatTextSegment(chunk.Text));
                         break;
 
@@ -247,7 +225,6 @@ public partial class StreamingChatViewModel : ReactiveViewModel
         IsGenerating = false;
         _generationCts?.Dispose();
         _generationCts = null;
-        _spinnerFrame = 0; // Reset spinner for next generation
     }
 
     public override void Dispose()
