@@ -50,6 +50,7 @@ public partial class StreamingChatViewModel : ReactiveViewModel
 
     // Reactive properties for UI state
     [Reactive] private bool _isGenerating = false;
+    [Reactive] private bool _hasReceivedText = false; // Tracks if any text has arrived yet
     [Reactive] private string _statusMessage = "Ready. Enter a question to begin.";
 
     public StreamingChatViewModel(IRequiredActor<LlmSimulatorActor> llmActorProvider)
@@ -148,11 +149,10 @@ public partial class StreamingChatViewModel : ReactiveViewModel
         _chatOutput.OnNext(new ChatTextSegment("You: ", Color.Cyan, TextDecoration.Bold));
         _chatOutput.OnNext(new ChatTextSegment(prompt, Color.White, IsNewLine: true));
         _chatOutput.OnNext(new ChatTextSegment("", IsNewLine: true));
-        _chatOutput.OnNext(new ChatTextSegment("🤖 ", Color.Yellow));
-        _chatOutput.OnNext(new ChatTextSegment("Assistant: ", Color.Green, TextDecoration.Bold));
 
-        // Start generation
+        // Start generation - don't emit Assistant prefix yet, let the reactive layout show spinner
         IsGenerating = true;
+        HasReceivedText = false;
         StatusMessage = "Generating response...";
 
         _ = ConsumeResponseStreamAsync(prompt);
@@ -185,6 +185,14 @@ public partial class StreamingChatViewModel : ReactiveViewModel
                         break;
 
                     case LlmMessages.TextChunk chunk:
+                        // On first text chunk, emit the Assistant prefix
+                        if (!HasReceivedText)
+                        {
+                            _chatOutput.OnNext(new ChatTextSegment("🤖 ", Color.Yellow));
+                            _chatOutput.OnNext(new ChatTextSegment("Assistant: ", Color.Green, TextDecoration.Bold));
+                            HasReceivedText = true;
+                        }
+
                         _chatOutput.OnNext(new ChatTextSegment(chunk.Text));
                         break;
 

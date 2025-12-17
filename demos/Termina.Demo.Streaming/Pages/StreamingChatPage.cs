@@ -136,11 +136,17 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
                             .WithChild(_chatHistory.Fill())
                             .WithChild(
                                 ViewModel.IsGeneratingChanged
-                                    .Select(isGenerating => isGenerating
+                                    .CombineLatest(ViewModel.HasReceivedTextChanged, (isGenerating, hasText) => (isGenerating, hasText))
+                                    .Select(state => state.isGenerating && !state.hasText
                                         ? Layouts.Horizontal()
-                                            .WithChild(new TextNode("  ").Width(2))
+                                            .WithChild(new TextNode("  🤖 ")
+                                                .WithForeground(Color.Yellow)
+                                                .Width(5))
+                                            .WithChild(new TextNode("Assistant: ")
+                                                .WithForeground(Color.Green)
+                                                .Bold())
                                             .WithChild(new SpinnerNode(SpinnerStyle.Dots)
-                                                .WithSpinnerColor(Color.BrightBlack))
+                                                .WithSpinnerColor(Color.Red))
                                             as ILayoutNode
                                         : new EmptyNode())
                                     .AsLayout()))
