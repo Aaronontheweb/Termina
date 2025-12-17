@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
 using System.Reactive.Disposables;
+using System.Reactive.Linq;
 using Termina.Input;
 using Termina.Layout;
 using Termina.Pages;
@@ -111,6 +112,15 @@ public abstract class ReactivePage<TViewModel> : IBindablePage, IDisposable
         if (_layoutRoot == null)
         {
             _layoutRoot = BuildLayout();
+
+            // Subscribe to layout invalidation events to trigger redraws
+            // This is the bridge between reactive layout nodes and the render loop
+            if (_layoutRoot is IInvalidatingNode invalidating)
+            {
+                invalidating.Invalidated
+                    .Subscribe(_ => ViewModel.RequestRedraw())
+                    .DisposeWith(_subscriptions);
+            }
         }
 
         // Activate the layout tree (resume subscriptions, timers, etc.)

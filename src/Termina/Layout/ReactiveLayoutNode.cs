@@ -19,7 +19,7 @@ public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
     private readonly Subject<Unit> _invalidated = new();
     private ILayoutNode _currentChild;
     private Size _lastMeasuredSize;
-    private bool _isActive = true;
+    private bool _isActive = false;
 
     /// <inheritdoc />
     public IObservable<Unit> Invalidated => _invalidated;
@@ -145,7 +145,7 @@ public sealed class ReactiveLayoutNode<T> : LayoutNode, IInvalidatingNode
     private IDisposable? _subscription;
     private readonly Subject<Unit> _invalidated = new();
     private ILayoutNode _currentChild;
-    private bool _isActive = true;
+    private bool _isActive = false;
 
     /// <inheritdoc />
     public IObservable<Unit> Invalidated => _invalidated;
