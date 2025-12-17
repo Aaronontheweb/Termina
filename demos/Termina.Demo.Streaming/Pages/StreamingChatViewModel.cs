@@ -36,8 +36,6 @@ public partial class StreamingChatViewModel : ReactiveViewModel
 
     // Subjects for chat output - Page subscribes to these
     private readonly Subject<ChatTextSegment> _chatOutput = new();
-    private readonly Subject<ChatTextSegment> _thinkingOutput = new();
-    private readonly Subject<Unit> _clearThinking = new();
     private readonly Subject<string> _promptTextChanged = new();
 
     /// <summary>
@@ -46,22 +44,13 @@ public partial class StreamingChatViewModel : ReactiveViewModel
     public IObservable<ChatTextSegment> ChatOutput => _chatOutput.AsObservable();
 
     /// <summary>
-    /// Observable for thinking indicator content.
-    /// </summary>
-    public IObservable<ChatTextSegment> ThinkingOutput => _thinkingOutput.AsObservable();
-
-    /// <summary>
-    /// Observable that fires when thinking indicator should be cleared.
-    /// </summary>
-    public IObservable<Unit> ClearThinking => _clearThinking.AsObservable();
-
-    /// <summary>
     /// Observable for prompt text changes (for history navigation).
     /// </summary>
     public IObservable<string> PromptTextChanged => _promptTextChanged.AsObservable();
 
     // Reactive properties for UI state
     [Reactive] private bool _isGenerating = false;
+    [Reactive] private bool _hasReceivedText = false; // Tracks if any text has arrived yet
     [Reactive] private string _statusMessage = "Ready. Enter a question to begin.";
 
     public StreamingChatViewModel(IRequiredActor<LlmSimulatorActor> llmActorProvider)
@@ -160,11 +149,10 @@ public partial class StreamingChatViewModel : ReactiveViewModel
         _chatOutput.OnNext(new ChatTextSegment("You: ", Color.Cyan, TextDecoration.Bold));
         _chatOutput.OnNext(new ChatTextSegment(prompt, Color.White, IsNewLine: true));
         _chatOutput.OnNext(new ChatTextSegment("", IsNewLine: true));
-        _chatOutput.OnNext(new ChatTextSegment("🤖 ", Color.Yellow));
-        _chatOutput.OnNext(new ChatTextSegment("Assistant: ", Color.Green, TextDecoration.Bold));
 
-        // Start generation
+        // Start generation - don't emit Assistant prefix yet, let the reactive layout show spinner
         IsGenerating = true;
+        HasReceivedText = false;
         StatusMessage = "Generating response...";
 
         _ = ConsumeResponseStreamAsync(prompt);
@@ -192,12 +180,19 @@ public partial class StreamingChatViewModel : ReactiveViewModel
             {
                 switch (token)
                 {
-                    case LlmMessages.ThinkingToken thinking:
-                        _thinkingOutput.OnNext(new ChatTextSegment(thinking.Text, Color.BrightBlack, TextDecoration.Italic, IsNewLine: true));
+                    case LlmMessages.ThinkingToken:
+                        // Skip thinking tokens - status bar already shows "Generating response..."
                         break;
 
                     case LlmMessages.TextChunk chunk:
-                        _clearThinking.OnNext(Unit.Default);
+                        // On first text chunk, emit the Assistant prefix
+                        if (!HasReceivedText)
+                        {
+                            _chatOutput.OnNext(new ChatTextSegment("🤖 ", Color.Yellow));
+                            _chatOutput.OnNext(new ChatTextSegment("Assistant: ", Color.Green, TextDecoration.Bold));
+                            HasReceivedText = true;
+                        }
+
                         _chatOutput.OnNext(new ChatTextSegment(chunk.Text));
                         break;
 
@@ -234,7 +229,7 @@ public partial class StreamingChatViewModel : ReactiveViewModel
     private void CleanupGeneration()
     {
         _chatOutput.OnNext(new ChatTextSegment("", IsNewLine: true));
-        _clearThinking.OnNext(Unit.Default);
+        _chatOutput.OnNext(new ChatTextSegment("", IsNewLine: true));
         IsGenerating = false;
         _generationCts?.Dispose();
         _generationCts = null;
@@ -243,8 +238,6 @@ public partial class StreamingChatViewModel : ReactiveViewModel
     public override void Dispose()
     {
         _chatOutput.Dispose();
-        _thinkingOutput.Dispose();
-        _clearThinking.Dispose();
         _promptTextChanged.Dispose();
         DisposeReactiveFields();
         base.Dispose();

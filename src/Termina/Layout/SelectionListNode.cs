@@ -582,6 +582,26 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode
             _invalidated.OnNext(Unit.Default);
     }
 
+    /// <summary>
+    /// Called when the node becomes active (page navigated to).
+    /// Activates the embedded TextInputNode if it exists.
+    /// </summary>
+    public void OnActivate()
+    {
+        // Activate the embedded "Other" input if it exists
+        _otherInput?.OnActivate();
+    }
+
+    /// <summary>
+    /// Called when the node becomes inactive (navigating away from page).
+    /// Deactivates the embedded TextInputNode to conserve resources.
+    /// </summary>
+    public void OnDeactivate()
+    {
+        // Deactivate the embedded "Other" input if it exists
+        _otherInput?.OnDeactivate();
+    }
+
     /// <inheritdoc />
     public void Dispose()
     {

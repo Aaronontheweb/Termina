@@ -140,11 +140,11 @@ public class LlmSimulatorActor : ReceiveActor
         var response = SampleResponses[_random.Next(SampleResponses.Length)];
 
         // Create thinking tokens with delays using Throttle instead of Delay
-        // Throttle ensures elements come out at a specific rate (1 token per 600ms for visibility)
+        // Throttle ensures elements come out at a specific rate (1 token per 200ms for faster response feel)
         var thinkingSource = Source.From(Enumerable.Range(0, thinkingCount))
             .Select(_ => ThinkingPhrases[_random.Next(ThinkingPhrases.Length)])
             .Select(text => (LlmMessages.StreamToken)new LlmMessages.ThinkingToken(text))
-            .Throttle(1, TimeSpan.FromMilliseconds(600), 1, ThrottleMode.Shaping);
+            .Throttle(1, TimeSpan.FromMilliseconds(200), 1, ThrottleMode.Shaping);
 
         // Create text chunks source (character by character with small chunks)
         var chunkSize = _random.Next(1, 4);

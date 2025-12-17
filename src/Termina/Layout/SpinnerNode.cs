@@ -202,6 +202,22 @@ public sealed class SpinnerNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     }
 
     /// <inheritdoc />
+    public override void OnActivate()
+    {
+        // Resume animation
+        Start();
+        base.OnActivate();
+    }
+
+    /// <inheritdoc />
+    public override void OnDeactivate()
+    {
+        // Stop animation to conserve resources
+        Stop();
+        base.OnDeactivate();
+    }
+
+    /// <inheritdoc />
     public override void Dispose()
     {
         _timer.Stop();

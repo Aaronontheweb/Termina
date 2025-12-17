@@ -97,8 +97,9 @@ public abstract class ReactiveViewModel : IDisposable
     /// <summary>
     /// Request a UI redraw. Use this when content changes asynchronously
     /// (e.g., from streaming data) and the display needs to be refreshed.
+    /// Public to allow Pages to trigger redraws on layout invalidation events.
     /// </summary>
-    protected Action RequestRedraw { get; private set; } = () => { };
+    public Action RequestRedraw { get; private set; } = () => { };
 
     /// <summary>
     /// Observable stream of input events from the application.

@@ -23,9 +23,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Termina\Termina.csproj" />
     <!-- Reference as analyzer for source generation in test code -->
-    <ProjectReference Include="..\..\src\Termina.Generators\Termina.Generators.csproj"
-                      OutputItemType="Analyzer"
-                      ReferenceOutputAssembly="true" />
+    <ProjectReference Include="..\..\src\Termina.Generators\Termina.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="true" />
   </ItemGroup>
 
 </Project>

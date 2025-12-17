@@ -14,10 +14,12 @@ namespace Termina.Layout;
 /// </summary>
 public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
 {
-    private readonly IDisposable _subscription;
+    private readonly IObservable<ILayoutNode> _source;
+    private IDisposable? _subscription;
     private readonly Subject<Unit> _invalidated = new();
     private ILayoutNode _currentChild;
     private Size _lastMeasuredSize;
+    private bool _isActive = false;
 
     /// <inheritdoc />
     public IObservable<Unit> Invalidated => _invalidated;
@@ -27,6 +29,7 @@ public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
     /// </summary>
     public ReactiveLayoutNode(IObservable<ILayoutNode> source, ILayoutNode? initialChild = null)
     {
+        _source = source;
         _currentChild = initialChild ?? new EmptyNode();
 
         _subscription = source.Subscribe(
@@ -35,6 +38,13 @@ public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
                 // Dispose old child
                 _currentChild.Dispose();
                 _currentChild = node;
+
+                // Activate the new child if we're currently active
+                if (_isActive && node is LayoutNode newChildNode)
+                {
+                    newChildNode.OnActivate();
+                }
+
                 _invalidated.OnNext(Unit.Default);
             },
             onError: _ => { },
@@ -61,9 +71,63 @@ public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
     }
 
     /// <inheritdoc />
+    public override void OnActivate()
+    {
+        _isActive = true;
+
+        // If subscription was disposed during deactivation, recreate it
+        if (_subscription == null || _subscription is BooleanDisposable { IsDisposed: true })
+        {
+            _subscription = _source.Subscribe(
+                onNext: node =>
+                {
+                    // Dispose old child
+                    _currentChild.Dispose();
+                    _currentChild = node;
+
+                    // Activate the new child if we're currently active
+                    if (_isActive && node is LayoutNode newChildNode)
+                    {
+                        newChildNode.OnActivate();
+                    }
+
+                    _invalidated.OnNext(Unit.Default);
+                },
+                onError: _ => { },
+                onCompleted: () => { });
+        }
+
+        // Activate current child if it's a LayoutNode
+        if (_currentChild is LayoutNode childNode)
+        {
+            childNode.OnActivate();
+        }
+
+        base.OnActivate();
+    }
+
+    /// <inheritdoc />
+    public override void OnDeactivate()
+    {
+        _isActive = false;
+
+        // Deactivate current child if it's a LayoutNode
+        if (_currentChild is LayoutNode childNode)
+        {
+            childNode.OnDeactivate();
+        }
+
+        // Dispose subscription to pause updates
+        _subscription?.Dispose();
+        _subscription = null;
+
+        base.OnDeactivate();
+    }
+
+    /// <inheritdoc />
     public override void Dispose()
     {
-        _subscription.Dispose();
+        _subscription?.Dispose();
         _invalidated.OnCompleted();
         _invalidated.Dispose();
         _currentChild.Dispose();
@@ -76,10 +140,12 @@ public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
 /// </summary>
 public sealed class ReactiveLayoutNode<T> : LayoutNode, IInvalidatingNode
 {
+    private readonly IObservable<T> _source;
     private readonly Func<T, ILayoutNode> _transform;
-    private readonly IDisposable _subscription;
+    private IDisposable? _subscription;
     private readonly Subject<Unit> _invalidated = new();
     private ILayoutNode _currentChild;
+    private bool _isActive = false;
 
     /// <inheritdoc />
     public IObservable<Unit> Invalidated => _invalidated;
@@ -89,6 +155,7 @@ public sealed class ReactiveLayoutNode<T> : LayoutNode, IInvalidatingNode
     /// </summary>
     public ReactiveLayoutNode(IObservable<T> source, Func<T, ILayoutNode> transform)
     {
+        _source = source;
         _transform = transform;
         _currentChild = new EmptyNode();
 
@@ -97,6 +164,13 @@ public sealed class ReactiveLayoutNode<T> : LayoutNode, IInvalidatingNode
             {
                 _currentChild.Dispose();
                 _currentChild = _transform(value);
+
+                // Activate the new child if we're currently active
+                if (_isActive && _currentChild is LayoutNode newChildNode)
+                {
+                    newChildNode.OnActivate();
+                }
+
                 _invalidated.OnNext(Unit.Default);
             },
             onError: _ => { },
@@ -121,9 +195,62 @@ public sealed class ReactiveLayoutNode<T> : LayoutNode, IInvalidatingNode
     }
 
     /// <inheritdoc />
+    public override void OnActivate()
+    {
+        _isActive = true;
+
+        // If subscription was disposed during deactivation, recreate it
+        if (_subscription == null || _subscription is BooleanDisposable { IsDisposed: true })
+        {
+            _subscription = _source.Subscribe(
+                onNext: value =>
+                {
+                    _currentChild.Dispose();
+                    _currentChild = _transform(value);
+
+                    // Activate the new child if we're currently active
+                    if (_isActive && _currentChild is LayoutNode newChildNode)
+                    {
+                        newChildNode.OnActivate();
+                    }
+
+                    _invalidated.OnNext(Unit.Default);
+                },
+                onError: _ => { },
+                onCompleted: () => { });
+        }
+
+        // Activate current child if it's a LayoutNode
+        if (_currentChild is LayoutNode childNode)
+        {
+            childNode.OnActivate();
+        }
+
+        base.OnActivate();
+    }
+
+    /// <inheritdoc />
+    public override void OnDeactivate()
+    {
+        _isActive = false;
+
+        // Deactivate current child if it's a LayoutNode
+        if (_currentChild is LayoutNode childNode)
+        {
+            childNode.OnDeactivate();
+        }
+
+        // Dispose subscription to pause updates
+        _subscription?.Dispose();
+        _subscription = null;
+
+        base.OnDeactivate();
+    }
+
+    /// <inheritdoc />
     public override void Dispose()
     {
-        _subscription.Dispose();
+        _subscription?.Dispose();
         _invalidated.OnCompleted();
         _invalidated.Dispose();
         _currentChild.Dispose();

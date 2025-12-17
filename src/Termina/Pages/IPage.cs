@@ -34,7 +34,7 @@ public interface IPage
 /// Internal interface for reactive pages that can be bound to ViewModels.
 /// This allows AOT-compatible binding without reflection.
 /// </summary>
-internal interface IBindablePage : IPage
+internal interface IBindablePage : IPage, IDisposable
 {
     /// <summary>
     /// Binds a ViewModel to this page.

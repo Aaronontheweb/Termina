@@ -19,7 +19,6 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
 {
     // Layout nodes owned by the Page
     private StreamingTextNode _chatHistory = null!;
-    private StreamingTextNode _thinkingIndicator = null!;
     private TextInputNode _promptInput = null!;
 
     protected override void OnBound()
@@ -27,10 +26,6 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
         // Create layout nodes
         _chatHistory = StreamingTextNode.Create()
             .WithPrefix("  ", Color.Gray);
-
-        _thinkingIndicator = StreamingTextNode.CreateWindowed(windowSize: 3)
-            .WithPrefix("💭 ", Color.Yellow)
-            .WithForeground(Color.Gray);
 
         _promptInput = new TextInputNode()
             .WithPlaceholder("Enter your question...")
@@ -45,20 +40,6 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
                 else
                     _chatHistory.Append(segment.Text, segment.Foreground, null, segment.Decoration);
             })
-            .DisposeWith(Subscriptions);
-
-        ViewModel.ThinkingOutput
-            .Subscribe(segment =>
-            {
-                if (segment.IsNewLine)
-                    _thinkingIndicator.AppendLine(segment.Text, segment.Foreground, null, segment.Decoration);
-                else
-                    _thinkingIndicator.Append(segment.Text, segment.Foreground, null, segment.Decoration);
-            })
-            .DisposeWith(Subscriptions);
-
-        ViewModel.ClearThinking
-            .Subscribe(_ => _thinkingIndicator.Clear())
             .DisposeWith(Subscriptions);
 
         ViewModel.PromptTextChanged
@@ -150,15 +131,26 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
                     .WithTitleColor(Color.Yellow)
                     .WithBorder(BorderStyle.Rounded)
                     .WithBorderColor(Color.Gray)
-                    .WithContent(_chatHistory)
+                    .WithContent(
+                        Layouts.Vertical()
+                            .WithChild(_chatHistory.Fill())
+                            .WithChild(
+                                ViewModel.IsGeneratingChanged
+                                    .CombineLatest(ViewModel.HasReceivedTextChanged, (isGenerating, hasText) => (isGenerating, hasText))
+                                    .Select(state => state.isGenerating && !state.hasText
+                                        ? Layouts.Horizontal()
+                                            .WithChild(new TextNode("  🤖 ")
+                                                .WithForeground(Color.Yellow)
+                                                .Width(5))
+                                            .WithChild(new TextNode("Assistant: ")
+                                                .WithForeground(Color.Green)
+                                                .Bold())
+                                            .WithChild(new SpinnerNode(SpinnerStyle.Dots)
+                                                .WithSpinnerColor(Color.Red))
+                                            as ILayoutNode
+                                        : new EmptyNode())
+                                    .AsLayout()))
                     .Fill())
-            // Thinking indicator - conditionally shown
-            .WithChild(
-                ViewModel.IsGeneratingChanged
-                    .Select(isGenerating => isGenerating && _thinkingIndicator.Buffer.HasContent
-                        ? BuildThinkingPanel()
-                        : (ILayoutNode)new EmptyNode())
-                    .AsLayout())
             .WithChild(new EmptyNode().Height(1))
             // Input panel
             .WithChild(
@@ -187,17 +179,4 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
                     .Height(1));
     }
 
-    private ILayoutNode BuildThinkingPanel()
-    {
-        return Layouts.Vertical()
-            .WithChild(new EmptyNode().Height(1))
-            .WithChild(
-                new PanelNode()
-                    .WithTitle("Thinking...")
-                    .WithTitleColor(Color.Yellow)
-                    .WithBorder(BorderStyle.Rounded)
-                    .WithBorderColor(Color.Yellow)
-                    .WithContent(_thinkingIndicator)
-                    .Height(5));
-    }
 }

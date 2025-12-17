@@ -213,6 +213,173 @@ public class LiveValueNode : ILayoutNode
 }
 ```
 
+## Component Lifecycle
+
+When using `NavigationBehavior.PreserveState`, layout nodes are preserved across navigations and go through activation/deactivation cycles instead of being disposed. This prevents race conditions with in-flight events and allows components to maintain state.
+
+### Implementing Lifecycle Methods
+
+Extend `LayoutNode` and override `OnActivate()` and `OnDeactivate()`:
+
+```csharp
+public class AnimatedNode : LayoutNode
+{
+    private readonly Timer _timer;
+    private int _frame;
+
+    public AnimatedNode()
+    {
+        _timer = new Timer(100);
+        _timer.Elapsed += (_, _) =>
+        {
+            _frame++;
+            // Trigger UI update
+        };
+    }
+
+    public override void OnActivate()
+    {
+        // Resume animation when page becomes active
+        _timer.Start();
+        base.OnActivate();
+    }
+
+    public override void OnDeactivate()
+    {
+        // Pause animation when navigating away
+        _timer.Stop();
+        base.OnDeactivate();
+    }
+
+    public override void Dispose()
+    {
+        // Final cleanup when component is destroyed
+        _timer.Dispose();
+        base.Dispose();
+    }
+}
+```
+
+### When to Implement Lifecycle
+
+Implement `OnActivate()` and `OnDeactivate()` when your component:
+
+- **Uses timers** - Stop/start timers to avoid background work
+- **Subscribes to observables** - Pause subscriptions to prevent processing events while inactive
+- **Animates** - Pause animations when not visible
+- **Holds expensive resources** - Temporarily release resources when inactive
+
+### Lifecycle vs Disposal
+
+Key differences:
+
+| Method | When Called | Purpose | Subjects/Observables |
+|--------|-------------|---------|---------------------|
+| `OnDeactivate()` | Navigating away (PreserveState) | Pause, don't destroy | Keep alive, pause subscriptions |
+| `Dispose()` | Page destroyed or app shutdown | Final cleanup | Complete and dispose |
+
+**Important**: `OnDeactivate()` should **not** dispose Subjects or complete observables. It should only pause active resources like timers and subscriptions.
+
+### Example: Reactive Node with Lifecycle
+
+```csharp
+public class LiveDataNode : LayoutNode, IInvalidatingNode
+{
+    private readonly IObservable<string> _source;
+    private readonly Subject<Unit> _invalidated = new();
+    private IDisposable? _subscription;
+    private string _currentValue = "";
+
+    public IObservable<Unit> Invalidated => _invalidated;
+
+    public LiveDataNode(IObservable<string> source)
+    {
+        _source = source;
+
+        // Create initial subscription
+        _subscription = source.Subscribe(value =>
+        {
+            _currentValue = value;
+            _invalidated.OnNext(Unit.Default);
+        });
+    }
+
+    public override void OnActivate()
+    {
+        // Recreate subscription if it was disposed during deactivation
+        if (_subscription == null || _subscription is BooleanDisposable { IsDisposed: true })
+        {
+            _subscription = _source.Subscribe(value =>
+            {
+                _currentValue = value;
+                _invalidated.OnNext(Unit.Default);
+            });
+        }
+        base.OnActivate();
+    }
+
+    public override void OnDeactivate()
+    {
+        // Pause subscription - don't dispose the Subject!
+        _subscription?.Dispose();
+        _subscription = null;
+        base.OnDeactivate();
+    }
+
+    public override void Dispose()
+    {
+        // Final cleanup
+        _subscription?.Dispose();
+        _invalidated.OnCompleted();
+        _invalidated.Dispose();
+        base.Dispose();
+    }
+}
+```
+
+### Container Lifecycle Propagation
+
+If your custom container holds child nodes, propagate lifecycle calls:
+
+```csharp
+public class CustomContainer : LayoutNode
+{
+    private readonly List<ILayoutNode> _children = new();
+
+    public override void OnActivate()
+    {
+        // Activate all children
+        foreach (var child in _children)
+        {
+            if (child is LayoutNode node)
+                node.OnActivate();
+        }
+        base.OnActivate();
+    }
+
+    public override void OnDeactivate()
+    {
+        // Deactivate all children
+        foreach (var child in _children)
+        {
+            if (child is LayoutNode node)
+                node.OnDeactivate();
+        }
+        base.OnDeactivate();
+    }
+
+    public override void Dispose()
+    {
+        // Dispose all children
+        foreach (var child in _children)
+        {
+            child.Dispose();
+        }
+        base.Dispose();
+    }
+}
+```
+
 ## Best Practices
 
 ### Measurement

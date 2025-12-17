@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
 using System.Reactive.Disposables;
+using System.Reactive.Linq;
 using Termina.Input;
 using Termina.Layout;
 using Termina.Pages;
@@ -36,7 +37,7 @@ namespace Termina.Reactive;
 /// }
 /// </code>
 /// </example>
-public abstract class ReactivePage<TViewModel> : IBindablePage
+public abstract class ReactivePage<TViewModel> : IBindablePage, IDisposable
     where TViewModel : ReactiveViewModel
 {
     private readonly CompositeDisposable _subscriptions = new();
@@ -107,18 +108,54 @@ public abstract class ReactivePage<TViewModel> : IBindablePage
     /// </summary>
     public virtual void OnNavigatedTo()
     {
-        // Build the layout tree when the page becomes active
-        _layoutRoot?.Dispose();
-        _layoutRoot = BuildLayout();
+        // Build layout once on first navigation, reactivate on subsequent visits
+        if (_layoutRoot == null)
+        {
+            _layoutRoot = BuildLayout();
+
+            // Subscribe to layout invalidation events to trigger redraws
+            // This is the bridge between reactive layout nodes and the render loop
+            if (_layoutRoot is IInvalidatingNode invalidating)
+            {
+                invalidating.Invalidated
+                    .Subscribe(_ => ViewModel.RequestRedraw())
+                    .DisposeWith(_subscriptions);
+            }
+        }
+
+        // Activate the layout tree (resume subscriptions, timers, etc.)
+        if (_layoutRoot is LayoutNode node)
+        {
+            node.OnActivate();
+        }
     }
 
     /// <summary>
     /// Called when the page is being deactivated (navigating away).
-    /// Clears page subscriptions automatically.
+    /// Clears page subscriptions and deactivates the layout tree.
     /// </summary>
     public virtual void OnNavigatingFrom()
     {
+        // Clear page-level subscriptions
         _subscriptions.Clear();
+
+        // Deactivate layout (pause, don't dispose)
+        if (_layoutRoot is LayoutNode node)
+        {
+            node.OnDeactivate();
+        }
+
+        // Note: _layoutRoot is NOT disposed or nulled - it's preserved for reactivation
+    }
+
+    /// <summary>
+    /// Disposes the page and its layout tree.
+    /// This is called when the page is truly destroyed, not just navigated away from.
+    /// </summary>
+    public virtual void Dispose()
+    {
+        // Final cleanup when page is truly destroyed (not just navigated away)
+        _subscriptions.Dispose();
         _layoutRoot?.Dispose();
         _layoutRoot = null;
     }
