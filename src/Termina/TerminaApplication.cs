@@ -11,6 +11,7 @@ using Termina.Input;
 using Termina.Layout;
 using Termina.Navigation;
 using Termina.Pages;
+using Termina.Platform;
 using Termina.Reactive;
 using Termina.Rendering;
 using Termina.Routing;
@@ -330,11 +331,16 @@ public sealed class TerminaApplication
     {
         TerminaTrace.Page.Info(this, "RunAsync starting");
 
+        // Create platform console for native input handling
+        IPlatformConsole? platformConsole = null;
+
         if (_inputSources.Count == 0)
         {
-            // Add default console input source if none configured
-            _inputSources.Add(new ConsoleInputSource());
-            TerminaTrace.Input.Debug(this, "Added default ConsoleInputSource");
+            // Use platform-specific console for event-driven input (no polling on Windows)
+            platformConsole = PlatformConsoleFactory.Create();
+            platformConsole.Initialize();
+            _inputSources.Add(new PlatformInputSource(platformConsole));
+            TerminaTrace.Input.Debug(this, "Added PlatformInputSource");
         }
 
         // Create linked token - cancelled by either external token OR Shutdown()
@@ -385,6 +391,9 @@ public sealed class TerminaApplication
 
             // Complete the input subject
             _inputSubject.OnCompleted();
+
+            // Restore and dispose platform console
+            platformConsole?.Dispose();
         }
 
         // Wait for all input sources to complete
