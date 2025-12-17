@@ -33,6 +33,49 @@ All layout nodes use fluent builder pattern with `With*` methods that return `th
 
 Use `SizeConstraint` (Fixed, Fill, Auto, Percent) for sizing rather than hardcoded values.
 
+## Testing Guidelines
+
+### Deterministic Observable Testing
+
+**Do NOT use `Thread.Sleep` to test time-based or event-driven behavior.** Instead, await the actual observable events using Rx operators.
+
+- Use `FirstAsync()` to await the first emission from an observable
+- Use `Timeout()` to prevent tests from hanging if events don't fire
+- Tests should observe **actual state changes**, not assume timing
+
+**Correct:**
+```csharp
+[Fact]
+public async Task AnimationChangesFrame()
+{
+    var spinner = new SpinnerSegment(SpinnerStyle.Line, intervalMs: 10);
+    var frame1 = spinner.GetCurrentSegment().Text;
+
+    // Wait for actual invalidation event
+    await spinner.Invalidated
+        .FirstAsync()
+        .Timeout(TimeSpan.FromSeconds(1));
+
+    var frame2 = spinner.GetCurrentSegment().Text;
+    Assert.NotEqual(frame1, frame2);
+}
+```
+
+**Incorrect:**
+```csharp
+[Fact]
+public void AnimationChangesFrame()
+{
+    var spinner = new SpinnerSegment(SpinnerStyle.Line, intervalMs: 10);
+    var frame1 = spinner.GetCurrentSegment().Text;
+
+    Thread.Sleep(50);  // NO - non-deterministic, flaky on Windows
+
+    var frame2 = spinner.GetCurrentSegment().Text;
+    Assert.NotEqual(frame1, frame2);
+}
+```
+
 ## Release Process
 
 ### Tag Naming Convention
