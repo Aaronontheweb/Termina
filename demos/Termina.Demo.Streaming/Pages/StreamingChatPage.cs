@@ -161,7 +161,7 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
             // Thinking indicator - conditionally shown
             .WithChild(
                 ViewModel.IsGeneratingChanged
-                    .Select(isGenerating => isGenerating && _thinkingIndicator.Buffer.HasContent
+                    .Select(isGenerating => isGenerating
                         ? BuildThinkingPanel()
                         : (ILayoutNode)new EmptyNode())
                     .AsLayout())
