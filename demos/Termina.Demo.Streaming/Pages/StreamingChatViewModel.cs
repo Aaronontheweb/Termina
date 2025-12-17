@@ -160,6 +160,7 @@ public partial class StreamingChatViewModel : ReactiveViewModel
         _chatOutput.OnNext(new ChatTextSegment("You: ", Color.Cyan, TextDecoration.Bold));
         _chatOutput.OnNext(new ChatTextSegment(prompt, Color.White, IsNewLine: true));
         _chatOutput.OnNext(new ChatTextSegment("", IsNewLine: true));
+        _chatOutput.OnNext(new ChatTextSegment("", IsNewLine: true));
         _chatOutput.OnNext(new ChatTextSegment("🤖 ", Color.Yellow));
         _chatOutput.OnNext(new ChatTextSegment("Assistant: ", Color.Green, TextDecoration.Bold));
 

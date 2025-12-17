@@ -21,6 +21,7 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
     private StreamingTextNode _chatHistory = null!;
     private StreamingTextNode _thinkingIndicator = null!;
     private TextInputNode _promptInput = null!;
+    private SpinnerNode _thinkingSpinner = null!;
 
     protected override void OnBound()
     {
@@ -35,6 +36,11 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
         _promptInput = new TextInputNode()
             .WithPlaceholder("Enter your question...")
             .WithForeground(Color.Cyan);
+
+        _thinkingSpinner = new SpinnerNode(SpinnerStyle.Dots)
+            .WithLabel("Thinking...")
+            .WithSpinnerColor(Color.Yellow)
+            .WithLabelColor(Color.Gray);
 
         // Subscribe to ViewModel chat output and update nodes
         ViewModel.ChatOutput
@@ -197,7 +203,11 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
                     .WithTitleColor(Color.Yellow)
                     .WithBorder(BorderStyle.Rounded)
                     .WithBorderColor(Color.Yellow)
-                    .WithContent(_thinkingIndicator)
-                    .Height(5));
+                    .WithContent(
+                        Layouts.Vertical()
+                            .WithChild(_thinkingSpinner.Height(1))
+                            .WithChild(new EmptyNode().Height(1))
+                            .WithChild(_thinkingIndicator))
+                    .Height(6));
     }
 }
