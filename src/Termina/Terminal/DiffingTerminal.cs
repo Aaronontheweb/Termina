@@ -29,6 +29,10 @@ public sealed class DiffingTerminal : IAnsiTerminal, IDisposable
     private FrameBuffer _currentFrame;
     private FrameBuffer _pendingFrame;
 
+    // Cached dimensions - refreshed at start of each frame to avoid repeated Console calls
+    private int _cachedWidth;
+    private int _cachedHeight;
+
     // Current rendering state (for pending buffer writes)
     private int _cursorX;
     private int _cursorY;
@@ -56,18 +60,18 @@ public sealed class DiffingTerminal : IAnsiTerminal, IDisposable
     {
         _inner = inner ?? throw new ArgumentNullException(nameof(inner));
 
-        var width = Math.Max(1, inner.Width);
-        var height = Math.Max(1, inner.Height);
+        _cachedWidth = Math.Max(1, inner.Width);
+        _cachedHeight = Math.Max(1, inner.Height);
 
-        _currentFrame = new FrameBuffer(width, height);
-        _pendingFrame = new FrameBuffer(width, height);
+        _currentFrame = new FrameBuffer(_cachedWidth, _cachedHeight);
+        _pendingFrame = new FrameBuffer(_cachedWidth, _cachedHeight);
     }
 
     /// <inheritdoc />
-    public int Width => _inner.Width;
+    public int Width => _cachedWidth;
 
     /// <inheritdoc />
-    public int Height => _inner.Height;
+    public int Height => _cachedHeight;
 
     /// <summary>
     /// Forces a full screen redraw on the next <see cref="Flush"/> call.
@@ -229,12 +233,17 @@ public sealed class DiffingTerminal : IAnsiTerminal, IDisposable
 
     private void HandleResize()
     {
-        var newWidth = Width;
-        var newHeight = Height;
+        // Refresh cached dimensions from actual console (only place we call inner.Width/Height)
+        var newWidth = _inner.Width;
+        var newHeight = _inner.Height;
 
         // Skip resize if dimensions are invalid (e.g., headless CI environment)
         if (newWidth <= 0 || newHeight <= 0)
             return;
+
+        // Update cache
+        _cachedWidth = newWidth;
+        _cachedHeight = newHeight;
 
         if (newWidth != _pendingFrame.Width || newHeight != _pendingFrame.Height)
         {

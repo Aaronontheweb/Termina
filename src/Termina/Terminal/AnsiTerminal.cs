@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Text;
+using Termina.Diagnostics;
 
 namespace Termina.Terminal;
 
@@ -16,6 +17,8 @@ public sealed class AnsiTerminal : IAnsiTerminal, IDisposable
     private readonly bool _useAlternateScreen;
     private bool _inAlternateScreen;
     private bool _mouseEnabled;
+    private long _totalBytesWritten;
+    private int _flushCount;
 
     /// <summary>
     /// Create an AnsiTerminal writing to standard output.
@@ -34,6 +37,9 @@ public sealed class AnsiTerminal : IAnsiTerminal, IDisposable
         _output = output;
         _useAlternateScreen = useAlternateScreen;
 
+        TerminaTrace.Platform.Debug(this, "AnsiTerminal created: output={0}, useAlternateScreen={1}",
+            output.GetType().Name, useAlternateScreen);
+
         // Set console to UTF-8
         Console.OutputEncoding = Encoding.UTF8;
 
@@ -41,6 +47,8 @@ public sealed class AnsiTerminal : IAnsiTerminal, IDisposable
         {
             EnterAlternateScreen();
         }
+
+        TerminaTrace.Platform.Debug(this, "AnsiTerminal initialization complete");
     }
 
     /// <inheritdoc />
@@ -158,9 +166,26 @@ public sealed class AnsiTerminal : IAnsiTerminal, IDisposable
     {
         if (_buffer.Length > 0)
         {
-            _output.Write(_buffer.ToString());
+            var content = _buffer.ToString();
+            var byteCount = Encoding.UTF8.GetByteCount(content);
+
+            _flushCount++;
+            _totalBytesWritten += byteCount;
+
+            // Log flush details - truncate content preview for readability
+            var preview = content.Length > 100
+                ? content.Substring(0, 100).Replace("\x1b", "\\e") + "..."
+                : content.Replace("\x1b", "\\e");
+
+            TerminaTrace.Render.Debug(this, "Flush #{0}: {1} chars, {2} bytes",
+                _flushCount, content.Length, byteCount);
+            TerminaTrace.Render.Debug(this, "Content preview: {0}", preview);
+
+            _output.Write(content);
             _output.Flush();
             _buffer.Clear();
+
+            TerminaTrace.Render.Debug(this, "Flush #{0} complete", _flushCount);
         }
     }
 
@@ -169,6 +194,7 @@ public sealed class AnsiTerminal : IAnsiTerminal, IDisposable
     {
         if (!_inAlternateScreen)
         {
+            TerminaTrace.Platform.Debug(this, "Entering alternate screen buffer");
             _buffer.Append(AnsiCodes.EnterAlternateScreen);
             _inAlternateScreen = true;
         }
@@ -179,6 +205,7 @@ public sealed class AnsiTerminal : IAnsiTerminal, IDisposable
     {
         if (_inAlternateScreen)
         {
+            TerminaTrace.Platform.Debug(this, "Exiting alternate screen buffer");
             _buffer.Append(AnsiCodes.ExitAlternateScreen);
             _inAlternateScreen = false;
         }

@@ -11,6 +11,7 @@ using Termina.Input;
 using Termina.Layout;
 using Termina.Navigation;
 using Termina.Pages;
+using Termina.Platform;
 using Termina.Reactive;
 using Termina.Rendering;
 using Termina.Routing;
@@ -330,33 +331,45 @@ public sealed class TerminaApplication
     {
         TerminaTrace.Page.Info(this, "RunAsync starting");
 
+        // Create platform console for native input handling
+        IPlatformConsole? platformConsole = null;
+
         if (_inputSources.Count == 0)
         {
-            // Add default console input source if none configured
-            _inputSources.Add(new ConsoleInputSource());
-            TerminaTrace.Input.Debug(this, "Added default ConsoleInputSource");
+            // Use platform-specific console for event-driven input (no polling on Windows)
+            platformConsole = PlatformConsoleFactory.Create();
+            platformConsole.Initialize();
+            _inputSources.Add(new PlatformInputSource(platformConsole));
+            TerminaTrace.Input.Debug(this, "Added PlatformInputSource");
         }
 
         // Create linked token - cancelled by either external token OR Shutdown()
+        TerminaTrace.Input.Debug(this, "Creating linked cancellation token");
         _shutdownCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var linkedToken = _shutdownCts.Token;
+        TerminaTrace.Input.Debug(this, "Linked token created");
 
         // Start each input source - they push to the shared channel
+        TerminaTrace.Input.Debug(this, "Starting {0} input source(s)...", _inputSources.Count);
         var inputTasks = _inputSources
             .Select(source => source.RunAsync(_eventChannel.Writer, linkedToken))
             .ToList();
 
-        TerminaTrace.Input.Debug(this, "Started {0} input source(s)", _inputSources.Count);
+        TerminaTrace.Input.Debug(this, "Input tasks started, count={0}", inputTasks.Count);
 
         try
         {
             // Enter alternate screen and hide cursor
+            TerminaTrace.Render.Debug(this, "About to enter alternate screen");
             _terminal.EnterAlternateScreen();
             _terminal.SetCursorVisible(false);
-            TerminaTrace.Render.Debug(this, "Entered alternate screen, cursor hidden");
+            _terminal.Flush();
+            TerminaTrace.Render.Debug(this, "Entered alternate screen, cursor hidden, flushed");
 
             // Initial render
+            TerminaTrace.Render.Debug(this, "Starting initial render");
             RenderCurrentPage();
+            TerminaTrace.Render.Debug(this, "Initial render complete");
 
             // Single-threaded event loop - all input sources merge here
             await foreach (var evt in _eventChannel.Reader.ReadAllAsync(linkedToken))
@@ -385,6 +398,9 @@ public sealed class TerminaApplication
 
             // Complete the input subject
             _inputSubject.OnCompleted();
+
+            // Restore and dispose platform console
+            platformConsole?.Dispose();
         }
 
         // Wait for all input sources to complete
