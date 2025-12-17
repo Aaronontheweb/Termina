@@ -1,3 +1,50 @@
+#### 0.3.0 December 17th 2025 ####
+
+**New Features**:
+- **Inline animated text segments with tracked segment support** ([#71](https://github.com/Aaronontheweb/Termina/pull/71))
+  - Opt-in tracked segments for `StreamingTextNode` enabling inline animations (spinners, timers, etc.)
+  - Caller-provided `SegmentId` system (like HTML div IDs) for tracking and manipulating segments
+  - New interfaces: `ITextSegment`, `IAnimatedTextSegment`, `ICompositeTextSegment`
+  - `SpinnerSegment` component with 6 animation styles: Dots, Line, Arrow, Bounce, Box, Circle
+  - `StaticTextSegment` for trackable static text
+  - Methods: `AppendTracked(id, segment)`, `Replace(id, segment, keepTracked)`, `Remove(id)`
+  - Interface-based message protocol with `IChatMessage` for clean chat operations
+  - Enables any inline animated element (timers, progress bars, blinks, highlighters) with minimal overhead
+
+**Bug Fixes**:
+- **Fix modal text input not accepting keystrokes** ([#70](https://github.com/Aaronontheweb/Termina/issues/70), [#74](https://github.com/Aaronontheweb/Termina/pull/74))
+  - Critical fix where `TextInputNode` in modal dialogs would be immediately disposed after being focused
+  - Fixed `ReactiveLayoutNode` lifecycle to call `OnDeactivate()` instead of `Dispose()` when switching children
+  - Fixed modal focus propagation - `ModalNode` now forwards `OnFocused()` and `OnBlurred()` to content
+  - Fixed `ReactiveLayoutNode` to call `OnActivate()` on new children when they are dynamically swapped in
+  - Fixed render loop invalidation to properly propagate through container hierarchy
+  - Users can now properly type in modal dialogs without `ObjectDisposedException`
+
+- **Fix NavigationBehavior.PreserveState layout disposal issue** ([#67](https://github.com/Aaronontheweb/Termina/issues/67), [#69](https://github.com/Aaronontheweb/Termina/pull/69))
+  - Implemented Active/Inactive State Pattern for layout nodes to prevent `ObjectDisposedException` when navigating
+  - Added `IActivatableNode` interface defining `OnActivate`/`OnDeactivate` lifecycle methods
+  - Layout nodes now pause/resume instead of dispose/recreate on navigation with PreserveState behavior
+  - `ReactivePage` now builds layout once and preserves it across navigations
+  - `TextInputNode`, `SpinnerNode`, `ReactiveLayoutNode`, `ConditionalNode`, `SelectionListNode`, `ModalNode`, and `ContainerNode` all properly implement lifecycle propagation
+  - `TerminaApplication` now properly disposes cached pages via `IDisposable` implementation
+  - Fixes race conditions and ensures proper resource cleanup
+
+**Improvements**:
+- **Add TERMINA002 analyzer and refactor MVVM architecture** ([#68](https://github.com/Aaronontheweb/Termina/pull/68))
+  - New Roslyn analyzer (TERMINA002) detects layout nodes incorrectly stored as fields/properties in ViewModels
+  - Refactored MVVM pattern: ViewModel owns Input (public) for business logic, Page owns Focus for interactive control
+  - ViewModels now handle keyboard input directly in `OnActivated()`
+  - Pages can access `ViewModel.Input` when routing to interactive layout nodes
+  - Updated documentation to reflect clearer separation of concerns
+  - Reduces ceremony while maintaining clean MVVM architecture
+
+- **Documentation improvements** ([#66](https://github.com/Aaronontheweb/Termina/pull/66))
+  - Added quick install section to docs homepage with NuGet badges and installation commands
+  - Improved documentation discoverability for new users
+  - Fixed docs deployment workflow trigger
+
+---
+
 #### 0.2.1 December 16th 2025 ####
 
 **Improvements**:
