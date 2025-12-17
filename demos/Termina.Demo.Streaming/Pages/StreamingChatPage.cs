@@ -34,30 +34,31 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
 
         // Subscribe to ViewModel chat output and update nodes
         ViewModel.ChatOutput
-            .Subscribe(segment =>
+            .Subscribe(message =>
             {
-                // Handle tracked segment append
-                if (segment.AppendTracked != null && segment.TrackedId.HasValue)
+                switch (message)
                 {
-                    _chatHistory.AppendTracked(segment.TrackedId.Value, segment.AppendTracked);
-                }
-                // Handle tracked segment replacement
-                else if (segment.ReplaceSegmentId.HasValue && segment.ReplaceWith != null)
-                {
-                    _chatHistory.Replace(segment.ReplaceSegmentId.Value, segment.ReplaceWith, segment.ReplaceKeepTracked);
-                }
-                // Handle tracked segment removal
-                else if (segment.RemoveSegmentId.HasValue)
-                {
-                    _chatHistory.Remove(segment.RemoveSegmentId.Value);
-                }
-                // Handle regular text append
-                else
-                {
-                    if (segment.IsNewLine)
-                        _chatHistory.AppendLine(segment.Text, segment.Foreground, null, segment.Decoration);
-                    else
-                        _chatHistory.Append(segment.Text, segment.Foreground, null, segment.Decoration);
+                    case AppendText text:
+                        if (text.IsNewLine)
+                            _chatHistory.AppendLine(text.Text, text.Foreground, null, text.Decoration);
+                        else
+                            _chatHistory.Append(text.Text, text.Foreground, null, text.Decoration);
+                        break;
+
+                    case AppendTrackedSegment tracked:
+                        _chatHistory.AppendTracked(tracked.Id, tracked.Segment);
+                        break;
+
+                    case RemoveTrackedSegment remove:
+                        _chatHistory.Remove(remove.Id);
+                        break;
+
+                    case ReplaceTrackedSegment replace:
+                        _chatHistory.Replace(replace.Id, replace.NewSegment, replace.KeepTracked);
+                        break;
+
+                    default:
+                        throw new ArgumentException($"Unknown message type: {message.GetType()}");
                 }
             })
             .DisposeWith(Subscriptions);

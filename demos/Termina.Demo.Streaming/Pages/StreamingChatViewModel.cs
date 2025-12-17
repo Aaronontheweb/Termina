@@ -15,20 +15,33 @@ using Termina.Terminal;
 namespace Termina.Demo.Streaming.Pages;
 
 /// <summary>
-/// Represents a styled text segment for chat display.
-/// Supports both regular text and tracked segment operations.
+/// Base interface for chat messages.
 /// </summary>
-public readonly record struct ChatTextSegment(
+public interface IChatMessage;
+
+/// <summary>
+/// Append regular text to the chat history.
+/// </summary>
+public sealed record AppendText(
     string Text,
     Color? Foreground = null,
     TextDecoration Decoration = TextDecoration.None,
-    bool IsNewLine = false,
-    ITextSegment? AppendTracked = null,        // If set, append this tracked segment with TrackedId
-    SegmentId? TrackedId = null,               // The ID to use when appending a tracked segment
-    SegmentId? RemoveSegmentId = null,         // If set, remove the tracked segment with this ID
-    ITextSegment? ReplaceWith = null,          // If set with ReplaceSegmentId, replace that segment with this
-    SegmentId? ReplaceSegmentId = null,        // The ID of the segment to replace
-    bool ReplaceKeepTracked = false);          // Whether the replaced segment should remain tracked
+    bool IsNewLine = false) : IChatMessage;
+
+/// <summary>
+/// Append a tracked text segment that can be manipulated later.
+/// </summary>
+public sealed record AppendTrackedSegment(SegmentId Id, ITextSegment Segment) : IChatMessage;
+
+/// <summary>
+/// Remove a tracked segment by ID.
+/// </summary>
+public sealed record RemoveTrackedSegment(SegmentId Id) : IChatMessage;
+
+/// <summary>
+/// Replace a tracked segment with new content.
+/// </summary>
+public sealed record ReplaceTrackedSegment(SegmentId Id, ITextSegment NewSegment, bool KeepTracked = false) : IChatMessage;
 
 /// <summary>
 /// ViewModel for the streaming chat demo.
@@ -48,14 +61,14 @@ public partial class StreamingChatViewModel : ReactiveViewModel
     private SpinnerSegment? _currentSpinner;
 
     // Subjects for chat output - Page subscribes to these
-    private readonly Subject<ChatTextSegment> _chatOutput = new();
+    private readonly Subject<IChatMessage> _chatOutput = new();
     private readonly Subject<string> _promptTextChanged = new();
 
     /// <summary>
-    /// Observable for chat history content.
-    /// Includes both regular text and tracked segment operations.
+    /// Observable for chat messages.
+    /// Includes text appends and tracked segment operations.
     /// </summary>
-    public IObservable<ChatTextSegment> ChatOutput => _chatOutput.AsObservable();
+    public IObservable<IChatMessage> ChatOutput => _chatOutput.AsObservable();
 
     /// <summary>
     /// Observable for prompt text changes (for history navigation).
@@ -77,11 +90,11 @@ public partial class StreamingChatViewModel : ReactiveViewModel
     /// </summary>
     public void EmitWelcomeMessage()
     {
-        _chatOutput.OnNext(new ChatTextSegment("🤖 ", Color.Yellow));
-        _chatOutput.OnNext(new ChatTextSegment("Assistant: ", Color.Green, TextDecoration.Bold));
-        _chatOutput.OnNext(new ChatTextSegment("Hello! I'm a simulated LLM demo.", Color.White, IsNewLine: true));
-        _chatOutput.OnNext(new ChatTextSegment("   Ask me anything and watch the streaming response!", Color.BrightBlack, IsNewLine: true));
-        _chatOutput.OnNext(new ChatTextSegment("", IsNewLine: true));
+        _chatOutput.OnNext(new AppendText("🤖 ", Color.Yellow));
+        _chatOutput.OnNext(new AppendText("Assistant: ", Color.Green, TextDecoration.Bold));
+        _chatOutput.OnNext(new AppendText("Hello! I'm a simulated LLM demo.", Color.White, IsNewLine: true));
+        _chatOutput.OnNext(new AppendText("   Ask me anything and watch the streaming response!", Color.BrightBlack, IsNewLine: true));
+        _chatOutput.OnNext(new AppendText("", IsNewLine: true));
     }
 
     public override void OnActivated()
@@ -140,7 +153,7 @@ public partial class StreamingChatViewModel : ReactiveViewModel
     public void CancelGeneration()
     {
         _generationCts?.Cancel();
-        _chatOutput.OnNext(new ChatTextSegment(" [cancelled]", Color.Yellow, TextDecoration.Italic, IsNewLine: true));
+        _chatOutput.OnNext(new AppendText(" [cancelled]", Color.Yellow, TextDecoration.Italic, IsNewLine: true));
         CleanupGeneration();
         StatusMessage = "Generation cancelled.";
     }
@@ -159,20 +172,18 @@ public partial class StreamingChatViewModel : ReactiveViewModel
         _historyIndex = -1;
 
         // Add user message to chat
-        _chatOutput.OnNext(new ChatTextSegment("👤 ", Color.Cyan));
-        _chatOutput.OnNext(new ChatTextSegment("You: ", Color.Cyan, TextDecoration.Bold));
-        _chatOutput.OnNext(new ChatTextSegment(prompt, Color.White, IsNewLine: true));
-        _chatOutput.OnNext(new ChatTextSegment("", IsNewLine: true));
+        _chatOutput.OnNext(new AppendText("👤 ", Color.Cyan));
+        _chatOutput.OnNext(new AppendText("You: ", Color.Cyan, TextDecoration.Bold));
+        _chatOutput.OnNext(new AppendText(prompt, Color.White, IsNewLine: true));
+        _chatOutput.OnNext(new AppendText("", IsNewLine: true));
 
         // Add Assistant prefix and append animated spinner
-        _chatOutput.OnNext(new ChatTextSegment("🤖 ", Color.Yellow));
-        _chatOutput.OnNext(new ChatTextSegment("Assistant: ", Color.Green, TextDecoration.Bold));
+        _chatOutput.OnNext(new AppendText("🤖 ", Color.Yellow));
+        _chatOutput.OnNext(new AppendText("Assistant: ", Color.Green, TextDecoration.Bold));
 
-        // Append tracked spinner - will be removed when first text arrives
+        // Append tracked spinner - will be replaced when first text arrives
         _currentSpinner = new SpinnerSegment(Components.Streaming.SpinnerStyle.Dots, Color.Red);
-        _chatOutput.OnNext(new ChatTextSegment("",
-            AppendTracked: _currentSpinner,
-            TrackedId: ThinkingSpinnerId));
+        _chatOutput.OnNext(new AppendTrackedSegment(ThinkingSpinnerId, _currentSpinner));
 
         // Start generation
         IsGenerating = true;
@@ -212,16 +223,16 @@ public partial class StreamingChatViewModel : ReactiveViewModel
                         // On first text chunk, replace the spinner with static empty segment
                         if (!HasReceivedText)
                         {
-                            _chatOutput.OnNext(new ChatTextSegment("",
-                                ReplaceWith: new StaticTextSegment("", TextStyle.Default),
-                                ReplaceSegmentId: ThinkingSpinnerId,
-                                ReplaceKeepTracked: false));
+                            _chatOutput.OnNext(new ReplaceTrackedSegment(
+                                ThinkingSpinnerId,
+                                new StaticTextSegment("", TextStyle.Default),
+                                KeepTracked: false));
                             _currentSpinner?.Dispose();
                             _currentSpinner = null;
                             HasReceivedText = true;
                         }
 
-                        _chatOutput.OnNext(new ChatTextSegment(chunk.Text));
+                        _chatOutput.OnNext(new AppendText(chunk.Text));
                         break;
 
                     case LlmMessages.GenerationComplete:
@@ -238,9 +249,9 @@ public partial class StreamingChatViewModel : ReactiveViewModel
         }
         catch (Exception ex)
         {
-            _chatOutput.OnNext(new ChatTextSegment(" [error: ", Color.Red));
-            _chatOutput.OnNext(new ChatTextSegment(ex.Message, Color.Red, TextDecoration.Bold));
-            _chatOutput.OnNext(new ChatTextSegment("]", Color.Red, IsNewLine: true));
+            _chatOutput.OnNext(new AppendText(" [error: ", Color.Red));
+            _chatOutput.OnNext(new AppendText(ex.Message, Color.Red, TextDecoration.Bold));
+            _chatOutput.OnNext(new AppendText("]", Color.Red, IsNewLine: true));
             CleanupGeneration();
             StatusMessage = $"Error: {ex.Message}";
         }
@@ -256,8 +267,8 @@ public partial class StreamingChatViewModel : ReactiveViewModel
 
     private void CleanupGeneration()
     {
-        _chatOutput.OnNext(new ChatTextSegment("", IsNewLine: true));
-        _chatOutput.OnNext(new ChatTextSegment("", IsNewLine: true));
+        _chatOutput.OnNext(new AppendText("", IsNewLine: true));
+        _chatOutput.OnNext(new AppendText("", IsNewLine: true));
         IsGenerating = false;
         _generationCts?.Dispose();
         _generationCts = null;
