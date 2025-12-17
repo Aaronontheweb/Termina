@@ -4,6 +4,7 @@
 using System.Reactive;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
+using Termina.Components.Streaming;
 using Termina.Rendering;
 using Termina.Terminal;
 
@@ -24,6 +25,10 @@ namespace Termina.Layout;
 /// - Escape to cancel
 /// </para>
 /// <para>
+/// Supports both simple string display and rich content with multiple lines
+/// and styled/animated segments.
+/// </para>
+/// <para>
 /// Optionally supports an "Other" option for custom text input.
 /// </para>
 /// </remarks>
@@ -34,10 +39,9 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode
     private readonly Subject<string> _otherSelected = new();
     private readonly Subject<Unit> _cancelled = new();
     private readonly List<SelectionItem<T>> _items = new();
-    private readonly Func<T, string> _displaySelector;
 
     private int _highlightedIndex;
-    private int _scrollOffset;
+    private int _scrollOffset; // Now in lines, not items
     private int _visibleRows = 10;
     private bool _isEditingOther;
     private TextInputNode? _otherInput;
@@ -54,21 +58,49 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode
     private bool _showNumbers = true;
 
     /// <summary>
-    /// Creates a new SelectionListNode with the specified items.
+    /// Creates a new SelectionListNode with the specified items and plain text display.
     /// </summary>
     /// <param name="items">The items to display.</param>
     /// <param name="displaySelector">A function to convert items to display text.</param>
     public SelectionListNode(IEnumerable<T> items, Func<T, string> displaySelector)
     {
-        _displaySelector = displaySelector ?? throw new ArgumentNullException(nameof(displaySelector));
+        ArgumentNullException.ThrowIfNull(displaySelector);
 
         foreach (var item in items)
         {
-            _items.Add(new SelectionItem<T>(item, displaySelector(item)));
+            var selectionItem = new SelectionItem<T>(item, displaySelector(item));
+            _items.Add(selectionItem);
+            SubscribeToItemAnimations(selectionItem);
         }
 
         if (_items.Count > 0)
             _highlightedIndex = 0;
+    }
+
+    /// <summary>
+    /// Creates a new SelectionListNode with rich content display supporting multiple lines
+    /// and styled/animated segments.
+    /// </summary>
+    /// <param name="items">The items to display.</param>
+    /// <param name="contentSelector">A function to convert items to rich content.</param>
+    public SelectionListNode(IEnumerable<T> items, Func<T, SelectionItemContent> contentSelector)
+    {
+        ArgumentNullException.ThrowIfNull(contentSelector);
+
+        foreach (var item in items)
+        {
+            var selectionItem = new SelectionItem<T>(item, contentSelector(item));
+            _items.Add(selectionItem);
+            SubscribeToItemAnimations(selectionItem);
+        }
+
+        if (_items.Count > 0)
+            _highlightedIndex = 0;
+    }
+
+    private void SubscribeToItemAnimations(SelectionItem<T> item)
+    {
+        item.SubscribeToAnimations(_ => Invalidate());
     }
 
     /// <inheritdoc />
@@ -122,6 +154,11 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode
     /// Gets the items in the list.
     /// </summary>
     public IReadOnlyList<SelectionItem<T>> Items => _items;
+
+    /// <summary>
+    /// Gets the total number of lines across all items.
+    /// </summary>
+    private int TotalLineCount => _items.Sum(i => i.LineCount);
 
     /// <summary>
     /// Sets the selection mode (Single or Multi).
@@ -190,7 +227,8 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode
 
         // Add Other as a special item at the end
         // We use default(T)! as the value since it won't be used
-        _items.Add(new SelectionItem<T>(default!, label, isOther: true));
+        var otherItem = new SelectionItem<T>(default!, label, isOther: true);
+        _items.Add(otherItem);
 
         return this;
     }
@@ -323,15 +361,31 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode
         }
     }
 
+    /// <summary>
+    /// Gets the starting line offset for a given item index.
+    /// </summary>
+    private int GetItemLineOffset(int itemIndex)
+    {
+        var offset = 0;
+        for (var i = 0; i < itemIndex && i < _items.Count; i++)
+        {
+            offset += _items[i].LineCount;
+        }
+        return offset;
+    }
+
     private void EnsureVisible()
     {
-        if (_highlightedIndex < _scrollOffset)
+        var itemLineStart = GetItemLineOffset(_highlightedIndex);
+        var itemLineEnd = itemLineStart + (_highlightedIndex < _items.Count ? _items[_highlightedIndex].LineCount : 1);
+
+        if (itemLineStart < _scrollOffset)
         {
-            _scrollOffset = _highlightedIndex;
+            _scrollOffset = itemLineStart;
         }
-        else if (_highlightedIndex >= _scrollOffset + _visibleRows)
+        else if (itemLineEnd > _scrollOffset + _visibleRows)
         {
-            _scrollOffset = _highlightedIndex - _visibleRows + 1;
+            _scrollOffset = itemLineEnd - _visibleRows;
         }
     }
 
@@ -418,11 +472,12 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode
     /// <inheritdoc />
     public Size Measure(Size available)
     {
-        var height = Math.Min(_items.Count, _visibleRows);
+        var totalLines = TotalLineCount;
+        var height = Math.Min(totalLines, _visibleRows);
 
         // Calculate width based on content
         var maxItemWidth = _items.Count > 0
-            ? _items.Max(i => GetItemDisplayLength(i, _items.IndexOf(i)))
+            ? _items.Max(i => GetItemDisplayWidth(i, _items.IndexOf(i)))
             : 10;
 
         var width = Math.Min(maxItemWidth + 2, available.Width);
@@ -430,10 +485,19 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode
         return new Size(width, height);
     }
 
-    private int GetItemDisplayLength(SelectionItem<T> item, int index)
+    private int GetItemDisplayWidth(SelectionItem<T> item, int index)
     {
         var prefix = GetItemPrefix(item, index);
-        return prefix.Length + item.DisplayText.Length;
+
+        // Find the maximum width across all lines
+        var maxLineWidth = 0;
+        foreach (var line in item.Content.Lines)
+        {
+            var lineWidth = line.Sum(s => s.GetCurrentSegment().Text.Length);
+            maxLineWidth = Math.Max(maxLineWidth, lineWidth);
+        }
+
+        return prefix.Length + maxLineWidth;
     }
 
     private string GetItemPrefix(SelectionItem<T> item, int index)
@@ -465,34 +529,58 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode
         if (!bounds.HasArea || _items.Count == 0)
             return;
 
-        var visibleCount = Math.Min(_visibleRows, bounds.Height);
-        var needsScrollbar = _items.Count > visibleCount;
+        // Create a sub-context for this node's bounds so all coordinates are relative
+        var subContext = context.CreateSubContext(bounds);
+
+        var visibleLines = Math.Min(_visibleRows, bounds.Height);
+        var needsScrollbar = TotalLineCount > visibleLines;
         var contentWidth = needsScrollbar ? bounds.Width - 1 : bounds.Width;
 
-        for (var row = 0; row < visibleCount; row++)
-        {
-            var itemIndex = _scrollOffset + row;
-            if (itemIndex >= _items.Count)
-                break;
+        var currentLine = 0;
+        var currentItemLineOffset = 0;
 
+        for (var itemIndex = 0; itemIndex < _items.Count && currentLine < visibleLines; itemIndex++)
+        {
             var item = _items[itemIndex];
+            var itemLineCount = item.LineCount;
+            var itemEndOffset = currentItemLineOffset + itemLineCount;
+
+            // Skip items entirely before the scroll offset
+            if (itemEndOffset <= _scrollOffset)
+            {
+                currentItemLineOffset = itemEndOffset;
+                continue;
+            }
+
+            // Calculate which lines of this item to render
+            var itemLineStart = Math.Max(0, _scrollOffset - currentItemLineOffset);
+            var renderRow = currentLine;
 
             // If this is the "Other" item and we're editing, render the text input instead
             if (item.IsOther && _isEditingOther && _otherInput != null)
             {
-                RenderOtherInput(context, row, contentWidth, itemIndex);
+                RenderOtherInput(subContext, renderRow, contentWidth, itemIndex);
+                currentLine++;
             }
             else
             {
                 var isHighlighted = itemIndex == _highlightedIndex && _hasFocus && !_isEditingOther;
-                RenderItem(context, item, itemIndex, row, contentWidth, isHighlighted);
+
+                // Render each visible line of this item
+                for (var lineIndex = itemLineStart; lineIndex < itemLineCount && currentLine < visibleLines; lineIndex++)
+                {
+                    RenderItemLine(subContext, item, itemIndex, lineIndex, currentLine, contentWidth, isHighlighted);
+                    currentLine++;
+                }
             }
+
+            currentItemLineOffset = itemEndOffset;
         }
 
         // Render scrollbar if needed
         if (needsScrollbar)
         {
-            RenderScrollbar(context, bounds.Width - 1, visibleCount);
+            RenderScrollbar(subContext, bounds.Width - 1, visibleLines);
         }
     }
 
@@ -519,51 +607,117 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode
         _otherInput.Render(inputContext, innerBounds);
     }
 
-    private void RenderItem(IRenderContext context, SelectionItem<T> item, int index, int row,
-        int width, bool isHighlighted)
+    private void RenderItemLine(IRenderContext context, SelectionItem<T> item, int itemIndex,
+        int lineIndex, int row, int width, bool isHighlighted)
     {
-        // Set colors
+        // Get the line content
+        var lines = item.Content.Lines;
+        if (lineIndex >= lines.Count)
+            return;
+
+        var lineSegments = lines[lineIndex];
+
+        // Calculate prefix - only show on first line
+        var prefix = lineIndex == 0 ? GetItemPrefix(item, itemIndex) : new string(' ', GetItemPrefix(item, itemIndex).Length);
+
+        // Set background for highlighted items
         if (isHighlighted)
         {
-            context.SetForeground(_highlightForeground);
             context.SetBackground(_highlightBackground);
-        }
-        else if (item.IsSelected && _selectedForeground.HasValue)
-        {
-            context.SetForeground(_selectedForeground.Value);
-        }
-        else if (_foreground.HasValue)
-        {
-            context.SetForeground(_foreground.Value);
+            // Fill the entire row with background color
+            context.Fill(0, row, width, 1, ' ');
         }
 
-        // Build display string
-        var prefix = GetItemPrefix(item, index);
-        var displayText = prefix + item.DisplayText;
-
-        // Truncate if needed
-        if (displayText.Length > width)
+        // Render prefix
+        if (prefix.Length > 0)
         {
-            displayText = displayText[..(width - 1)] + "…";
+            if (isHighlighted)
+            {
+                context.SetForeground(_highlightForeground);
+            }
+            else if (lineIndex > 0)
+            {
+                // Indent continuation lines with dimmed color
+                context.SetForeground(Color.BrightBlack);
+            }
+            else if (item.IsSelected && _selectedForeground.HasValue)
+            {
+                context.SetForeground(_selectedForeground.Value);
+            }
+            else if (_foreground.HasValue)
+            {
+                context.SetForeground(_foreground.Value);
+            }
+
+            context.WriteAt(0, row, prefix);
         }
 
-        // Pad to full width for highlight background
-        if (isHighlighted)
+        // Render segments
+        var xPos = prefix.Length;
+        foreach (var segment in lineSegments)
         {
-            displayText = displayText.PadRight(width);
+            if (xPos >= width)
+                break;
+
+            var styledSegment = segment.GetCurrentSegment();
+            var text = styledSegment.Text;
+            var style = styledSegment.Style;
+
+            // Truncate if needed
+            var remainingWidth = width - xPos;
+            if (text.Length > remainingWidth)
+            {
+                text = text[..(remainingWidth - 1)] + "…";
+            }
+
+            // Apply colors - highlight overrides segment colors for foreground
+            if (isHighlighted)
+            {
+                context.SetForeground(_highlightForeground);
+                context.SetBackground(_highlightBackground);
+            }
+            else
+            {
+                // Apply segment style, falling back to item/list defaults
+                var fg = style.HasForeground ? style.Foreground :
+                    (item.IsSelected && _selectedForeground.HasValue ? _selectedForeground.Value :
+                    (_foreground ?? Color.Default));
+                var bg = style.HasBackground ? style.Background : Color.Default;
+
+                context.SetForeground(fg);
+                if (style.HasBackground)
+                {
+                    context.SetBackground(bg);
+                }
+            }
+
+            // Apply decoration if present
+            if (style.HasDecoration)
+            {
+                context.SetDecoration(style.Decoration);
+            }
+
+            context.WriteAt(xPos, row, text);
+            xPos += text.Length;
+
+            // Reset decoration after each segment
+            if (style.HasDecoration)
+            {
+                context.SetDecoration(TextDecoration.None);
+            }
         }
 
-        context.WriteAt(0, row, displayText);
         context.ResetColors();
     }
 
     private void RenderScrollbar(IRenderContext context, int x, int height)
     {
-        if (_items.Count <= height)
+        var totalLines = TotalLineCount;
+        if (totalLines <= height)
             return;
 
-        var thumbSize = Math.Max(1, height * height / _items.Count);
-        var thumbPos = _scrollOffset * (height - thumbSize) / (_items.Count - height);
+        var thumbSize = Math.Max(1, height * height / totalLines);
+        var thumbPos = _scrollOffset * (height - thumbSize) / (totalLines - height);
 
         context.SetForeground(Color.BrightBlack);
 
@@ -620,5 +774,11 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode
         _cancelled.Dispose();
 
         _otherInput?.Dispose();
+
+        // Dispose all items (which will dispose their content and animation subscriptions)
+        foreach (var item in _items)
+        {
+            item.Dispose();
+        }
     }
 }

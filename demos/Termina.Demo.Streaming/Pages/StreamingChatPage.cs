@@ -1,8 +1,11 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
+using System.Reactive;
 using System.Reactive.Linq;
+using System.Reactive.Subjects;
 using Termina.Components.Streaming;
+using Termina.Demo.Streaming.Actors;
 using Termina.Extensions;
 using Termina.Input;
 using Termina.Layout;
@@ -21,6 +24,10 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
     // Layout nodes owned by the Page
     private StreamingTextNode _chatHistory = null!;
     private TextInputNode _promptInput = null!;
+
+    // Decision list for interactive choices
+    private SelectionListNode<LlmMessages.DecisionChoice>? _decisionList;
+    private readonly Subject<ILayoutNode?> _decisionListChanged = new();
 
     protected override void OnBound()
     {
@@ -55,6 +62,14 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
 
                     case ReplaceTrackedSegment replace:
                         _chatHistory.Replace(replace.Id, replace.NewSegment, replace.KeepTracked);
+                        break;
+
+                    case ShowDecisionPoint decision:
+                        ShowDecisionList(decision);
+                        break;
+
+                    case HideDecisionPoint:
+                        HideDecisionList();
                         break;
 
                     default:
@@ -93,6 +108,21 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
         if (keyInfo.Key == ConsoleKey.Q && keyInfo.Modifiers.HasFlag(ConsoleModifiers.Control))
         {
             ViewModel.RequestShutdown();
+            return;
+        }
+
+        // When decision list is visible, route input to it
+        if (ViewModel.ShowDecisionList && _decisionList != null)
+        {
+            // Escape cancels the decision
+            if (keyInfo.Key == ConsoleKey.Escape)
+            {
+                ViewModel.HandleDecisionCancelled();
+                return;
+            }
+
+            // Let the selection list handle the input
+            _decisionList.HandleInput(keyInfo);
             return;
         }
 
@@ -135,6 +165,65 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
         }
     }
 
+    private void ShowDecisionList(ShowDecisionPoint decision)
+    {
+        // Dispose any existing decision list
+        _decisionList?.Dispose();
+
+        // Create rich content for each choice - inline style, no panel
+        _decisionList = new SelectionListNode<LlmMessages.DecisionChoice>(
+                decision.Choices,
+                choice => new SelectionItemContent()
+                    .AddLine(
+                        new StaticTextSegment(choice.Title, Color.White, decoration: TextDecoration.Bold),
+                        new StaticTextSegment(" ", Color.Default),
+                        new StaticTextSegment($"[{choice.Category}]", Color.BrightBlack))
+                    .AddLine(
+                        new StaticTextSegment("   " + choice.Description, Color.Gray)))
+            .WithHighlightColors(Color.Black, Color.Cyan)
+            .WithForeground(Color.White)
+            .WithVisibleRows(8)
+            .WithShowNumbers(true)
+            .WithOtherOption("Something else...");
+
+        // Subscribe to selection confirmation
+        _decisionList.SelectionConfirmed
+            .Subscribe(selected =>
+            {
+                if (selected.Count > 0)
+                {
+                    ViewModel.HandleDecisionSelection(selected[0].Title);
+                }
+            })
+            .DisposeWith(Subscriptions);
+
+        // Subscribe to "Something else..." custom input
+        _decisionList.OtherSelected
+            .Subscribe(customPrompt =>
+            {
+                ViewModel.HandleCustomPrompt(customPrompt);
+            })
+            .DisposeWith(Subscriptions);
+
+        // Subscribe to cancellation
+        _decisionList.Cancelled
+            .Subscribe(_ => ViewModel.HandleDecisionCancelled())
+            .DisposeWith(Subscriptions);
+
+        // Focus the decision list
+        _decisionList.OnFocused();
+
+        // Signal layout change - just the list node itself, no panel wrapper
+        _decisionListChanged.OnNext(_decisionList);
+    }
+
+    private void HideDecisionList()
+    {
+        _decisionList?.Dispose();
+        _decisionList = null;
+        _decisionListChanged.OnNext(null);
+    }
+
     public override ILayoutNode BuildLayout()
     {
         return Layouts.Vertical()
@@ -145,7 +234,7 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
                     .Bold()
                     .Height(1))
             .WithChild(new EmptyNode().Height(1))
-            // Chat history panel
+            // Chat history panel - fills available space
             .WithChild(
                 new PanelNode()
                     .WithTitle("Chat History")
@@ -155,7 +244,18 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
                     .WithContent(_chatHistory.Fill())
                     .Fill())
             .WithChild(new EmptyNode().Height(1))
-            // Input panel
+            // Decision list - appears between chat history and input when active
+            .WithChild(
+                _decisionListChanged
+                    .StartWith((ILayoutNode?)null)
+                    .Select(decisionList => decisionList == null
+                        ? (ILayoutNode)new EmptyNode().Height(0)
+                        : Layouts.Vertical()
+                            .WithChild(new TextNode("  Choose an option:").WithForeground(Color.Yellow).Height(1))
+                            .WithChild(decisionList)
+                            .HeightAuto()) // Auto-size to content, don't compete with Fill() elements
+                    .AsLayout())
+            // Input panel - always visible
             .WithChild(
                 new PanelNode()
                     .WithTitle("Your Prompt")
@@ -166,13 +266,15 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
                     .Height(3))
             // Status bar
             .WithChild(
-                ViewModel.IsGeneratingChanged
-                    .Select(isGenerating => new TextNode(
-                        isGenerating
+                Observable.CombineLatest(
+                    ViewModel.IsGeneratingChanged,
+                    ViewModel.ShowDecisionListChanged.StartWith(false),
+                    (isGenerating, showDecision) => showDecision
+                        ? "[↑/↓] Navigate [Enter] Select [1-4] Quick Select [Esc] Skip"
+                        : isGenerating
                             ? "[Esc] Cancel [PgUp/PgDn] Scroll [Ctrl+Q] Quit"
                             : "[Enter] Send [↑/↓] History [PgUp/PgDn] Scroll [Esc] Clear/Quit [Ctrl+Q] Quit")
-                        .WithForeground(Color.BrightBlack)
-                        .NoWrap())
+                    .Select(text => new TextNode(text).WithForeground(Color.BrightBlack).NoWrap())
                     .AsLayout()
                     .Height(1))
             .WithChild(

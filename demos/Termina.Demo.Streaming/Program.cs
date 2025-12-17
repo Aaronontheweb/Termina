@@ -56,16 +56,36 @@ if (testMode && scriptedInput != null)
         // Wait for streaming to complete (actor produces tokens over ~3-5 seconds)
         await Task.Delay(6000);
 
-        // Type another prompt to test second interaction
-        scriptedInput.EnqueueString("Test");
-
-        // Submit
+        // Test decision point: "decision" prompt forces a decision list to appear
+        scriptedInput.EnqueueString("decision");
         scriptedInput.EnqueueKey(ConsoleKey.Enter);
 
-        // Wait a bit then cancel mid-stream
-        await Task.Delay(1500);
-        scriptedInput.EnqueueKey(ConsoleKey.Escape);
-        await Task.Delay(500);
+        // Wait for intro text streaming and decision list to appear
+        await Task.Delay(4000);
+
+        // Navigate down in the selection list
+        scriptedInput.EnqueueKey(ConsoleKey.DownArrow);
+        await Task.Delay(200);
+
+        // Select the second option (Enter confirms)
+        scriptedInput.EnqueueKey(ConsoleKey.Enter);
+
+        // Wait for follow-up response to stream
+        await Task.Delay(5000);
+
+        // Test "Something else..." option - trigger another decision
+        scriptedInput.EnqueueString("decision");
+        scriptedInput.EnqueueKey(ConsoleKey.Enter);
+        await Task.Delay(4000);
+
+        // Navigate to "Something else..." (4th option)
+        scriptedInput.EnqueueKey(ConsoleKey.D4); // Quick select option 4
+        await Task.Delay(200);
+
+        // Type custom prompt and submit
+        scriptedInput.EnqueueString("custom question");
+        scriptedInput.EnqueueKey(ConsoleKey.Enter);
+        await Task.Delay(5000);
 
         // Quit with Ctrl+Q
         scriptedInput.EnqueueKey(ConsoleKey.Q, control: true);
