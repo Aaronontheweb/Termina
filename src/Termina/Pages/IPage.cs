@@ -52,4 +52,13 @@ internal interface IBindablePage : IPage, IDisposable
     /// Gets the current cached layout root, if any.
     /// </summary>
     ILayoutNode? LayoutRoot { get; }
+
+    /// <summary>
+    /// Handles page-level keyboard input before it reaches focused components.
+    /// This implements a "capture phase" for input, allowing pages to intercept
+    /// keys like Escape or Tab before child components consume them.
+    /// </summary>
+    /// <param name="keyInfo">The key press information.</param>
+    /// <returns>True if the page handled the input, false to let focused components handle it.</returns>
+    bool HandlePageInput(ConsoleKeyInfo keyInfo);
 }

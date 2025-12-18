@@ -451,13 +451,26 @@ public sealed class TerminaApplication
                 return;
         }
 
-        // Route input events through the focus manager first, then to ViewModel
+        // Route input events: Page (capture) -> Focus Manager (bubble) -> ViewModel
         if (evt is IInputEvent inputEvent)
         {
-            // For key presses, give focused components first chance to handle
+            // For key presses, use capture-then-bubble pattern
             if (inputEvent is KeyPressed keyPressed)
             {
                 TerminaTrace.Input.Trace(this, "KeyPressed: key={0}, mods={1}", keyPressed.KeyInfo.Key, keyPressed.KeyInfo.Modifiers);
+
+                // CAPTURE PHASE: Page-level key bindings get first chance
+                // This allows pages to intercept keys (like Escape) before focused components consume them
+                if (_currentPage is IBindablePage bindablePage)
+                {
+                    if (bindablePage.HandlePageInput(keyPressed.KeyInfo))
+                    {
+                        TerminaTrace.Input.Trace(this, "Key consumed by page-level handler");
+                        return; // Input was consumed by page
+                    }
+                }
+
+                // BUBBLE PHASE: Focused components handle remaining keys
                 if (_focusManager.RouteInput(keyPressed.KeyInfo))
                 {
                     TerminaTrace.Input.Trace(this, "Key consumed by focused component");

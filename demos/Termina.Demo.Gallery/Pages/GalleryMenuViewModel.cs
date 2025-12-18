@@ -1,8 +1,6 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
-using System.Reactive.Linq;
-using Termina.Input;
 using Termina.Reactive;
 
 namespace Termina.Demo.Gallery.Pages;
@@ -19,14 +17,6 @@ public partial class GalleryMenuViewModel : ReactiveViewModel
         new("Layouts", "Vertical, horizontal, grid, panels, borders", "/layouts"),
         new("Animations", "Spinners, streaming text, progress indicators", "/animations")
     };
-
-    public override void OnActivated()
-    {
-        Input.OfType<KeyPressed>()
-            .Where(k => k.KeyInfo.Key == ConsoleKey.Q)
-            .Subscribe(_ => Shutdown())
-            .DisposeWith(Subscriptions);
-    }
 
     public void NavigateToGallery(string route)
     {

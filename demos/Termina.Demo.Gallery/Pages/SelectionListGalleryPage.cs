@@ -29,6 +29,11 @@ public class SelectionListGalleryPage : ReactivePage<SelectionListGalleryViewMod
     {
         base.OnNavigatedTo();
 
+        // Page-level key bindings (capture phase - intercepts before focused components)
+        // This is the new recommended pattern for page navigation keys
+        KeyBindings.Register(ConsoleKey.Escape, () => ViewModel.Navigate("/menu"));
+        KeyBindings.Register(ConsoleKey.Tab, CycleFocus);
+
         // Subscribe to selection events
         _singleSelectList.SelectionConfirmed
             .Subscribe(items => ViewModel.OnSingleSelection(items.FirstOrDefault() ?? ""))
@@ -44,24 +49,6 @@ public class SelectionListGalleryPage : ReactivePage<SelectionListGalleryViewMod
 
         _numberedList.SelectionConfirmed
             .Subscribe(items => ViewModel.OnNumberedSelection(items.FirstOrDefault() ?? ""))
-            .DisposeWith(Subscriptions);
-
-        // Subscribe to Cancelled (Escape key) on all lists - navigate back to menu
-        _singleSelectList.Cancelled
-            .Subscribe(_ => ViewModel.NavigateToMenu())
-            .DisposeWith(Subscriptions);
-
-        _multiSelectRichList.Cancelled
-            .Subscribe(_ => ViewModel.NavigateToMenu())
-            .DisposeWith(Subscriptions);
-
-        _numberedList.Cancelled
-            .Subscribe(_ => ViewModel.NavigateToMenu())
-            .DisposeWith(Subscriptions);
-
-        // Subscribe to Tab key to cycle focus between lists
-        ViewModel.TabPressed
-            .Subscribe(_ => CycleFocus())
             .DisposeWith(Subscriptions);
 
         // Default focus to first list

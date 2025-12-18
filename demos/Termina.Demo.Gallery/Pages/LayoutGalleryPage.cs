@@ -16,6 +16,14 @@ namespace Termina.Demo.Gallery.Pages;
 /// </summary>
 public class LayoutGalleryPage : ReactivePage<LayoutGalleryViewModel>
 {
+    public override void OnNavigatedTo()
+    {
+        base.OnNavigatedTo();
+
+        // Page-level key binding for navigation (capture phase)
+        KeyBindings.Register(ConsoleKey.Escape, () => ViewModel.Navigate("/menu"));
+    }
+
     public override ILayoutNode BuildLayout()
     {
         return Layouts.Vertical()
