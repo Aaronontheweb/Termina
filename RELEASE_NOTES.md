@@ -1,3 +1,60 @@
+#### 0.5.0 December 18th 2025 ####
+
+**New Features**:
+- **BlockSegment wrapper for block-level streaming text** ([#108](https://github.com/Aaronontheweb/Termina/pull/108))
+  - Enables text segments to render as block elements starting on new lines with vertical word wrapping
+  - New `BlockSegment` class wraps any `ITextSegment` for block-level rendering
+  - Fluent `.AsBlock()` API for creating block segments
+  - `StreamingTextNode` automatically detects `BlockSegment` and inserts newlines
+  - Supports both static and animated content (spinners, status indicators)
+  - Perfect for LLM agent "thinking" displays and streaming content that should update in-place within a fixed area
+  - Closes [#107](https://github.com/Aaronontheweb/Termina/issues/107)
+
+- **Page-level key binding system with capture phase** ([#105](https://github.com/Aaronontheweb/Termina/pull/105))
+  - Pages can now intercept keyboard input before focused components receive it
+  - New `PageKeyBindings` class for registering page-level key handlers
+  - Added `HandlePageInput` method to `IBindablePage` interface
+  - `TerminaApplication.ProcessEvent()` now uses capture phase (page) then bubble phase (focused component)
+  - `ReactivePage` exposes `KeyBindings` property for navigation key handling
+  - Enables reliable Escape, Tab, and other navigation keys in complex pages
+  - Closes [#104](https://github.com/Aaronontheweb/Termina/issues/104)
+
+- **GridNode 2D layout primitive** ([#100](https://github.com/Aaronontheweb/Termina/pull/100))
+  - New 2D grid layout enabling consistent column/row sizing across all cells
+  - Cell addressing via `SetCell(row, col, node)` or fluent `AddRow()` API
+  - Constraint-based sizing for columns and rows (Fixed, Auto, Fill, Percent)
+  - Grid line rendering with Single, Double, Rounded, and Ascii border styles
+  - Cell spanning support (`colspan` and `rowspan`) for merged header cells
+  - Focus navigation with 2D arrow key support
+  - Navigation modes: None, CellNavigation, ChildFocusRouting
+  - Perfect for dashboards, data tables, and structured layouts
+
+- **TextNode horizontal alignment** ([#100](https://github.com/Aaronontheweb/Termina/pull/100))
+  - New `TextAlignment` enum: Left (default), Center, Right
+  - Fluent methods: `Align()`, `AlignCenter()`, `AlignRight()`
+  - Works seamlessly with GridNode cells and other layout containers
+
+- **Component gallery demo** ([#103](https://github.com/Aaronontheweb/Termina/pull/103))
+  - New `Termina.Demo.Gallery` project showcasing UI components
+  - Interactive gallery pages for SelectionList, Grid, and other components
+  - Run with: `dotnet run --project demos/Termina.Demo.Gallery`
+
+**Bug Fixes**:
+- **Fix SelectionListNode number prefixes** ([#103](https://github.com/Aaronontheweb/Termina/pull/103))
+  - SelectionListNode now shows number prefixes for all items, not just items 1-9
+  - Fixes [#101](https://github.com/Aaronontheweb/Termina/issues/101)
+
+- **Fix SelectionListNode "Other" option auto-start** ([#103](https://github.com/Aaronontheweb/Termina/pull/103))
+  - Navigating to "Other" option with arrow keys no longer auto-starts text input
+  - Text input mode now requires explicit Enter or Space key press
+  - Fixes [#102](https://github.com/Aaronontheweb/Termina/issues/102)
+
+- **Fix async test method not awaiting** ([#109](https://github.com/Aaronontheweb/Termina/pull/109))
+  - Corrected test method signature to properly await async operations
+  - Improves test reliability and prevents potential race conditions
+
+---
+
 #### 0.4.0 December 17th 2025 ####
 
 **Breaking Changes**:
