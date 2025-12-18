@@ -48,6 +48,7 @@ Once measurements are complete, each node is given its final bounds and renders 
 **Container Nodes** arrange children:
 - `VerticalLayout` - Stack children top-to-bottom
 - `HorizontalLayout` - Stack children left-to-right
+- `GridNode` - 2D grid with consistent column/row sizing
 - `StackLayout` - Overlay children (z-stack)
 - `ScrollableContainerNode` - Scrollable content area
 
@@ -89,5 +90,6 @@ See [Size Constraints](/layout/size-constraints) for details.
 
 - [Size Constraints](/layout/size-constraints) - Understanding Fixed, Fill, Auto, and Percent
 - [Vertical & Horizontal](/layout/vertical-horizontal) - Container layout patterns
+- [Grid Layout](/layout/grid) - 2D grids with consistent sizing
 - [Nesting Layouts](/layout/nesting) - Composing complex UIs
 - [Responsive Design](/layout/responsive) - Handling terminal resize
