@@ -255,13 +255,14 @@ public class LlmSimulatorActor : ReceiveActor
 
     private Source<LlmMessages.StreamToken, NotUsed> CreateTokenSource(string prompt, string? decisionContext, CancellationToken ct)
     {
-        var thinkingCount = _random.Next(3, 6);
+        // Generate 5-10 thinking tokens over 1.25-2.5 seconds (250ms each)
+        var thinkingCount = _random.Next(5, 11);
 
         // Create thinking tokens
         var thinkingSource = Source.From(Enumerable.Range(0, thinkingCount))
             .Select(_ => ThinkingPhrases[_random.Next(ThinkingPhrases.Length)])
             .Select(text => (LlmMessages.StreamToken)new LlmMessages.ThinkingToken(text))
-            .Throttle(1, TimeSpan.FromMilliseconds(150), 1, ThrottleMode.Shaping);
+            .Throttle(1, TimeSpan.FromMilliseconds(250), 1, ThrottleMode.Shaping);
 
         // If we have a decision context, use the follow-up response
         if (decisionContext != null && _pendingDecision != null)
