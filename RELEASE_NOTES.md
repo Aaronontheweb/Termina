@@ -1,3 +1,46 @@
+#### 0.4.0 December 17th 2025 ####
+
+**Breaking Changes**:
+- **VerticalLayout and HorizontalLayout now default to Auto() sizing** ([#97](https://github.com/Aaronontheweb/Termina/pull/97))
+  - Previously, these layouts defaulted to Fill(), which caused nested layouts to compete with siblings for space
+  - New Auto() default means nested layouts size to their content by default
+  - Fill() is now only needed for children that should claim remaining space within a container
+  - Root layouts always fill terminal bounds regardless of constraints
+  - StackLayout retains Fill() as its default since overlays should fill
+  - Fixes [#95](https://github.com/Aaronontheweb/Termina/issues/95)
+
+**New Features**:
+- **Rich content support for SelectionListNode** ([#96](https://github.com/Aaronontheweb/Termina/pull/96))
+  - New `SelectionItemContent` class for multi-line, styled selection items
+  - Support for `ITextSegment` (static and animated) in selection item content
+  - "Other" option with inline text input for custom user responses
+  - Multi-line items with per-line styling and animated segments (spinners, etc.)
+  - Proper coordinate translation via sub-context rendering
+
+- **Platform-native console abstraction for event-driven input** ([#90](https://github.com/Aaronontheweb/Termina/pull/90))
+  - Replaced polling-based input with platform-native event-driven input on Windows
+  - Windows console enables VT100/ANSI support via `ENABLE_VIRTUAL_TERMINAL_PROCESSING`
+  - Event-driven input via `ReadConsoleInputW` eliminates polling latency
+  - Window resize events via `WINDOW_BUFFER_SIZE_EVENT`
+  - ~1000x rendering performance improvement on Windows (22-60ms → 0.02-0.08ms per frame)
+  - Cached console dimensions to avoid repeated P/Invoke calls
+  - Fallback console for non-Windows platforms with 1ms polling delay
+  - Closes [#78](https://github.com/Aaronontheweb/Termina/issues/78), [#79](https://github.com/Aaronontheweb/Termina/issues/79), [#81](https://github.com/Aaronontheweb/Termina/issues/81)
+
+- **Formalized diagnostic tracing system** ([#84](https://github.com/Aaronontheweb/Termina/pull/84))
+  - Lightweight, zero-cost-when-disabled tracing system for debugging TUI applications
+  - Custom abstraction over Microsoft.Extensions.Logging (no direct dependency required)
+  - Deferred string formatting via `TraceEvent` struct with template and args
+  - Lock-free file output using Channel with single reader pattern
+  - Category-based filtering (Focus, Layout, Input, Page, Render, etc.)
+  - Level-based filtering (Trace, Debug, Info, Warning, Error)
+  - Optional MEL integration via `LoggerTraceListener` adapter
+  - DI extension methods for easy configuration
+  - Trace logs written to %TEMP%/termina-logs/ with timestamped filenames
+  - Addresses [#72](https://github.com/Aaronontheweb/Termina/issues/72)
+
+---
+
 #### 0.3.0 December 17th 2025 ####
 
 **New Features**:
