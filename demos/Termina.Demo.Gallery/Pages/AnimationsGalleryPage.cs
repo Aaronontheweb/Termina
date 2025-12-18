@@ -27,6 +27,16 @@ public class AnimationsGalleryPage : ReactivePage<AnimationsGalleryViewModel>
         // Page-level key binding for navigation (capture phase)
         KeyBindings.Register(ConsoleKey.Escape, () => Navigate("/menu"));
 
+        // Spacebar also updates the preview (same as Enter for this single-select use case)
+        KeyBindings.Register(ConsoleKey.Spacebar, () =>
+        {
+            var highlighted = _styleList.HighlightedItem;
+            if (highlighted != null)
+            {
+                ViewModel.SelectedStyle = highlighted.Value.Style;
+            }
+        });
+
         // When user selects a style with Enter, update the ViewModel
         _styleList.SelectionConfirmed
             .Subscribe(items =>
