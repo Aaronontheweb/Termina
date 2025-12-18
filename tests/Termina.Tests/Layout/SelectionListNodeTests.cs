@@ -378,13 +378,13 @@ public class SelectionListNodeTests
     }
 
     [Fact]
-    public void SelectionListNode_OtherOption_AutoStartsEditingOnNavigate()
+    public void SelectionListNode_OtherOption_NavigationHighlightsWithoutStartingEdit()
     {
         using var list = Layouts.SelectionList("A", "B")
             .WithOtherOption("Custom...");
         list.OnFocused();
 
-        // Move to Other option - should auto-start editing
+        // Move to Other option - should highlight but NOT auto-start editing
         var downKey = new ConsoleKeyInfo('\0', ConsoleKey.DownArrow, false, false, false);
         list.HandleInput(downKey);
         list.HandleInput(downKey);
@@ -392,13 +392,70 @@ public class SelectionListNodeTests
         // Verify we're on the Other option
         Assert.True(list.HighlightedItem?.IsOther);
 
-        // Should be able to type immediately without pressing Enter first
-        list.HandleInput(new ConsoleKeyInfo('T', ConsoleKey.T, false, false, false));
-        list.HandleInput(new ConsoleKeyInfo('e', ConsoleKey.E, false, false, false));
-        list.HandleInput(new ConsoleKeyInfo('s', ConsoleKey.S, false, false, false));
-        list.HandleInput(new ConsoleKeyInfo('t', ConsoleKey.T, false, false, false));
+        // Typing should NOT work (not in edit mode yet) - returns false (unhandled)
+        var typingResult = list.HandleInput(new ConsoleKeyInfo('T', ConsoleKey.T, false, false, false));
+        Assert.False(typingResult);
+    }
 
-        // This test verifies navigating to Other auto-starts text input mode
+    [Fact]
+    public void SelectionListNode_OtherOption_EnterStartsEditing()
+    {
+        using var list = Layouts.SelectionList("A", "B")
+            .WithOtherOption("Custom...");
+        list.OnFocused();
+
+        string? customValue = null;
+        list.OtherSelected.Subscribe(text => customValue = text);
+
+        // Navigate to Other option
+        var downKey = new ConsoleKeyInfo('\0', ConsoleKey.DownArrow, false, false, false);
+        list.HandleInput(downKey);
+        list.HandleInput(downKey);
+        Assert.True(list.HighlightedItem?.IsOther);
+
+        // Press Enter to start editing
+        var enterKey = new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false);
+        list.HandleInput(enterKey);
+
+        // Now typing should work
+        list.HandleInput(new ConsoleKeyInfo('H', ConsoleKey.H, false, false, false));
+        list.HandleInput(new ConsoleKeyInfo('i', ConsoleKey.I, false, false, false));
+
+        // Press Enter to confirm
+        list.HandleInput(enterKey);
+
+        Assert.Equal("Hi", customValue);
+    }
+
+    [Fact]
+    public void SelectionListNode_OtherOption_SpaceStartsEditing()
+    {
+        using var list = Layouts.SelectionList("A", "B")
+            .WithOtherOption("Custom...");
+        list.OnFocused();
+
+        string? customValue = null;
+        list.OtherSelected.Subscribe(text => customValue = text);
+
+        // Navigate to Other option
+        var downKey = new ConsoleKeyInfo('\0', ConsoleKey.DownArrow, false, false, false);
+        list.HandleInput(downKey);
+        list.HandleInput(downKey);
+        Assert.True(list.HighlightedItem?.IsOther);
+
+        // Press Space to start editing
+        var spaceKey = new ConsoleKeyInfo(' ', ConsoleKey.Spacebar, false, false, false);
+        list.HandleInput(spaceKey);
+
+        // Now typing should work
+        list.HandleInput(new ConsoleKeyInfo('Y', ConsoleKey.Y, false, false, false));
+        list.HandleInput(new ConsoleKeyInfo('o', ConsoleKey.O, false, false, false));
+
+        // Press Enter to confirm
+        var enterKey = new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false);
+        list.HandleInput(enterKey);
+
+        Assert.Equal("Yo", customValue);
     }
 
     [Fact]
@@ -411,17 +468,20 @@ public class SelectionListNodeTests
         string? customValue = null;
         list.OtherSelected.Subscribe(text => customValue = text);
 
-        // Navigate to Other - auto-starts editing
+        // Navigate to Other
         var downKey = new ConsoleKeyInfo('\0', ConsoleKey.DownArrow, false, false, false);
         list.HandleInput(downKey);
         list.HandleInput(downKey);
 
-        // Type "Hi" immediately (no Enter needed to start)
+        // Press Enter to start editing (required - no auto-start on navigation)
+        var enterKey = new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false);
+        list.HandleInput(enterKey);
+
+        // Now type "Hi"
         list.HandleInput(new ConsoleKeyInfo('H', ConsoleKey.H, false, false, false));
         list.HandleInput(new ConsoleKeyInfo('i', ConsoleKey.I, false, false, false));
 
         // Press Enter to confirm
-        var enterKey = new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false);
         list.HandleInput(enterKey);
 
         Assert.Equal("Hi", customValue);
@@ -453,6 +513,65 @@ public class SelectionListNodeTests
 
         Assert.Equal("Fast", customValue);
     }
+
+    #region Number Display Tests
+
+    [Fact]
+    public void SelectionListNode_ShowsNumbersForAllItems_NotJustFirstNine()
+    {
+        // Create list with 12 items
+        var items = Enumerable.Range(1, 12).Select(i => $"Item {i}").ToArray();
+        using var list = new SelectionListNode<string>(items, s => s)
+            .WithShowNumbers(true);
+
+        // All 12 items should be in the list
+        Assert.Equal(12, list.Items.Count);
+
+        // Measure to ensure the component can handle 12 numbered items
+        var size = list.Measure(new Size(80, 20));
+
+        // The measured size should accommodate all items
+        Assert.True(size.Width > 0);
+        Assert.True(size.Height > 0);
+    }
+
+    [Fact]
+    public void SelectionListNode_NumberKeysOnlyWorkFor1Through9()
+    {
+        // Create list with 12 items
+        var items = Enumerable.Range(1, 12).Select(i => $"Item {i}").ToArray();
+        using var list = new SelectionListNode<string>(items, s => s)
+            .WithShowNumbers(true)
+            .WithMode(SelectionMode.Multi);
+        list.OnFocused();
+
+        // Number key 9 should work
+        var key9 = new ConsoleKeyInfo('9', ConsoleKey.D9, false, false, false);
+        list.HandleInput(key9);
+        Assert.True(list.Items[8].IsSelected); // 9th item (index 8)
+
+        // The highlighted item should be the 9th item after pressing '9'
+        Assert.Equal("Item 9", list.HighlightedItem?.DisplayText);
+    }
+
+    [Fact]
+    public void SelectionListNode_CanNavigateToItemsBeyondNine()
+    {
+        // Create list with 12 items
+        var items = Enumerable.Range(1, 12).Select(i => $"Item {i}").ToArray();
+        using var list = new SelectionListNode<string>(items, s => s)
+            .WithShowNumbers(true);
+        list.OnFocused();
+
+        // Navigate to end
+        var endKey = new ConsoleKeyInfo('\0', ConsoleKey.End, false, false, false);
+        list.HandleInput(endKey);
+
+        // Should be on the 12th item
+        Assert.Equal("Item 12", list.HighlightedItem?.DisplayText);
+    }
+
+    #endregion
 
     #region Rich Content Tests
 
