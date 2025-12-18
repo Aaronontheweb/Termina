@@ -1,7 +1,10 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
+using System.Reactive;
 using System.Reactive.Linq;
+using System.Reactive.Subjects;
+using Termina.Extensions;
 using Termina.Input;
 using Termina.Reactive;
 
@@ -12,7 +15,11 @@ namespace Termina.Demo.Gallery.Pages;
 /// </summary>
 public partial class SelectionListGalleryViewModel : ReactiveViewModel
 {
+    private readonly Subject<Unit> _tabPressed = new();
+
     [Reactive] private string _statusMessage = "Select items and explore different SelectionList features";
+
+    public IObservable<Unit> TabPressed => _tabPressed.AsObservable();
 
     public IReadOnlyList<ServerInfo> Servers { get; } = new List<ServerInfo>
     {
@@ -24,21 +31,25 @@ public partial class SelectionListGalleryViewModel : ReactiveViewModel
         new("dev-local", "Local", "Offline", 0)
     };
 
+    private static readonly string[] ListNames = { "Single Select", "Multi-Select", "Numbered List" };
+
     public override void OnActivated()
     {
+        // Handle Tab key to cycle focus between lists
         Input.OfType<KeyPressed>()
-            .Subscribe(HandleKeyPress)
+            .Where(k => k.KeyInfo.Key == ConsoleKey.Tab)
+            .Subscribe(_ => _tabPressed.OnNext(Unit.Default))
             .DisposeWith(Subscriptions);
     }
 
-    private void HandleKeyPress(KeyPressed key)
+    public void NavigateToMenu()
     {
-        switch (key.KeyInfo.Key)
-        {
-            case ConsoleKey.Escape:
-                Navigate("/menu");
-                break;
-        }
+        Navigate("/menu");
+    }
+
+    public void OnFocusChanged(int listIndex)
+    {
+        StatusMessage = $"Focus: {ListNames[listIndex]} - Use Tab to switch lists";
     }
 
     public void OnSingleSelection(string item)

@@ -46,8 +46,43 @@ public class SelectionListGalleryPage : ReactivePage<SelectionListGalleryViewMod
             .Subscribe(items => ViewModel.OnNumberedSelection(items.FirstOrDefault() ?? ""))
             .DisposeWith(Subscriptions);
 
+        // Subscribe to Cancelled (Escape key) on all lists - navigate back to menu
+        _singleSelectList.Cancelled
+            .Subscribe(_ => ViewModel.NavigateToMenu())
+            .DisposeWith(Subscriptions);
+
+        _multiSelectRichList.Cancelled
+            .Subscribe(_ => ViewModel.NavigateToMenu())
+            .DisposeWith(Subscriptions);
+
+        _numberedList.Cancelled
+            .Subscribe(_ => ViewModel.NavigateToMenu())
+            .DisposeWith(Subscriptions);
+
+        // Subscribe to Tab key to cycle focus between lists
+        ViewModel.TabPressed
+            .Subscribe(_ => CycleFocus())
+            .DisposeWith(Subscriptions);
+
         // Default focus to first list
+        _focusedListIndex = 0;
         Focus.PushFocus(_singleSelectList);
+    }
+
+    private int _focusedListIndex;
+
+    private void CycleFocus()
+    {
+        _focusedListIndex = (_focusedListIndex + 1) % 3;
+        IFocusable targetList = _focusedListIndex switch
+        {
+            0 => _singleSelectList,
+            1 => _multiSelectRichList,
+            2 => _numberedList,
+            _ => _singleSelectList
+        };
+        Focus.PushFocus(targetList);
+        ViewModel.OnFocusChanged(_focusedListIndex);
     }
 
     public override ILayoutNode BuildLayout()
@@ -167,7 +202,7 @@ public class SelectionListGalleryPage : ReactivePage<SelectionListGalleryViewMod
                     .AsLayout()
                     .Fill())
             .WithChild(
-                new TextNode("[Esc] Menu")
+                new TextNode("[Tab] Switch List  [Esc] Menu")
                     .WithForeground(Color.BrightBlack)
                     .NoWrap()
                     .WidthAuto())
