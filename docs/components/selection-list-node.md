@@ -1,6 +1,6 @@
 # SelectionListNode
 
-An interactive list selection component with keyboard navigation, supporting single and multi-select modes.
+An interactive list selection component with keyboard navigation, supporting single and multi-select modes. Supports both simple text items and rich content with multiple lines and styled/animated segments.
 
 ## Basic Usage
 
@@ -13,6 +13,84 @@ var list = Layouts.SelectionList(options);
 
 // Typed list with custom display
 var list = Layouts.SelectionList(items, item => item.Name);
+```
+
+## Rich Content
+
+For items that need multiple lines, styled text, or animated elements (like spinners), use the constructor that accepts a `Func<T, SelectionItemContent>`:
+
+```csharp
+var list = new SelectionListNode<ServerInfo>(servers, server =>
+    new SelectionItemContent()
+        .AddLine(server.Name, Color.White, decoration: TextDecoration.Bold)
+        .AddLine($"   {server.Address}:{server.Port}", Color.BrightBlack)
+);
+```
+
+### Multi-line Items with Animations
+
+Rich content items can include animated segments like spinners:
+
+```csharp
+var list = new SelectionListNode<ConnectionState>(connections, conn =>
+{
+    var content = new SelectionItemContent()
+        .AddLine(conn.ServerName, Color.Cyan, decoration: TextDecoration.Bold);
+
+    if (conn.IsConnecting)
+    {
+        content.AddLine(
+            new StaticTextSegment("   "),
+            new SpinnerSegment(SpinnerStyle.Dots, Color.Yellow),
+            new StaticTextSegment(" Connecting...", Color.Yellow)
+        );
+    }
+    else
+    {
+        content.AddLine($"   Status: {conn.Status}", Color.Green);
+    }
+
+    return content;
+});
+```
+
+### SelectionItemContent API
+
+`SelectionItemContent` provides a fluent API for building multi-line, styled content:
+
+```csharp
+var content = new SelectionItemContent()
+    // Add a simple text line
+    .AddLine("First line")
+
+    // Add a styled text line
+    .AddLine("Bold and Blue", Color.Blue, decoration: TextDecoration.Bold)
+
+    // Add a line with multiple segments
+    .AddLine(
+        new StaticTextSegment("Status: ", Color.White),
+        new StaticTextSegment("Active", Color.Green, decoration: TextDecoration.Bold)
+    )
+
+    // Add a line with an animated spinner
+    .AddLine(
+        new SpinnerSegment(SpinnerStyle.Line, Color.Cyan),
+        new StaticTextSegment(" Loading...")
+    );
+```
+
+### CompositeTextSegment
+
+Use `CompositeTextSegment` to combine multiple segments into a single unit:
+
+```csharp
+var composite = new CompositeTextSegment(
+    new StaticTextSegment("["),
+    new SpinnerSegment(SpinnerStyle.Dots, Color.Blue),
+    new StaticTextSegment("] Processing...")
+);
+
+content.AddLine(composite);
 ```
 
 ## Features
@@ -284,6 +362,13 @@ public class SettingsPage : ReactivePage<SettingsViewModel>
 
 ## API Reference
 
+### Constructors
+
+| Constructor | Description |
+|-------------|-------------|
+| `SelectionListNode(IEnumerable<T>, Func<T, string>)` | Create with plain text display |
+| `SelectionListNode(IEnumerable<T>, Func<T, SelectionItemContent>)` | Create with rich content display |
+
 ### Properties
 
 | Property | Type | Description |
@@ -312,9 +397,30 @@ public class SettingsPage : ReactivePage<SettingsViewModel>
 | Property | Type | Description |
 |----------|------|-------------|
 | `Value` | `T` | The item value |
-| `DisplayText` | `string` | Text shown in the list |
+| `DisplayText` | `string` | First line text (plain text) |
+| `Content` | `SelectionItemContent` | Full rich content with all lines and styling |
+| `LineCount` | `int` | Number of lines this item occupies |
 | `IsSelected` | `bool` | Whether item is selected |
 | `IsOther` | `bool` | Whether this is the "Other" option |
+
+### SelectionItemContent Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `Lines` | `IReadOnlyList<IReadOnlyList<ITextSegment>>` | All lines of content |
+| `LineCount` | `int` | Number of lines |
+| `HasAnimations` | `bool` | Whether content has animated segments |
+| `Invalidated` | `IObservable<Unit>` | Fires when animated content changes |
+
+### SelectionItemContent Methods
+
+| Method | Description |
+|--------|-------------|
+| `.AddLine(params ITextSegment[])` | Add a line with multiple segments |
+| `.AddLine(string, Color?, Color?, TextDecoration)` | Add a simple styled text line |
+| `.ToPlainText()` | Get all lines as plain text |
+| `.GetFirstLineText()` | Get first line as plain text |
+| `FromString(string)` | Static factory for single-line content |
 
 ### Enums
 
@@ -328,4 +434,16 @@ public class SettingsPage : ReactivePage<SettingsViewModel>
 
 ::: details View SelectionListNode implementation
 <<< @/../src/Termina/Layout/SelectionListNode.cs{csharp}
+:::
+
+::: details View SelectionItemContent implementation
+<<< @/../src/Termina/Layout/SelectionItemContent.cs{csharp}
+:::
+
+::: details View SelectionItem implementation
+<<< @/../src/Termina/Layout/SelectionItem.cs{csharp}
+:::
+
+::: details View CompositeTextSegment implementation
+<<< @/../src/Termina/Components/Streaming/CompositeTextSegment.cs{csharp}
 :::
