@@ -439,7 +439,7 @@ public class GridNodeTests
     #region Invalidation
 
     [Fact]
-    public async Task CellContentChange_TriggersInvalidation()
+    public void CellContentChange_TriggersInvalidation()
     {
         var grid = new GridNode();
         var textNode = new TextNode("Initial");
