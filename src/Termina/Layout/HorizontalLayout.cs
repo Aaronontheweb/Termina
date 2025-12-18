@@ -18,9 +18,9 @@ public sealed class HorizontalLayout : ContainerNode
     public HorizontalLayout(IEnumerable<ILayoutNode> children)
     {
         AddChildren(children);
-        // Default to fill
-        HeightConstraint = new SizeConstraint.Fill();
-        WidthConstraint = new SizeConstraint.Fill();
+        // Default to auto - size to content
+        HeightConstraint = new SizeConstraint.Auto();
+        WidthConstraint = new SizeConstraint.Auto();
     }
 
     /// <summary>

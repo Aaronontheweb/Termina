@@ -2,9 +2,32 @@
 
 The two primary container types in Termina are `VerticalLayout` and `HorizontalLayout`. These containers arrange their children in a single direction and handle space distribution automatically.
 
+## Default Sizing
+
+Both layout types default to `Auto()` sizing - they size to fit their content. This is the right default for nested layouts, which should not compete with siblings for space.
+
+```csharp
+Layouts.Vertical()
+    .WithChild(header)
+    .WithChild(content)
+    .WithChild(footer);
+```
+
+::: info Root layouts always fill the terminal
+The root layout returned from `BuildLayout()` always receives the full terminal bounds, regardless of its constraints. You don't need to add `.Fill()` to the root layout.
+:::
+
+::: tip When to use Fill()
+Use `.Fill()` when you want a **child** to expand beyond its content size within a container:
+- On **content panels** that should take remaining space after fixed elements
+- On **spacer elements** to push siblings apart
+
+See [Size Constraints](/layout/size-constraints#when-to-use-fill) for detailed examples.
+:::
+
 ## VerticalLayout
 
-Arranges children from top to bottom. Each child occupies the full width of the container.
+Arranges children from top to bottom.
 
 ```csharp
 Layouts.Vertical()

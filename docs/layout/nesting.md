@@ -14,7 +14,7 @@ Layouts.Vertical()
         Layouts.Horizontal()
             .WithChild(sidebar.Width(25))
             .WithChild(mainContent.WidthFill())
-            .Fill())  // The horizontal layout fills remaining height
+            .Fill())  // This nested layout needs Fill() to expand vertically
     .WithChild(footer.Height(1));
 ```
 
@@ -41,12 +41,12 @@ Layouts.Vertical()
         Layouts.Horizontal()
             .WithChild(topLeft.WidthFill())
             .WithChild(topRight.WidthFill())
-            .Fill())
+            .Fill())  // Row expands to fill available height
     .WithChild(
         Layouts.Horizontal()
             .WithChild(bottomLeft.WidthFill())
             .WithChild(bottomRight.WidthFill())
-            .Fill());
+            .Fill());  // Row expands to fill available height
 ```
 
 **Result:**
@@ -79,7 +79,7 @@ protected override ILayoutNode BuildLayout()
                 .WithChild(BuildNavigation().Width(20))
                 .WithChild(BuildContentArea().WidthFill())
                 .WithChild(BuildDetailsPanel().Width(30))
-                .Fill())
+                .Fill())  // Content row fills available height
 
         // Tier 3: Status bar
         .WithChild(BuildStatusBar().Height(1));
@@ -128,7 +128,7 @@ public class DashboardPage : ReactivePage<DashboardViewModel>
     {
         return Layouts.Vertical()
             .WithChild(BuildHeader().Height(3))
-            .WithChild(BuildMainArea().Fill())
+            .WithChild(BuildMainArea().Fill())  // Main area takes remaining space
             .WithChild(BuildFooter().Height(1));
     }
 
