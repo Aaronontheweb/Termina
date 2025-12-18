@@ -25,7 +25,7 @@ public class TextInputGalleryPage : ReactivePage<TextInputGalleryViewModel>
         base.OnNavigatedTo();
 
         // Page-level key bindings (capture phase)
-        KeyBindings.Register(ConsoleKey.Escape, () => ViewModel.Navigate("/menu"));
+        KeyBindings.Register(ConsoleKey.Escape, () => Navigate("/menu"));
         KeyBindings.Register(ConsoleKey.Tab, CycleFocus);
 
         _basicInput.Submitted

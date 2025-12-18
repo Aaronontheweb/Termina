@@ -23,7 +23,7 @@ public class GalleryMenuPage : ReactivePage<GalleryMenuViewModel>
         base.OnNavigatedTo();
 
         // Page-level key binding for quit (capture phase)
-        KeyBindings.Register(ConsoleKey.Q, () => ViewModel.Shutdown());
+        KeyBindings.Register(ConsoleKey.Q, () => Shutdown());
 
         _menuList.SelectionConfirmed
             .Subscribe(items =>

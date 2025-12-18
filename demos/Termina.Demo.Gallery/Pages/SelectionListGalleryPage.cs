@@ -31,7 +31,7 @@ public class SelectionListGalleryPage : ReactivePage<SelectionListGalleryViewMod
 
         // Page-level key bindings (capture phase - intercepts before focused components)
         // This is the new recommended pattern for page navigation keys
-        KeyBindings.Register(ConsoleKey.Escape, () => ViewModel.Navigate("/menu"));
+        KeyBindings.Register(ConsoleKey.Escape, () => Navigate("/menu"));
         KeyBindings.Register(ConsoleKey.Tab, CycleFocus);
 
         // Subscribe to selection events

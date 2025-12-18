@@ -62,6 +62,35 @@ public abstract class ReactivePage<TViewModel> : IBindablePage, IDisposable
     /// </summary>
     protected IFocusManager Focus { get; private set; } = null!;
 
+    private Action<string> _navigate = _ => { };
+    private Action<string, object?> _navigateWithParams = (_, _) => { };
+    private Action _shutdown = () => { };
+
+    /// <summary>
+    /// Navigates to the specified route.
+    /// Use this for input-driven navigation (e.g., Escape to go back).
+    /// </summary>
+    /// <param name="route">The route to navigate to.</param>
+    /// <example>
+    /// <code>
+    /// KeyBindings.Register(ConsoleKey.Escape, () => Navigate("/menu"));
+    /// </code>
+    /// </example>
+    protected void Navigate(string route) => _navigate(route);
+
+    /// <summary>
+    /// Navigates to the specified route with parameters.
+    /// </summary>
+    /// <param name="routeTemplate">The route template (e.g., "/items/{id}").</param>
+    /// <param name="parameters">Anonymous object with parameter values.</param>
+    protected void NavigateWithParams(string routeTemplate, object? parameters) =>
+        _navigateWithParams(routeTemplate, parameters);
+
+    /// <summary>
+    /// Requests application shutdown.
+    /// </summary>
+    protected void Shutdown() => _shutdown();
+
     /// <summary>
     /// Key bindings for this page.
     /// Register bindings to intercept keys before they reach focused components.
@@ -79,7 +108,7 @@ public abstract class ReactivePage<TViewModel> : IBindablePage, IDisposable
     /// public override void OnNavigatedTo()
     /// {
     ///     base.OnNavigatedTo();
-    ///     KeyBindings.Register(ConsoleKey.Escape, () => ViewModel.Navigate("/menu"));
+    ///     KeyBindings.Register(ConsoleKey.Escape, () => Navigate("/menu"));
     ///     KeyBindings.Register(ConsoleKey.Tab, () => CycleFocus());
     /// }
     /// </code>
@@ -115,6 +144,16 @@ public abstract class ReactivePage<TViewModel> : IBindablePage, IDisposable
     void IBindablePage.WireUpFocus(IFocusManager focusManager)
     {
         Focus = focusManager;
+    }
+
+    /// <summary>
+    /// Wires up navigation capabilities to this page.
+    /// </summary>
+    void IBindablePage.WireUpNavigation(Action<string> navigate, Action<string, object?> navigateWithParams, Action shutdown)
+    {
+        _navigate = navigate;
+        _navigateWithParams = navigateWithParams;
+        _shutdown = shutdown;
     }
 
     /// <summary>

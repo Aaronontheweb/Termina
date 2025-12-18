@@ -25,7 +25,7 @@ public class AnimationsGalleryPage : ReactivePage<AnimationsGalleryViewModel>
         base.OnNavigatedTo();
 
         // Page-level key binding for navigation (capture phase)
-        KeyBindings.Register(ConsoleKey.Escape, () => ViewModel.Navigate("/menu"));
+        KeyBindings.Register(ConsoleKey.Escape, () => Navigate("/menu"));
 
         // When user selects a style with Enter, update the ViewModel
         _styleList.SelectionConfirmed

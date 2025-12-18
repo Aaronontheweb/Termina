@@ -21,7 +21,7 @@ public class LayoutGalleryPage : ReactivePage<LayoutGalleryViewModel>
         base.OnNavigatedTo();
 
         // Page-level key binding for navigation (capture phase)
-        KeyBindings.Register(ConsoleKey.Escape, () => ViewModel.Navigate("/menu"));
+        KeyBindings.Register(ConsoleKey.Escape, () => Navigate("/menu"));
     }
 
     public override ILayoutNode BuildLayout()

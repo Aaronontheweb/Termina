@@ -56,21 +56,30 @@ builder.Services.AddTermina("/", termina =>
 ## Data Flow
 
 ```
-Input Events (keyboard) → ViewModel → [Reactive] Property Change
-        ↑                                      ↓
-        │                            Observable emits new value
-        │                                      ↓
-        │                            Page re-renders region
-        │                                      ↓
-        └───────────── ANSI Terminal Output ←──┘
+Keyboard Input
+      │
+      ▼
+Page (capture) → Focused Component (bubble) → ViewModel
+      │                    │                       │
+      └────────────────────┴───────────────────────┘
+                           ↓
+                  [Reactive] Property Change
+                           ↓
+                  Observable emits new value
+                           ↓
+                  Page re-renders region
+                           ↓
+                  ANSI Terminal Output
 ```
 
 1. User presses a key
-2. ViewModel receives input event
-3. ViewModel updates a `[Reactive]` property
-4. The property's `*Changed` observable emits
-5. Page's reactive binding receives the value
-6. Only the affected region re-renders
+2. Page's `KeyBindings` checked first (capture phase)
+3. If not handled, focused component receives input (bubble phase)
+4. If not handled, ViewModel's `Input` observable receives event
+5. State change updates a `[Reactive]` property
+6. The property's `*Changed` observable emits
+7. Page's reactive binding receives the value
+8. Only the affected region re-renders
 
 ## Sections
 

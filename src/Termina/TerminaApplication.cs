@@ -249,9 +249,10 @@ public sealed class TerminaApplication
             // Wire up ViewModel with navigation, shutdown, redraw, and input
             _currentViewModel.WireUp(NavigateTo, (t, v) => NavigateTo(t, v), Shutdown, RequestRedraw, Input);
 
-            // Bind page to ViewModel and wire up focus
+            // Bind page to ViewModel and wire up focus and navigation
             BindPageToViewModel(_currentPage, _currentViewModel);
             WireUpPageFocus(_currentPage);
+            WireUpPageNavigation(_currentPage);
 
             // Cache if PreserveState
             if (registration.Behavior == NavigationBehavior.PreserveState)
@@ -290,6 +291,17 @@ public sealed class TerminaApplication
         if (page is IBindablePage bindablePage)
         {
             bindablePage.WireUpFocus(_focusManager);
+        }
+    }
+
+    /// <summary>
+    /// Wires up navigation capabilities to the page.
+    /// </summary>
+    private void WireUpPageNavigation(IPage page)
+    {
+        if (page is IBindablePage bindablePage)
+        {
+            bindablePage.WireUpNavigation(NavigateTo, (t, v) => NavigateTo(t, v), Shutdown);
         }
     }
 

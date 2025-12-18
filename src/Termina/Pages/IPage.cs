@@ -49,6 +49,14 @@ internal interface IBindablePage : IPage, IDisposable
     void WireUpFocus(Input.IFocusManager focusManager);
 
     /// <summary>
+    /// Wires up navigation capabilities to this page.
+    /// </summary>
+    /// <param name="navigate">The navigation delegate.</param>
+    /// <param name="navigateWithParams">The navigation with parameters delegate.</param>
+    /// <param name="shutdown">The shutdown delegate.</param>
+    void WireUpNavigation(Action<string> navigate, Action<string, object?> navigateWithParams, Action shutdown);
+
+    /// <summary>
     /// Gets the current cached layout root, if any.
     /// </summary>
     ILayoutNode? LayoutRoot { get; }
