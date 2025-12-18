@@ -76,6 +76,18 @@ public class PersistedStreamBuffer : IStreamingTextBuffer
         }
     }
 
+    /// <inheritdoc />
+    public bool HasContentOnCurrentLine
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _currentStyledLine.Length > 0;
+            }
+        }
+    }
+
     /// <summary>
     /// Gets or sets whether auto-scroll is enabled.
     /// When true (default), view scrolls to bottom on new content if not manually scrolled.

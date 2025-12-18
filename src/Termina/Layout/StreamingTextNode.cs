@@ -191,6 +191,7 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode
     /// <summary>
     /// Appends a tracked text segment that can be removed or replaced later.
     /// The caller provides the ID to reference this segment.
+    /// If the segment is a <see cref="BlockSegment"/>, it will start on a new line.
     /// </summary>
     /// <param name="id">The unique identifier for this segment (provided by caller).</param>
     /// <param name="segment">The text segment to append.</param>
@@ -205,15 +206,21 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode
             if (_segmentIndices.ContainsKey(id))
                 throw new ArgumentException($"SegmentId {id.Value} is already in use", nameof(id));
 
+            // If this is a block segment, ensure it starts on a new line
+            EnsureBlockNewLine(segment);
+
+            // Unwrap BlockSegment to get the inner segment
+            var innerSegment = UnwrapBlock(segment);
+
             var element = new TrackedElement(id, segment);
             var index = _content.Count;
 
             _content.Add(element);
             _segmentIndices[id] = index;
-            _buffer.Append(segment.GetCurrentSegment());
+            _buffer.Append(innerSegment.GetCurrentSegment());
 
             // Subscribe to animation invalidation if this is an animated segment
-            if (segment is IAnimatedTextSegment animated)
+            if (innerSegment is IAnimatedTextSegment animated)
             {
                 var subscription = animated.Invalidated.Subscribe(_ =>
                 {
@@ -353,15 +360,41 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode
 
         foreach (var element in _content)
         {
-            var segment = element switch
+            switch (element)
             {
-                StaticElement s => s.Segment,
-                TrackedElement t => t.Segment.GetCurrentSegment(),
-                _ => throw new InvalidOperationException($"Unknown content element type: {element.GetType()}")
-            };
-
-            _buffer.Append(segment);
+                case StaticElement s:
+                    _buffer.Append(s.Segment);
+                    break;
+                case TrackedElement t:
+                    // Handle block segments in rebuild
+                    EnsureBlockNewLine(t.Segment);
+                    var inner = UnwrapBlock(t.Segment);
+                    _buffer.Append(inner.GetCurrentSegment());
+                    break;
+                default:
+                    throw new InvalidOperationException($"Unknown content element type: {element.GetType()}");
+            }
         }
+    }
+
+    /// <summary>
+    /// If the segment is a BlockSegment and the current line has content,
+    /// ensures we start on a new line.
+    /// </summary>
+    private void EnsureBlockNewLine(ITextSegment segment)
+    {
+        if (segment is BlockSegment && _buffer.HasContentOnCurrentLine)
+        {
+            _buffer.AppendLine(string.Empty);
+        }
+    }
+
+    /// <summary>
+    /// Unwraps a BlockSegment to get the inner segment, or returns the segment as-is.
+    /// </summary>
+    private static ITextSegment UnwrapBlock(ITextSegment segment)
+    {
+        return segment is BlockSegment block ? block.Inner : segment;
     }
 
     /// <summary>

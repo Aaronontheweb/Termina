@@ -418,16 +418,154 @@ var blink = new BlinkSegment("URGENT", Color.Red);
 stream.AppendTracked(new SegmentId(1), blink);
 ```
 
+## Block-Level Segments
+
+Block-level segments force content to start on a new line and wrap vertically within their container. This is ideal for content that should update in-place without pushing surrounding text around, such as LLM "thinking" indicators or status blocks.
+
+### The `.AsBlock()` Extension
+
+Any `ITextSegment` can be wrapped as a block using the `.AsBlock()` fluent API:
+
+```csharp
+using Termina.Components.Streaming;
+
+var stream = StreamingTextNode.Create();
+
+// Regular inline content
+stream.Append("Status: ");
+
+// Block-level content (starts on new line)
+var statusBlock = new StaticTextSegment(
+    "Processing...",
+    new TextStyle { Foreground = Color.Yellow }
+).AsBlock();
+
+stream.AppendTracked(new SegmentId(1), statusBlock);
+```
+
+### How Block Segments Work
+
+When you append a `BlockSegment`:
+1. If the current line has content, a newline is automatically inserted
+2. The block content renders on its own line
+3. The content wraps vertically to fit the container width
+4. Surrounding content is not pushed when the block updates
+
+This creates a "window within a window" effect where the block updates in-place.
+
+### Real-World Example: LLM Thinking Indicator
+
+From the streaming chat demo, showing how thinking blocks update in-place:
+
+```csharp
+public partial class StreamingChatViewModel : ReactiveViewModel
+{
+    private static readonly SegmentId ThinkingSpinnerId = new(1);
+    private static readonly SegmentId ThinkingBlockId = new(2);
+    private bool _thinkingBlockShown;
+
+    private async Task ConsumeResponseStreamAsync()
+    {
+        await foreach (var token in response.TokenStream)
+        {
+            switch (token)
+            {
+                case LlmMessages.ThinkingToken thinking:
+                    // On first thinking token, replace spinner with thinking block
+                    if (!_thinkingBlockShown)
+                    {
+                        _chatOutput.OnNext(new ReplaceTrackedSegment(
+                            ThinkingSpinnerId,
+                            new StaticTextSegment("", TextStyle.Default),
+                            KeepTracked: false));
+
+                        // Add thinking block that updates in place
+                        var thinkingSegment = new StaticTextSegment(
+                            $"💭 {thinking.Text}",
+                            new TextStyle
+                            {
+                                Foreground = Color.BrightBlack,
+                                Decoration = TextDecoration.Italic
+                            }).AsBlock();
+
+                        _chatOutput.OnNext(new AppendTrackedSegment(ThinkingBlockId, thinkingSegment));
+                        _thinkingBlockShown = true;
+                    }
+                    else
+                    {
+                        // Update existing thinking block in-place
+                        var thinkingSegment = new StaticTextSegment(
+                            $"💭 {thinking.Text}",
+                            new TextStyle
+                            {
+                                Foreground = Color.BrightBlack,
+                                Decoration = TextDecoration.Italic
+                            }).AsBlock();
+
+                        _chatOutput.OnNext(new ReplaceTrackedSegment(
+                            ThinkingBlockId,
+                            thinkingSegment,
+                            KeepTracked: true));
+                    }
+                    break;
+
+                case LlmMessages.TextChunk chunk:
+                    // Remove thinking block when actual content arrives
+                    if (!HasReceivedText)
+                    {
+                        _chatOutput.OnNext(new RemoveTrackedSegment(ThinkingBlockId));
+                        HasReceivedText = true;
+                    }
+                    _chatOutput.OnNext(new AppendText(chunk.Text));
+                    break;
+            }
+        }
+    }
+}
+```
+
+In this example:
+- The thinking text (like "💭 Analyzing the question..." or "💭 Formulating response...") updates every ~250ms
+- The block stays on its own line, wrapping vertically if needed
+- When actual response text arrives, the thinking block is removed without leaving a gap
+- The surrounding content (previous messages, following response) stays in place
+
+### Block Segments with Animation
+
+Block segments work seamlessly with animated segments:
+
+```csharp
+// Animated spinner as a block
+var spinnerBlock = new SpinnerSegment(
+    SpinnerStyle.Dots,
+    Color.Yellow
+).AsBlock();
+
+stream.AppendTracked(new SegmentId(1), spinnerBlock);
+
+// The spinner animates on its own line
+// Updates don't affect surrounding content
+```
+
+### Use Cases
+
+- **LLM Thinking Indicators**: Show intermediate "thinking" steps that update in-place
+- **Multi-line Status Blocks**: Status information that needs 2-3 lines and updates frequently
+- **In-place Progress Indicators**: Progress that wraps across multiple lines
+- **Temporary Notifications**: Alerts that appear, update, then disappear without disrupting flow
+- **Live Metrics**: Real-time stats that update in a fixed block without scrolling
+
 ### Performance Considerations
 
 - **Untracked appends**: O(1), zero overhead
 - **Tracked appends**: O(1), minimal tracking overhead
 - **Remove/Replace**: O(n) buffer rebuild, but only when mutating
 - **Animation frames**: No rebuild, just invalidation for redraw
+- **Block segments**: Same performance as regular segments, just with automatic newline insertion
 
 Most content should be untracked. Only use tracked segments for dynamic elements that need mutation.
 
-### Use Cases
+### General Tracked Segment Use Cases
 
 - **Spinners**: Loading indicators while waiting for async operations
 - **Timers**: Countdown or elapsed time displays

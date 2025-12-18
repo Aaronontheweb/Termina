@@ -62,6 +62,7 @@ public partial class StreamingChatViewModel : ReactiveViewModel
 {
     // Predefined segment IDs for tracked elements
     private static readonly SegmentId ThinkingSpinnerId = new(1);
+    private static readonly SegmentId ThinkingBlockId = new(2);
 
     private readonly IRequiredActor<LlmSimulatorActor> _llmActorProvider;
     private readonly List<string> _promptHistory = new();
@@ -69,6 +70,7 @@ public partial class StreamingChatViewModel : ReactiveViewModel
     private IActorRef? _llmActor;
     private CancellationTokenSource? _generationCts;
     private SpinnerSegment? _currentSpinner;
+    private bool _thinkingBlockShown;
 
     // Subjects for chat output - Page subscribes to these
     private readonly Subject<IChatMessage> _chatOutput = new();
@@ -269,6 +271,7 @@ public partial class StreamingChatViewModel : ReactiveViewModel
         // Start generation
         IsGenerating = true;
         HasReceivedText = false;
+        _thinkingBlockShown = false;
         StatusMessage = "Generating response...";
 
         _ = ConsumeResponseStreamAsync(prompt, decisionContext);
@@ -296,13 +299,9 @@ public partial class StreamingChatViewModel : ReactiveViewModel
             {
                 switch (token)
                 {
-                    case LlmMessages.ThinkingToken:
-                        // Skip thinking tokens - status bar already shows "Generating response..."
-                        break;
-
-                    case LlmMessages.TextChunk chunk:
-                        // On first text chunk, replace the spinner with static empty segment
-                        if (!HasReceivedText)
+                    case LlmMessages.ThinkingToken thinking:
+                        // On first thinking token, replace spinner with thinking block
+                        if (!_thinkingBlockShown)
                         {
                             _chatOutput.OnNext(new ReplaceTrackedSegment(
                                 ThinkingSpinnerId,
@@ -310,6 +309,29 @@ public partial class StreamingChatViewModel : ReactiveViewModel
                                 KeepTracked: false));
                             _currentSpinner?.Dispose();
                             _currentSpinner = null;
+
+                            // Add thinking block that will update in place
+                            var thinkingSegment = new StaticTextSegment(
+                                $"💭 {thinking.Text}",
+                                new TextStyle { Foreground = Color.BrightBlack, Decoration = TextDecoration.Italic }).AsBlock();
+                            _chatOutput.OnNext(new AppendTrackedSegment(ThinkingBlockId, thinkingSegment));
+                            _thinkingBlockShown = true;
+                        }
+                        else
+                        {
+                            // Update existing thinking block
+                            var thinkingSegment = new StaticTextSegment(
+                                $"💭 {thinking.Text}",
+                                new TextStyle { Foreground = Color.BrightBlack, Decoration = TextDecoration.Italic }).AsBlock();
+                            _chatOutput.OnNext(new ReplaceTrackedSegment(ThinkingBlockId, thinkingSegment, KeepTracked: true));
+                        }
+                        break;
+
+                    case LlmMessages.TextChunk chunk:
+                        // On first text chunk, remove thinking block
+                        if (!HasReceivedText)
+                        {
+                            _chatOutput.OnNext(new RemoveTrackedSegment(ThinkingBlockId));
                             HasReceivedText = true;
                         }
 
@@ -323,15 +345,10 @@ public partial class StreamingChatViewModel : ReactiveViewModel
                         break;
 
                     case LlmMessages.DecisionPointToken decision:
-                        // On first content (decision point), replace spinner
+                        // On first content (decision point), remove thinking block
                         if (!HasReceivedText)
                         {
-                            _chatOutput.OnNext(new ReplaceTrackedSegment(
-                                ThinkingSpinnerId,
-                                new StaticTextSegment("", TextStyle.Default),
-                                KeepTracked: false));
-                            _currentSpinner?.Dispose();
-                            _currentSpinner = null;
+                            _chatOutput.OnNext(new RemoveTrackedSegment(ThinkingBlockId));
                             HasReceivedText = true;
                         }
 
