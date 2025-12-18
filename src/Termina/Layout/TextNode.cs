@@ -8,6 +8,27 @@ using Termina.Terminal;
 namespace Termina.Layout;
 
 /// <summary>
+/// Horizontal text alignment within a layout node.
+/// </summary>
+public enum TextAlignment
+{
+    /// <summary>
+    /// Align text to the left edge (default).
+    /// </summary>
+    Left,
+
+    /// <summary>
+    /// Center text horizontally.
+    /// </summary>
+    Center,
+
+    /// <summary>
+    /// Align text to the right edge.
+    /// </summary>
+    Right
+}
+
+/// <summary>
 /// A layout node that renders text.
 /// </summary>
 public sealed class TextNode : LayoutNode
@@ -49,6 +70,11 @@ public sealed class TextNode : LayoutNode
     /// Default is true.
     /// </summary>
     public bool WordWrap { get; private set; } = true;
+
+    /// <summary>
+    /// Horizontal text alignment. Default is Left.
+    /// </summary>
+    public TextAlignment Alignment { get; private set; } = TextAlignment.Left;
 
     public TextNode(string content)
     {
@@ -114,6 +140,33 @@ public sealed class TextNode : LayoutNode
         return this;
     }
 
+    /// <summary>
+    /// Set horizontal text alignment.
+    /// </summary>
+    public TextNode Align(TextAlignment alignment)
+    {
+        Alignment = alignment;
+        return this;
+    }
+
+    /// <summary>
+    /// Center text horizontally.
+    /// </summary>
+    public TextNode AlignCenter()
+    {
+        Alignment = TextAlignment.Center;
+        return this;
+    }
+
+    /// <summary>
+    /// Align text to the right.
+    /// </summary>
+    public TextNode AlignRight()
+    {
+        Alignment = TextAlignment.Right;
+        return this;
+    }
+
     /// <inheritdoc />
     public override Size Measure(Size available)
     {
@@ -166,7 +219,15 @@ public sealed class TextNode : LayoutNode
                 ? line[..bounds.Width]
                 : line;
 
-            textContext.WriteAt(0, i, displayLine);
+            // Calculate horizontal offset based on alignment
+            var x = Alignment switch
+            {
+                TextAlignment.Center => Math.Max(0, (bounds.Width - displayLine.Length) / 2),
+                TextAlignment.Right => Math.Max(0, bounds.Width - displayLine.Length),
+                _ => 0 // Left alignment
+            };
+
+            textContext.WriteAt(x, i, displayLine);
         }
 
         // Reset colors

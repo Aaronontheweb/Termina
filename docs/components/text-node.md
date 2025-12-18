@@ -19,6 +19,26 @@ new TextNode("Styled text")
     .Underline();
 ```
 
+## Text Alignment
+
+Control horizontal text alignment within the available space:
+
+```csharp
+// Left aligned (default)
+new TextNode("Left aligned")
+
+// Center aligned
+new TextNode("Centered text").AlignCenter()
+
+// Right aligned
+new TextNode("Right aligned").AlignRight()
+
+// Or use the general method
+new TextNode("Aligned text").Align(TextAlignment.Center)
+```
+
+Alignment works with both single-line and multi-line text. Each line is aligned independently.
+
 ## Word Wrapping
 
 Word wrapping is **enabled by default**. Text will wrap at word boundaries when it exceeds the available width.
@@ -74,6 +94,7 @@ public TextNode(string content)
 | `IsItalic` | `bool` | `false` | Whether text is italic |
 | `IsUnderline` | `bool` | `false` | Whether text is underlined |
 | `WordWrap` | `bool` | `true` | Whether to wrap text |
+| `Alignment` | `TextAlignment` | `Left` | Horizontal text alignment |
 
 ### Fluent Methods
 
@@ -85,6 +106,9 @@ public TextNode(string content)
 | `.Italic()` | Make text italic |
 | `.Underline()` | Make text underlined |
 | `.NoWrap()` | Disable word wrapping |
+| `.Align(TextAlignment)` | Set horizontal alignment |
+| `.AlignCenter()` | Center text horizontally |
+| `.AlignRight()` | Right-align text |
 
 ## Source Code
 

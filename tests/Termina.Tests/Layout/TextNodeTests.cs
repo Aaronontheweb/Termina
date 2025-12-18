@@ -147,4 +147,95 @@ public class TextNodeTests
 
         Assert.Same(node, result);
     }
+
+    [Fact]
+    public void Alignment_DefaultsToLeft()
+    {
+        var node = new TextNode("Hello");
+
+        Assert.Equal(TextAlignment.Left, node.Alignment);
+    }
+
+    [Fact]
+    public void Align_SetsAlignment()
+    {
+        var node = new TextNode("Hello").Align(TextAlignment.Center);
+
+        Assert.Equal(TextAlignment.Center, node.Alignment);
+    }
+
+    [Fact]
+    public void AlignCenter_SetsAlignment()
+    {
+        var node = new TextNode("Hello").AlignCenter();
+
+        Assert.Equal(TextAlignment.Center, node.Alignment);
+    }
+
+    [Fact]
+    public void AlignRight_SetsAlignment()
+    {
+        var node = new TextNode("Hello").AlignRight();
+
+        Assert.Equal(TextAlignment.Right, node.Alignment);
+    }
+
+    [Fact]
+    public void Render_CenterAlignment_CentersText()
+    {
+        var terminal = new VirtualTerminal(80, 24);
+        var context = new RegionRenderContext(terminal, 0, 0, 80, 24);
+        var node = new TextNode("Hi").AlignCenter();
+
+        // Render with width of 10
+        // "Hi" is 2 chars, should be at position (10-2)/2 = 4
+        node.Render(context, new Rect(0, 0, 10, 1));
+
+        var line = terminal.GetLine(0);
+        Assert.Equal("    Hi", line.Substring(0, 6));
+    }
+
+    [Fact]
+    public void Render_RightAlignment_RightAlignsText()
+    {
+        var terminal = new VirtualTerminal(80, 24);
+        var context = new RegionRenderContext(terminal, 0, 0, 80, 24);
+        var node = new TextNode("Hi").AlignRight();
+
+        // Render with width of 10
+        // "Hi" is 2 chars, should be at position 10-2 = 8
+        node.Render(context, new Rect(0, 0, 10, 1));
+
+        var line = terminal.GetLine(0);
+        Assert.Equal("        Hi", line.Substring(0, 10));
+    }
+
+    [Fact]
+    public void Render_LeftAlignment_LeftAlignsText()
+    {
+        var terminal = new VirtualTerminal(80, 24);
+        var context = new RegionRenderContext(terminal, 0, 0, 80, 24);
+        var node = new TextNode("Hi").Align(TextAlignment.Left);
+
+        node.Render(context, new Rect(0, 0, 10, 1));
+
+        var line = terminal.GetLine(0);
+        Assert.Equal("Hi", line.Substring(0, 2));
+    }
+
+    [Fact]
+    public void Render_CenterAlignment_MultiLine_CentersEachLine()
+    {
+        var terminal = new VirtualTerminal(80, 24);
+        var context = new RegionRenderContext(terminal, 0, 0, 80, 24);
+        var node = new TextNode("Hi\nHello").AlignCenter();
+
+        // Render with width of 10
+        // "Hi" (2 chars) at position 4
+        // "Hello" (5 chars) at position 2
+        node.Render(context, new Rect(0, 0, 10, 3));
+
+        Assert.Equal("    Hi", terminal.GetLine(0).Substring(0, 6));
+        Assert.Equal("  Hello", terminal.GetLine(1).Substring(0, 7));
+    }
 }

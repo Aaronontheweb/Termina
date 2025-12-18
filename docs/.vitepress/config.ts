@@ -39,6 +39,7 @@ export default defineConfig({
         { text: 'Layout System', link: '/layout/' },
         { text: 'Size Constraints', link: '/layout/size-constraints' },
         { text: 'Vertical & Horizontal', link: '/layout/vertical-horizontal' },
+        { text: 'Grid Layout', link: '/layout/grid' },
         { text: 'Nesting Layouts', link: '/layout/nesting' },
         { text: 'Responsive Design', link: '/layout/responsive' }
       ],
