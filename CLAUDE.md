@@ -33,6 +33,39 @@ All layout nodes use fluent builder pattern with `With*` methods that return `th
 
 Use `SizeConstraint` (Fixed, Fill, Auto, Percent) for sizing rather than hardcoded values.
 
+### ITextSegment as Universal Text Type
+
+**Any API that accepts text should accept `ITextSegment`, not raw `string`.** This enables composition of multiple styled segments (different colors, decorations) within a single text element.
+
+- `ITextSegment` is the universal currency for styled text
+- `StyledSegment` provides text + style (foreground, background, decoration)
+- `CompositeTextSegment` combines multiple segments with different styles
+- Convenience overloads accepting `string` are acceptable but should convert to `ITextSegment` internally
+
+**Correct:**
+```csharp
+public TextNode WithContent(ITextSegment segment)
+{
+    _segment = segment;
+    return this;
+}
+
+// Convenience overload
+public TextNode WithContent(string text) => WithContent(new StaticTextSegment(text));
+```
+
+**Why this matters:**
+```csharp
+// A table cell with mixed styling
+var cell = new CompositeTextSegment(
+    new StaticTextSegment("Status: "),
+    new StaticTextSegment("Online", new TextStyle(Foreground: Color.Green, Bold: true))
+);
+tableNode.SetCell(0, 1, new TextNode().WithContent(cell));
+```
+
+This principle ensures all text-accepting components (TextNode, table cells, status bars, etc.) can display rich, multi-styled content without requiring specialized node types.
+
 ## Testing Guidelines
 
 ### Deterministic Observable Testing
