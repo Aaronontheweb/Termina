@@ -83,6 +83,18 @@ public class WindowedStreamBuffer : IStreamingTextBuffer
         }
     }
 
+    /// <inheritdoc />
+    public bool HasContentOnCurrentLine
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _currentStyledLine.Length > 0;
+            }
+        }
+    }
+
     /// <summary>
     /// Gets the number of lines that have been discarded due to window overflow.
     /// Useful for knowing how much content has scrolled past.

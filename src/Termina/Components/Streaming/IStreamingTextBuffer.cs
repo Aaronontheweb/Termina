@@ -29,6 +29,12 @@ public interface IStreamingTextBuffer
     bool HasContent { get; }
 
     /// <summary>
+    /// Gets whether the current (incomplete) line has any content.
+    /// Used to determine if a newline should be inserted before block elements.
+    /// </summary>
+    bool HasContentOnCurrentLine { get; }
+
+    /// <summary>
     /// Appends text to the buffer. Handles newlines appropriately.
     /// </summary>
     /// <param name="text">Text to append (may contain newlines).</param>
