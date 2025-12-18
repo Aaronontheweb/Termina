@@ -1,31 +1,209 @@
 # Input Handling
 
-Termina provides an observable stream of input events for keyboard, mouse, and terminal resize handling.
+Termina provides a structured input routing system with two phases: **capture** (page-level) and **bubble** (component-level), followed by the ViewModel's input observable for any remaining events.
 
-## Input Ownership
+## Input Flow Overview
 
-The `Input` observable is owned by the **ViewModel** and is public, allowing both ViewModels and Pages to subscribe:
+```
+Keyboard Input
+      │
+      ▼
+┌─────────────────────────────────────────┐
+│  CAPTURE PHASE (Page)                   │
+│  Page.KeyBindings intercepts first      │
+│  Good for: Escape, Tab, global hotkeys  │
+└─────────────────────────────────────────┘
+      │ (if not consumed)
+      ▼
+┌─────────────────────────────────────────┐
+│  BUBBLE PHASE (Components)              │
+│  FocusManager routes to focused node    │
+│  Good for: Text input, list navigation  │
+└─────────────────────────────────────────┘
+      │ (if not consumed)
+      ▼
+┌─────────────────────────────────────────┐
+│  VIEWMODEL (ViewModel.Input)            │
+│  Observable receives unconsumed events  │
+│  Good for: State changes, fallback      │
+└─────────────────────────────────────────┘
+```
 
-- **ViewModels** handle input to update state and business logic (most common)
-- **Pages** can access `ViewModel.Input` to route input to interactive layout nodes (TextInputNode, scrollable content)
+This model is similar to DOM event handling where events are captured from the top down, then bubble up from the target.
+
+## Page-Level Key Bindings (Capture Phase)
+
+Use `KeyBindings` in your Page to intercept keys **before** focused components receive them. This is essential for navigation keys like Escape that should always work, regardless of what component has focus.
+
+### Basic Usage
 
 ```csharp
-// In ViewModel - handle input for state changes
-public override void OnActivated()
+public class MyPage : ReactivePage<MyViewModel>
 {
-    Input.OfType<KeyPressed>()
-        .Subscribe(HandleKey)
-        .DisposeWith(Subscriptions);
-}
+    public override void OnNavigatedTo()
+    {
+        base.OnNavigatedTo();
 
-// In Page - route input to interactive layout nodes
-protected override void OnBound()
-{
-    ViewModel.Input.OfType<KeyPressed>()
-        .Subscribe(key => _textInput.HandleInput(key.KeyInfo))
-        .DisposeWith(Subscriptions);
+        // Register page-level key bindings (capture phase)
+        // Pages have direct access to Navigate() and Shutdown()
+        KeyBindings.Register(ConsoleKey.Escape, () => Navigate("/menu"));
+        KeyBindings.Register(ConsoleKey.Q, () => Shutdown());
+    }
 }
 ```
+
+### With Modifiers
+
+```csharp
+public override void OnNavigatedTo()
+{
+    base.OnNavigatedTo();
+
+    // Ctrl+S to save
+    KeyBindings.Register(ConsoleKey.S, ConsoleModifiers.Control, () => ViewModel.Save());
+
+    // Shift+Tab for reverse navigation
+    KeyBindings.Register(ConsoleKey.Tab, ConsoleModifiers.Shift, () => FocusPrevious());
+
+    // Plain Tab for forward navigation
+    KeyBindings.Register(ConsoleKey.Tab, () => FocusNext());
+}
+```
+
+### Focus Cycling Example
+
+```csharp
+public class FormPage : ReactivePage<FormViewModel>
+{
+    private TextInputNode _nameInput = null!;
+    private TextInputNode _emailInput = null!;
+    private int _focusIndex;
+
+    public override void OnNavigatedTo()
+    {
+        base.OnNavigatedTo();
+
+        KeyBindings.Register(ConsoleKey.Escape, () => Navigate("/"));
+        KeyBindings.Register(ConsoleKey.Tab, CycleFocus);
+
+        // Start with first input focused
+        _focusIndex = 0;
+        Focus.PushFocus(_nameInput);
+    }
+
+    private void CycleFocus()
+    {
+        _focusIndex = (_focusIndex + 1) % 2;
+        var target = _focusIndex == 0 ? _nameInput : _emailInput;
+        Focus.PushFocus(target);
+    }
+}
+```
+
+### When to Use Page-Level Bindings
+
+| Use Case | Example |
+|----------|---------|
+| Navigation keys | Escape to go back, Q to quit |
+| Global shortcuts | Ctrl+S save, Ctrl+Z undo |
+| Focus management | Tab/Shift+Tab between inputs |
+| Modal dismissal | Escape to close dialog |
+| Menu shortcuts | F1 for help, F5 for refresh |
+
+## Component-Level Input (Bubble Phase)
+
+After the capture phase, input routes to the currently focused component via `FocusManager`. Components implement `IFocusable.HandleInput()` to process keys.
+
+### Built-in Focusable Components
+
+| Component | Handles |
+|-----------|---------|
+| `TextInputNode` | Character input, backspace, cursor movement |
+| `SelectionListNode` | Arrow keys, Enter, number keys 1-9 |
+| `ScrollableContainerNode` | Arrow keys for scrolling |
+
+### Focus Management
+
+```csharp
+public class MyPage : ReactivePage<MyViewModel>
+{
+    private SelectionListNode<string> _list = null!;
+
+    public override void OnNavigatedTo()
+    {
+        base.OnNavigatedTo();
+
+        // Set initial focus
+        Focus.PushFocus(_list);
+    }
+
+    private void ShowTextInput()
+    {
+        // Push new focus (previous is saved)
+        Focus.PushFocus(_textInput);
+    }
+
+    private void HideTextInput()
+    {
+        // Pop focus (returns to previous)
+        Focus.PopFocus();
+    }
+}
+```
+
+### Custom Focusable Component
+
+```csharp
+public class CustomInput : LayoutNode, IFocusable
+{
+    public bool IsFocused { get; set; }
+
+    public bool HandleInput(ConsoleKeyInfo keyInfo)
+    {
+        // Return true if you handled (consumed) the key
+        // Return false to let it bubble to ViewModel
+        if (keyInfo.Key == ConsoleKey.Enter)
+        {
+            OnSubmit();
+            return true;  // Consumed
+        }
+
+        return false;  // Not consumed, continue to ViewModel
+    }
+}
+```
+
+## ViewModel Input Observable
+
+Keys not consumed by the capture or bubble phases arrive at the ViewModel's `Input` observable:
+
+```csharp
+public partial class MyViewModel : ReactiveViewModel
+{
+    public override void OnActivated()
+    {
+        // Handle keys that weren't consumed by Page or focused component
+        Input.OfType<KeyPressed>()
+            .Subscribe(HandleKey)
+            .DisposeWith(Subscriptions);
+    }
+
+    private void HandleKey(KeyPressed key)
+    {
+        // This only receives keys not handled elsewhere
+        switch (key.KeyInfo.Key)
+        {
+            case ConsoleKey.F5:
+                Refresh();
+                break;
+        }
+    }
+}
+```
+
+::: warning Migration Note
+Prior to v0.5, the ViewModel's `Input` observable received all keys. Now, with page-level key bindings, navigation keys like Escape should be handled in the Page using `KeyBindings.Register()` rather than in the ViewModel.
+:::
 
 ## Input Events
 
@@ -35,34 +213,7 @@ All input events implement `IInputEvent`. The framework provides:
 - `MouseEvent` - Mouse clicks, movement, scrolling
 - `ResizeEvent` - Terminal window resize
 
-## Keyboard Input
-
-### Basic Key Handling
-
-```csharp
-public override void OnActivated()
-{
-    Input.OfType<KeyPressed>()
-        .Subscribe(HandleKey)
-        .DisposeWith(Subscriptions);
-}
-
-private void HandleKey(KeyPressed key)
-{
-    switch (key.KeyInfo.Key)
-    {
-        case ConsoleKey.UpArrow:
-            Count++;
-            break;
-        case ConsoleKey.DownArrow:
-            Count--;
-            break;
-        case ConsoleKey.Escape:
-            Shutdown();
-            break;
-    }
-}
-```
+## Keyboard Input Details
 
 ### Checking Modifiers
 
@@ -76,13 +227,6 @@ private void HandleKey(KeyPressed key)
         (info.Modifiers & ConsoleModifiers.Control) != 0)
     {
         Shutdown();
-    }
-
-    // Check for Shift+Tab
-    if (info.Key == ConsoleKey.Tab &&
-        (info.Modifiers & ConsoleModifiers.Shift) != 0)
-    {
-        MoveToPrevious();
     }
 }
 ```
@@ -151,7 +295,6 @@ Input.OfType<MouseEvent>()
 
 private void HandleClick(MouseEvent mouse)
 {
-    // Handle click at (mouse.X, mouse.Y)
     if (IsInButtonBounds(mouse.X, mouse.Y))
     {
         OnButtonClicked();
@@ -213,7 +356,51 @@ Observable.Merge(escPressed.Select(_ => Unit.Default),
     .Subscribe(_ => CloseMenu());
 ```
 
+## Best Practices
+
+### 1. Use Page-Level Bindings for Navigation
+
+```csharp
+// ✅ Good - Page intercepts Escape before any component
+public override void OnNavigatedTo()
+{
+    KeyBindings.Register(ConsoleKey.Escape, () => Navigate("/"));
+}
+
+// ❌ Avoid - Component might consume Escape first
+public override void OnActivated()
+{
+    Input.OfType<KeyPressed>()
+        .Where(k => k.KeyInfo.Key == ConsoleKey.Escape)
+        .Subscribe(_ => Navigate("/"));
+}
+```
+
+### 2. Let Components Handle Their Own Input
+
+```csharp
+// ✅ Good - SelectionListNode handles its own navigation
+Focus.PushFocus(_selectionList);  // Arrow keys, Enter work automatically
+
+// ❌ Avoid - Manually routing input to components
+Input.OfType<KeyPressed>()
+    .Subscribe(k => _selectionList.HandleInput(k.KeyInfo));
+```
+
+### 3. Use ViewModel.Input for State Changes
+
+```csharp
+// ✅ Good - ViewModel handles business logic keys
+Input.OfType<KeyPressed>()
+    .Where(k => k.KeyInfo.Key == ConsoleKey.F5)
+    .Subscribe(_ => RefreshData());
+```
+
 ## Source Code
+
+::: details View PageKeyBindings
+<<< @/../src/Termina/Input/PageKeyBindings.cs{csharp}
+:::
 
 ::: details View KeyPressed
 <<< @/../src/Termina/Input/KeyPressed.cs{csharp}

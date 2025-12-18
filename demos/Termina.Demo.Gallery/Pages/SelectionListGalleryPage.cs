@@ -29,6 +29,11 @@ public class SelectionListGalleryPage : ReactivePage<SelectionListGalleryViewMod
     {
         base.OnNavigatedTo();
 
+        // Page-level key bindings (capture phase - intercepts before focused components)
+        // This is the new recommended pattern for page navigation keys
+        KeyBindings.Register(ConsoleKey.Escape, () => Navigate("/menu"));
+        KeyBindings.Register(ConsoleKey.Tab, CycleFocus);
+
         // Subscribe to selection events
         _singleSelectList.SelectionConfirmed
             .Subscribe(items => ViewModel.OnSingleSelection(items.FirstOrDefault() ?? ""))
@@ -44,24 +49,6 @@ public class SelectionListGalleryPage : ReactivePage<SelectionListGalleryViewMod
 
         _numberedList.SelectionConfirmed
             .Subscribe(items => ViewModel.OnNumberedSelection(items.FirstOrDefault() ?? ""))
-            .DisposeWith(Subscriptions);
-
-        // Subscribe to Cancelled (Escape key) on all lists - navigate back to menu
-        _singleSelectList.Cancelled
-            .Subscribe(_ => ViewModel.NavigateToMenu())
-            .DisposeWith(Subscriptions);
-
-        _multiSelectRichList.Cancelled
-            .Subscribe(_ => ViewModel.NavigateToMenu())
-            .DisposeWith(Subscriptions);
-
-        _numberedList.Cancelled
-            .Subscribe(_ => ViewModel.NavigateToMenu())
-            .DisposeWith(Subscriptions);
-
-        // Subscribe to Tab key to cycle focus between lists
-        ViewModel.TabPressed
-            .Subscribe(_ => CycleFocus())
             .DisposeWith(Subscriptions);
 
         // Default focus to first list
@@ -111,7 +98,7 @@ public class SelectionListGalleryPage : ReactivePage<SelectionListGalleryViewMod
             .WithHighlightColors(Color.Black, Color.Yellow)
             .WithVisibleRows(8);
 
-        // Numbered list with 12 items - demonstrates Issue #101 fix
+        // Scrolling list with 12 items in 6 visible rows
         _numberedList = Layouts.SelectionList(
             Enumerable.Range(1, 12).Select(i => $"Item number {i}"))
             .WithMode(SelectionMode.Single)
@@ -176,16 +163,16 @@ public class SelectionListGalleryPage : ReactivePage<SelectionListGalleryViewMod
                         .Height(2))
                 .WithChild(_multiSelectRichList));
 
-        // Column 3: Numbered list (12 items)
+        // Column 3: Scrolling numbered list (12 items)
         grid.SetCell(0, 2,
             Layouts.Vertical()
                 .WithChild(
-                    new TextNode("12+ Items (Issue #101)")
+                    new TextNode("Scrolling List")
                         .WithForeground(Color.BrightCyan)
                         .Bold()
                         .Height(1))
                 .WithChild(
-                    new TextNode("All items show numbers!")
+                    new TextNode("12 items in 6 visible rows")
                         .WithForeground(Color.DarkGray)
                         .Height(2))
                 .WithChild(_numberedList));

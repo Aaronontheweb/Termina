@@ -1,11 +1,6 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
-using System.Reactive;
-using System.Reactive.Linq;
-using System.Reactive.Subjects;
-using Termina.Extensions;
-using Termina.Input;
 using Termina.Reactive;
 
 namespace Termina.Demo.Gallery.Pages;
@@ -15,11 +10,7 @@ namespace Termina.Demo.Gallery.Pages;
 /// </summary>
 public partial class SelectionListGalleryViewModel : ReactiveViewModel
 {
-    private readonly Subject<Unit> _tabPressed = new();
-
     [Reactive] private string _statusMessage = "Select items and explore different SelectionList features";
-
-    public IObservable<Unit> TabPressed => _tabPressed.AsObservable();
 
     public IReadOnlyList<ServerInfo> Servers { get; } = new List<ServerInfo>
     {
@@ -32,20 +23,6 @@ public partial class SelectionListGalleryViewModel : ReactiveViewModel
     };
 
     private static readonly string[] ListNames = { "Single Select", "Multi-Select", "Numbered List" };
-
-    public override void OnActivated()
-    {
-        // Handle Tab key to cycle focus between lists
-        Input.OfType<KeyPressed>()
-            .Where(k => k.KeyInfo.Key == ConsoleKey.Tab)
-            .Subscribe(_ => _tabPressed.OnNext(Unit.Default))
-            .DisposeWith(Subscriptions);
-    }
-
-    public void NavigateToMenu()
-    {
-        Navigate("/menu");
-    }
 
     public void OnFocusChanged(int listIndex)
     {

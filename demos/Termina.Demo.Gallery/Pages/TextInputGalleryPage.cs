@@ -18,9 +18,15 @@ public class TextInputGalleryPage : ReactivePage<TextInputGalleryViewModel>
     private TextInputNode _basicInput = null!;
     private TextInputNode _placeholderInput = null!;
 
+    private int _focusedInputIndex;
+
     public override void OnNavigatedTo()
     {
         base.OnNavigatedTo();
+
+        // Page-level key bindings (capture phase)
+        KeyBindings.Register(ConsoleKey.Escape, () => Navigate("/menu"));
+        KeyBindings.Register(ConsoleKey.Tab, CycleFocus);
 
         _basicInput.Submitted
             .Subscribe(text => ViewModel.OnBasicInputSubmitted(text))
@@ -30,7 +36,15 @@ public class TextInputGalleryPage : ReactivePage<TextInputGalleryViewModel>
             .Subscribe(text => ViewModel.OnPlaceholderInputSubmitted(text))
             .DisposeWith(Subscriptions);
 
+        _focusedInputIndex = 0;
         Focus.PushFocus(_basicInput);
+    }
+
+    private void CycleFocus()
+    {
+        _focusedInputIndex = (_focusedInputIndex + 1) % 2;
+        var targetInput = _focusedInputIndex == 0 ? _basicInput : _placeholderInput;
+        Focus.PushFocus(targetInput);
     }
 
     public override ILayoutNode BuildLayout()

@@ -1,8 +1,6 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
-using System.Reactive.Linq;
-using Termina.Input;
 using Termina.Reactive;
 using Termina.Terminal;
 using LayoutSpinnerStyle = Termina.Layout.SpinnerStyle;
@@ -25,12 +23,4 @@ public partial class AnimationsGalleryViewModel : ReactiveViewModel
         new("Box", LayoutSpinnerStyle.Box, Color.Cyan, "Rotating box corners"),
         new("Circle", LayoutSpinnerStyle.Circle, Color.Red, "Rotating circle")
     };
-
-    public override void OnActivated()
-    {
-        Input.OfType<KeyPressed>()
-            .Where(k => k.KeyInfo.Key == ConsoleKey.Escape)
-            .Subscribe(_ => Navigate("/menu"))
-            .DisposeWith(Subscriptions);
-    }
 }

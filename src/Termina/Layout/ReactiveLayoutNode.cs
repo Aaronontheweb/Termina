@@ -16,6 +16,7 @@ public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
 {
     private readonly IObservable<ILayoutNode> _source;
     private IDisposable? _subscription;
+    private IDisposable? _childInvalidationSubscription;
     private readonly Subject<Unit> _invalidated = new();
     private ILayoutNode _currentChild;
     private Size _lastMeasuredSize;
@@ -31,6 +32,7 @@ public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
     {
         _source = source;
         _currentChild = initialChild ?? new EmptyNode();
+        SubscribeToChildInvalidation(_currentChild);
 
         _subscription = source.Subscribe(
             onNext: node =>
@@ -41,6 +43,7 @@ public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
                     oldChild.OnDeactivate();
                 }
                 _currentChild = node;
+                SubscribeToChildInvalidation(node);
 
                 // Activate the new child if we're currently active
                 if (_isActive && node is LayoutNode newChildNode)
@@ -52,6 +55,21 @@ public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
             },
             onError: _ => { },
             onCompleted: () => { });
+    }
+
+    /// <summary>
+    /// Subscribe to a child's invalidation events and propagate them upward.
+    /// </summary>
+    private void SubscribeToChildInvalidation(ILayoutNode child)
+    {
+        // Dispose previous child invalidation subscription
+        _childInvalidationSubscription?.Dispose();
+        _childInvalidationSubscription = null;
+
+        if (child is IInvalidatingNode invalidating)
+        {
+            _childInvalidationSubscription = invalidating.Invalidated.Subscribe(_ => _invalidated.OnNext(Unit.Default));
+        }
     }
 
     /// <inheritdoc />
@@ -90,6 +108,7 @@ public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
                         oldChild.OnDeactivate();
                     }
                     _currentChild = node;
+                    SubscribeToChildInvalidation(node);
 
                     // Activate the new child if we're currently active
                     if (_isActive && node is LayoutNode newChildNode)
@@ -102,6 +121,9 @@ public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
                 onError: _ => { },
                 onCompleted: () => { });
         }
+
+        // Re-subscribe to current child's invalidation events (might have been disposed)
+        SubscribeToChildInvalidation(_currentChild);
 
         // Activate current child if it's a LayoutNode
         if (_currentChild is LayoutNode childNode)
@@ -134,6 +156,7 @@ public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
     public override void Dispose()
     {
         _subscription?.Dispose();
+        _childInvalidationSubscription?.Dispose();
         _invalidated.OnCompleted();
         _invalidated.Dispose();
         _currentChild.Dispose();
@@ -149,6 +172,7 @@ public sealed class ReactiveLayoutNode<T> : LayoutNode, IInvalidatingNode
     private readonly IObservable<T> _source;
     private readonly Func<T, ILayoutNode> _transform;
     private IDisposable? _subscription;
+    private IDisposable? _childInvalidationSubscription;
     private readonly Subject<Unit> _invalidated = new();
     private ILayoutNode _currentChild;
     private bool _isActive = false;
@@ -174,6 +198,7 @@ public sealed class ReactiveLayoutNode<T> : LayoutNode, IInvalidatingNode
                     oldChild.OnDeactivate();
                 }
                 _currentChild = _transform(value);
+                SubscribeToChildInvalidation(_currentChild);
 
                 // Activate the new child if we're currently active
                 if (_isActive && _currentChild is LayoutNode newChildNode)
@@ -185,6 +210,21 @@ public sealed class ReactiveLayoutNode<T> : LayoutNode, IInvalidatingNode
             },
             onError: _ => { },
             onCompleted: () => { });
+    }
+
+    /// <summary>
+    /// Subscribe to a child's invalidation events and propagate them upward.
+    /// </summary>
+    private void SubscribeToChildInvalidation(ILayoutNode child)
+    {
+        // Dispose previous child invalidation subscription
+        _childInvalidationSubscription?.Dispose();
+        _childInvalidationSubscription = null;
+
+        if (child is IInvalidatingNode invalidating)
+        {
+            _childInvalidationSubscription = invalidating.Invalidated.Subscribe(_ => _invalidated.OnNext(Unit.Default));
+        }
     }
 
     /// <inheritdoc />
@@ -221,6 +261,7 @@ public sealed class ReactiveLayoutNode<T> : LayoutNode, IInvalidatingNode
                         oldChild.OnDeactivate();
                     }
                     _currentChild = _transform(value);
+                    SubscribeToChildInvalidation(_currentChild);
 
                     // Activate the new child if we're currently active
                     if (_isActive && _currentChild is LayoutNode newChildNode)
@@ -233,6 +274,9 @@ public sealed class ReactiveLayoutNode<T> : LayoutNode, IInvalidatingNode
                 onError: _ => { },
                 onCompleted: () => { });
         }
+
+        // Re-subscribe to current child's invalidation events (might have been disposed)
+        SubscribeToChildInvalidation(_currentChild);
 
         // Activate current child if it's a LayoutNode
         if (_currentChild is LayoutNode childNode)
@@ -265,6 +309,7 @@ public sealed class ReactiveLayoutNode<T> : LayoutNode, IInvalidatingNode
     public override void Dispose()
     {
         _subscription?.Dispose();
+        _childInvalidationSubscription?.Dispose();
         _invalidated.OnCompleted();
         _invalidated.Dispose();
         _currentChild.Dispose();

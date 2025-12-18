@@ -49,7 +49,24 @@ internal interface IBindablePage : IPage, IDisposable
     void WireUpFocus(Input.IFocusManager focusManager);
 
     /// <summary>
+    /// Wires up navigation capabilities to this page.
+    /// </summary>
+    /// <param name="navigate">The navigation delegate.</param>
+    /// <param name="navigateWithParams">The navigation with parameters delegate.</param>
+    /// <param name="shutdown">The shutdown delegate.</param>
+    void WireUpNavigation(Action<string> navigate, Action<string, object?> navigateWithParams, Action shutdown);
+
+    /// <summary>
     /// Gets the current cached layout root, if any.
     /// </summary>
     ILayoutNode? LayoutRoot { get; }
+
+    /// <summary>
+    /// Handles page-level keyboard input before it reaches focused components.
+    /// This implements a "capture phase" for input, allowing pages to intercept
+    /// keys like Escape or Tab before child components consume them.
+    /// </summary>
+    /// <param name="keyInfo">The key press information.</param>
+    /// <returns>True if the page handled the input, false to let focused components handle it.</returns>
+    bool HandlePageInput(ConsoleKeyInfo keyInfo);
 }

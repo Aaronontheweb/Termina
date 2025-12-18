@@ -41,6 +41,7 @@ public abstract class ReactivePage<TViewModel> : IBindablePage, IDisposable
     where TViewModel : ReactiveViewModel
 {
     private readonly CompositeDisposable _subscriptions = new();
+    private readonly PageKeyBindings _keyBindings = new();
     private ILayoutNode? _layoutRoot;
 
     /// <summary>
@@ -60,6 +61,59 @@ public abstract class ReactivePage<TViewModel> : IBindablePage, IDisposable
     /// Use this to manage focus for modals and interactive controls.
     /// </summary>
     protected IFocusManager Focus { get; private set; } = null!;
+
+    private Action<string> _navigate = _ => { };
+    private Action<string, object?> _navigateWithParams = (_, _) => { };
+    private Action _shutdown = () => { };
+
+    /// <summary>
+    /// Navigates to the specified route.
+    /// Use this for input-driven navigation (e.g., Escape to go back).
+    /// </summary>
+    /// <param name="route">The route to navigate to.</param>
+    /// <example>
+    /// <code>
+    /// KeyBindings.Register(ConsoleKey.Escape, () => Navigate("/menu"));
+    /// </code>
+    /// </example>
+    protected void Navigate(string route) => _navigate(route);
+
+    /// <summary>
+    /// Navigates to the specified route with parameters.
+    /// </summary>
+    /// <param name="routeTemplate">The route template (e.g., "/items/{id}").</param>
+    /// <param name="parameters">Anonymous object with parameter values.</param>
+    protected void NavigateWithParams(string routeTemplate, object? parameters) =>
+        _navigateWithParams(routeTemplate, parameters);
+
+    /// <summary>
+    /// Requests application shutdown.
+    /// </summary>
+    protected void Shutdown() => _shutdown();
+
+    /// <summary>
+    /// Key bindings for this page.
+    /// Register bindings to intercept keys before they reach focused components.
+    /// This implements a "capture phase" for input handling.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Key bindings registered here are checked before the focused component
+    /// receives input. This solves the common problem where components consume
+    /// keys (like Escape) that the page needs for navigation.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// public override void OnNavigatedTo()
+    /// {
+    ///     base.OnNavigatedTo();
+    ///     KeyBindings.Register(ConsoleKey.Escape, () => Navigate("/menu"));
+    ///     KeyBindings.Register(ConsoleKey.Tab, () => CycleFocus());
+    /// }
+    /// </code>
+    /// </example>
+    protected PageKeyBindings KeyBindings => _keyBindings;
 
     /// <summary>
     /// Build the layout tree for this page.
@@ -90,6 +144,28 @@ public abstract class ReactivePage<TViewModel> : IBindablePage, IDisposable
     void IBindablePage.WireUpFocus(IFocusManager focusManager)
     {
         Focus = focusManager;
+    }
+
+    /// <summary>
+    /// Wires up navigation capabilities to this page.
+    /// </summary>
+    void IBindablePage.WireUpNavigation(Action<string> navigate, Action<string, object?> navigateWithParams, Action shutdown)
+    {
+        _navigate = navigate;
+        _navigateWithParams = navigateWithParams;
+        _shutdown = shutdown;
+    }
+
+    /// <summary>
+    /// Handles page-level keyboard input before it reaches focused components.
+    /// Override this method for custom page-level input handling beyond key bindings.
+    /// </summary>
+    /// <param name="keyInfo">The key press information.</param>
+    /// <returns>True if the page handled the input, false to let focused components handle it.</returns>
+    public virtual bool HandlePageInput(ConsoleKeyInfo keyInfo)
+    {
+        // Check registered key bindings first
+        return _keyBindings.TryHandle(keyInfo);
     }
 
     /// <summary>
@@ -136,8 +212,9 @@ public abstract class ReactivePage<TViewModel> : IBindablePage, IDisposable
     /// </summary>
     public virtual void OnNavigatingFrom()
     {
-        // Clear page-level subscriptions
+        // Clear page-level subscriptions and key bindings
         _subscriptions.Clear();
+        _keyBindings.Clear();
 
         // Deactivate layout (pause, don't dispose)
         if (_layoutRoot is LayoutNode node)

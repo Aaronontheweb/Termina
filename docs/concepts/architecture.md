@@ -25,8 +25,8 @@ Termina uses a reactive MVVM architecture with declarative layouts and surgical 
 
 ### 1. Separation of Concerns
 
-- **ViewModels** own state, handle keyboard input, and expose observable properties
-- **Pages** own focus management, build layouts from ViewModel state, and manage interactive layout nodes (modals, text inputs)
+- **ViewModels** own state, handle business logic, and expose observable properties
+- **Pages** own focus management, key bindings, navigation, build layouts from ViewModel state, and manage interactive layout nodes
 - **Layout Nodes** render to terminal and may handle routed input when focused
 
 ### 2. Reactive by Default
@@ -74,13 +74,22 @@ Only changed regions are re-rendered, not the entire screen. This provides:
 
 ### On Input
 
+Termina uses a two-phase input routing model (similar to DOM event handling):
+
 1. Key press captured by application
-2. Input event sent to ViewModel's `Input` observable
-3. ViewModel subscribes and handles input (updates state, navigates, etc.)
-4. For focused interactive nodes (modals, text inputs), Page can route input via `Focus.RouteInput()`
+2. **Capture Phase**: Page's `KeyBindings` checked first
+   - If matched, handler executes (e.g., `Navigate("/menu")`)
+   - Key is consumed, stops here
+3. **Bubble Phase**: If not consumed, `FocusManager` routes to focused component
+   - Focused `IFocusable` nodes (TextInput, SelectionList) handle input
+   - If component returns `true`, key is consumed
+4. **ViewModel Phase**: Unconsumed input sent to ViewModel's `Input` observable
+   - ViewModel can subscribe for fallback handling
 5. Reactive bindings emit new values from state changes
 6. Affected layout nodes invalidate
 7. Changed regions re-render
+
+This model ensures navigation keys (Escape, Tab) work reliably while allowing focused components to handle their own input.
 
 ### On Navigation
 
