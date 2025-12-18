@@ -33,7 +33,7 @@ If the available space is less than the fixed value, the node will be clamped to
 
 ### Fill
 
-A fill constraint expands to consume remaining space after fixed and auto nodes are measured.
+A fill constraint expands to consume remaining space after fixed and auto nodes are measured. Use Fill when a node has **no intrinsic content size** and should claim empty space.
 
 ```csharp
 // Fill all remaining height
@@ -44,6 +44,15 @@ new PanelNode().Height(SizeConstraint.Fill());
 new TextNode("content").WidthFill();
 new TextNode("content").Width(SizeConstraint.Fill());
 ```
+
+::: tip When to Use Fill()
+Fill() is for claiming **empty space** within a container, not for sizing content. Common uses:
+- Content panels between fixed headers/footers
+- Spacers that push elements apart
+- Nested layouts that need to split remaining space equally
+
+See [When to Use Fill()](#when-to-use-fill) for detailed examples.
+:::
 
 #### Weighted Fill
 
@@ -167,13 +176,17 @@ Layouts.Vertical()
         Layouts.Horizontal()
             .WithChild(panel1.WidthFill())
             .WithChild(panel2.WidthFill())
-            .Fill())
+            .Fill())  // This row takes remaining height
     .WithChild(
         Layouts.Horizontal()
             .WithChild(panel3.WidthFill())
             .WithChild(panel4.WidthFill())
-            .Fill());
+            .Fill());  // This row also takes remaining height
 ```
+
+::: info
+The inner `Layouts.Horizontal()` rows use `.Fill()` because they need to expand vertically to split the available height equally.
+:::
 
 ### Status Bar with Spacer
 
@@ -199,3 +212,68 @@ Layouts.Horizontal()
 | `.WidthAuto()` | Auto (width) | Size to content |
 | `.Height(constraint)` | Any | Pass SizeConstraint directly |
 | `.Width(constraint)` | Any | Pass SizeConstraint directly |
+
+## When to Use Fill()
+
+`Fill()` claims empty space within a container - use it when a **child node** has no intrinsic content size and should expand to fill available room.
+
+::: info Root layouts always fill the terminal
+The root layout returned from `BuildLayout()` always receives the full terminal bounds, regardless of its constraints. You don't need to add `.Fill()` to the root layout.
+:::
+
+### Content Area Taking Remaining Space
+
+When you have fixed-size elements (header, footer) and want the content to take whatever's left:
+
+```
+┌─────────────────────────┐
+│ Header (1 row)          │
+├─────────────────────────┤
+│                         │
+│ Content (fills rest)    │  ← Fill() here
+│                         │
+├─────────────────────────┤
+│ Footer (1 row)          │
+└─────────────────────────┘
+```
+
+```csharp
+Layouts.Vertical()
+    .WithChild(header.Height(1))
+    .WithChild(content.Fill())  // Claims remaining space
+    .WithChild(footer.Height(1));
+```
+
+### Spacer Between Elements
+
+Use an empty node with Fill to push elements apart:
+
+```
+┌──────────────────────────────────┐
+│ Logo          [spacer]    Status │
+└──────────────────────────────────┘
+```
+
+```csharp
+Layouts.Horizontal()
+    .WithChild(logo.WidthAuto())
+    .WithChild(new EmptyNode().WidthFill())  // Pushes status right
+    .WithChild(status.WidthAuto())
+    .Height(1);
+```
+
+### When NOT to Use Fill()
+
+Layouts default to `Auto()` sizing, which means they shrink to fit their content. This is usually what you want for **nested layouts**:
+
+```csharp
+// Nested layout - no Fill() needed on the inner Horizontal
+Layouts.Vertical()
+    .WithChild(
+        Layouts.Horizontal()       // Sizes to its content
+            .WithChild(icon)
+            .WithChild(label))
+    .WithChild(description);
+```
+
+If you add `.Fill()` to a nested layout, it will compete with siblings for space, which can cause unexpected results.
