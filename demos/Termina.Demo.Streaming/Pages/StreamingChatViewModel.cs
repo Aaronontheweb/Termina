@@ -44,6 +44,16 @@ public sealed record RemoveTrackedSegment(SegmentId Id) : IChatMessage;
 public sealed record ReplaceTrackedSegment(SegmentId Id, ITextSegment NewSegment, bool KeepTracked = false) : IChatMessage;
 
 /// <summary>
+/// Show a decision point with choices for the user.
+/// </summary>
+public sealed record ShowDecisionPoint(string Question, IReadOnlyList<LlmMessages.DecisionChoice> Choices) : IChatMessage;
+
+/// <summary>
+/// Hide the decision list (after selection or cancellation).
+/// </summary>
+public sealed record HideDecisionPoint : IChatMessage;
+
+/// <summary>
 /// ViewModel for the streaming chat demo.
 /// Contains only state and business logic - no UI concerns.
 /// Exposes observables for chat content that the Page subscribes to.
@@ -79,6 +89,10 @@ public partial class StreamingChatViewModel : ReactiveViewModel
     [Reactive] private bool _isGenerating = false;
     [Reactive] private bool _hasReceivedText = false; // Tracks if any text has arrived yet
     [Reactive] private string _statusMessage = "Ready. Enter a question to begin.";
+    [Reactive] private bool _showDecisionList = false; // Whether to show the decision list
+
+    // Track current decision context for follow-up
+    private string? _pendingDecisionContext;
 
     public StreamingChatViewModel(IRequiredActor<LlmSimulatorActor> llmActorProvider)
     {
@@ -177,6 +191,73 @@ public partial class StreamingChatViewModel : ReactiveViewModel
         _chatOutput.OnNext(new AppendText(prompt, Color.White, IsNewLine: true));
         _chatOutput.OnNext(new AppendText("", IsNewLine: true));
 
+        StartGeneration(prompt, decisionContext: null);
+    }
+
+    /// <summary>
+    /// Handle decision selection from the SelectionListNode.
+    /// </summary>
+    public void HandleDecisionSelection(string choiceTitle)
+    {
+        // Hide the decision list
+        ShowDecisionList = false;
+        _chatOutput.OnNext(new HideDecisionPoint());
+
+        // Show the user's choice in the chat
+        _chatOutput.OnNext(new AppendText("", IsNewLine: true));
+        _chatOutput.OnNext(new AppendText("   → ", Color.BrightBlack));
+        _chatOutput.OnNext(new AppendText(choiceTitle, Color.Cyan, TextDecoration.Bold, IsNewLine: true));
+        _chatOutput.OnNext(new AppendText("", IsNewLine: true));
+
+        // Start follow-up generation with the decision context
+        StartGeneration("continue", decisionContext: choiceTitle);
+    }
+
+    /// <summary>
+    /// Handle decision cancellation.
+    /// </summary>
+    public void HandleDecisionCancelled()
+    {
+        ShowDecisionList = false;
+        _chatOutput.OnNext(new HideDecisionPoint());
+        _chatOutput.OnNext(new AppendText(" [decision skipped]", Color.Yellow, TextDecoration.Italic, IsNewLine: true));
+        CleanupGeneration();
+        StatusMessage = "Ready. Enter another question.";
+    }
+
+    /// <summary>
+    /// Handle custom prompt from "Something else..." option.
+    /// </summary>
+    public void HandleCustomPrompt(string customPrompt)
+    {
+        customPrompt = customPrompt.Trim();
+        if (string.IsNullOrEmpty(customPrompt))
+        {
+            HandleDecisionCancelled();
+            return;
+        }
+
+        // Hide the decision list
+        ShowDecisionList = false;
+        _chatOutput.OnNext(new HideDecisionPoint());
+
+        // Show the custom prompt as user input
+        _chatOutput.OnNext(new AppendText("", IsNewLine: true));
+        _chatOutput.OnNext(new AppendText("👤 ", Color.Cyan));
+        _chatOutput.OnNext(new AppendText("You: ", Color.Cyan, TextDecoration.Bold));
+        _chatOutput.OnNext(new AppendText(customPrompt, Color.White, IsNewLine: true));
+        _chatOutput.OnNext(new AppendText("", IsNewLine: true));
+
+        // Add to history
+        _promptHistory.Add(customPrompt);
+        _historyIndex = -1;
+
+        // Start generation with the custom prompt (not as decision context)
+        StartGeneration(customPrompt, decisionContext: null);
+    }
+
+    private void StartGeneration(string prompt, string? decisionContext)
+    {
         // Add Assistant prefix and append animated spinner
         _chatOutput.OnNext(new AppendText("🤖 ", Color.Yellow));
         _chatOutput.OnNext(new AppendText("Assistant: ", Color.Green, TextDecoration.Bold));
@@ -190,10 +271,10 @@ public partial class StreamingChatViewModel : ReactiveViewModel
         HasReceivedText = false;
         StatusMessage = "Generating response...";
 
-        _ = ConsumeResponseStreamAsync(prompt);
+        _ = ConsumeResponseStreamAsync(prompt, decisionContext);
     }
 
-    private async Task ConsumeResponseStreamAsync(string prompt)
+    private async Task ConsumeResponseStreamAsync(string prompt, string? decisionContext = null)
     {
         if (_llmActor is null)
         {
@@ -206,7 +287,7 @@ public partial class StreamingChatViewModel : ReactiveViewModel
         try
         {
             var response = await _llmActor.Ask<LlmMessages.GenerateResponse>(
-                new LlmMessages.GenerateRequest(prompt),
+                new LlmMessages.GenerateRequest(prompt, decisionContext),
                 TimeSpan.FromSeconds(30));
 
             _generationCts = response.Cancellation;
@@ -240,6 +321,27 @@ public partial class StreamingChatViewModel : ReactiveViewModel
                         StatusMessage = "Ready. Enter another question.";
                         completedNormally = true;
                         break;
+
+                    case LlmMessages.DecisionPointToken decision:
+                        // On first content (decision point), replace spinner
+                        if (!HasReceivedText)
+                        {
+                            _chatOutput.OnNext(new ReplaceTrackedSegment(
+                                ThinkingSpinnerId,
+                                new StaticTextSegment("", TextStyle.Default),
+                                KeepTracked: false));
+                            _currentSpinner?.Dispose();
+                            _currentSpinner = null;
+                            HasReceivedText = true;
+                        }
+
+                        // Show the decision list
+                        _chatOutput.OnNext(new ShowDecisionPoint(decision.Question, decision.Choices));
+                        ShowDecisionList = true;
+                        StatusMessage = "Make a selection below...";
+
+                        // We don't mark this as complete - we wait for user to make a decision
+                        return;
                 }
             }
         }

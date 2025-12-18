@@ -3,9 +3,11 @@
 
 using System.Reactive;
 using System.Reactive.Linq;
+using Termina.Components.Streaming;
 using Termina.Layout;
 using Termina.Rendering;
 using Termina.Terminal;
+using Streaming = Termina.Components.Streaming;
 
 namespace Termina.Tests.Layout;
 
@@ -451,4 +453,173 @@ public class SelectionListNodeTests
 
         Assert.Equal("Fast", customValue);
     }
+
+    #region Rich Content Tests
+
+    [Fact]
+    public void SelectionListNode_WithRichContent_CanBeCreated()
+    {
+        var items = new[] { "Item 1", "Item 2", "Item 3" };
+        using var list = new SelectionListNode<string>(items, s =>
+            new SelectionItemContent().AddLine(new StaticTextSegment(s, Color.Green)));
+
+        Assert.NotNull(list);
+        Assert.Equal(3, list.Items.Count);
+    }
+
+    [Fact]
+    public void SelectionListNode_WithRichContent_MultiLine_HasCorrectLineCount()
+    {
+        var items = new[] { "Server A", "Server B" };
+        using var list = new SelectionListNode<string>(items, s =>
+            new SelectionItemContent()
+                .AddLine(new StaticTextSegment(s, Color.White, decoration: TextDecoration.Bold))
+                .AddLine(new StaticTextSegment("   Status: Connected", Color.Green)));
+
+        // Each item has 2 lines
+        Assert.Equal(2, list.Items[0].LineCount);
+        Assert.Equal(2, list.Items[1].LineCount);
+    }
+
+    [Fact]
+    public void SelectionListNode_WithRichContent_DisplayText_ReturnsFirstLine()
+    {
+        using var list = new SelectionListNode<string>(
+            new[] { "Test" },
+            s => new SelectionItemContent()
+                .AddLine(new StaticTextSegment(new StyledSegment("Header")))
+                .AddLine(new StaticTextSegment(new StyledSegment("Body"))));
+
+        Assert.Equal("Header", list.Items[0].DisplayText);
+    }
+
+    [Fact]
+    public void SelectionListNode_WithRichContent_NavigationWorks()
+    {
+        var items = new[] { "A", "B", "C" };
+        using var list = new SelectionListNode<string>(items, s =>
+            new SelectionItemContent().AddLine(new StaticTextSegment(new StyledSegment(s))));
+        list.OnFocused();
+
+        Assert.Equal("A", list.HighlightedItem?.DisplayText);
+
+        var downKey = new ConsoleKeyInfo('\0', ConsoleKey.DownArrow, false, false, false);
+        list.HandleInput(downKey);
+
+        Assert.Equal("B", list.HighlightedItem?.DisplayText);
+    }
+
+    [Fact]
+    public void SelectionListNode_WithRichContent_SelectionWorks()
+    {
+        var items = new[] { "Option 1", "Option 2" };
+        using var list = new SelectionListNode<string>(items, s =>
+            new SelectionItemContent().AddLine(new StaticTextSegment(s, Color.Cyan)))
+            .WithMode(SelectionMode.Multi);
+        list.OnFocused();
+
+        var spaceKey = new ConsoleKeyInfo(' ', ConsoleKey.Spacebar, false, false, false);
+        list.HandleInput(spaceKey);
+
+        Assert.True(list.Items[0].IsSelected);
+        Assert.Single(list.SelectedItems);
+        Assert.Equal("Option 1", list.SelectedItems[0]);
+    }
+
+    [Fact]
+    public void SelectionListNode_WithRichContent_ConfirmationWorks()
+    {
+        var items = new[] { "Choice A", "Choice B" };
+        using var list = new SelectionListNode<string>(items, s =>
+            new SelectionItemContent()
+                .AddLine(new StaticTextSegment(new StyledSegment(s)))
+                .AddLine(new StaticTextSegment("   Description", Color.Gray)));
+        list.OnFocused();
+
+        var confirmed = new List<string>();
+        list.SelectionConfirmed.Subscribe(selected => confirmed.AddRange(selected));
+
+        var enterKey = new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false);
+        list.HandleInput(enterKey);
+
+        Assert.Single(confirmed);
+        Assert.Equal("Choice A", confirmed[0]);
+    }
+
+    [Fact]
+    public async Task SelectionListNode_WithAnimatedContent_PropagatesInvalidation()
+    {
+        using var list = new SelectionListNode<string>(
+            new[] { "Loading" },
+            s => new SelectionItemContent()
+                .AddLine(
+                    new SpinnerSegment(Streaming.SpinnerStyle.Dots, Color.Blue, intervalMs: 10),
+                    new StaticTextSegment($" {s}...", Color.White)));
+
+        // Wait for invalidation from spinner
+        await list.Invalidated
+            .FirstAsync()
+            .Timeout(TimeSpan.FromSeconds(1));
+
+        Assert.True(true); // Got here means invalidation propagated
+    }
+
+    [Fact]
+    public void SelectionListNode_WithRichContent_Dispose_DisposesItems()
+    {
+        var list = new SelectionListNode<string>(
+            new[] { "Test" },
+            s => new SelectionItemContent().AddLine(new StaticTextSegment(new StyledSegment(s))));
+
+        var completed = 0;
+        list.Invalidated.Subscribe(
+            onNext: _ => { },
+            onCompleted: () => completed++);
+
+        list.Dispose();
+
+        Assert.Equal(1, completed);
+    }
+
+    [Fact]
+    public void SelectionListNode_MixedContentStyles_WorksCorrectly()
+    {
+        var items = new[]
+        {
+            ("Server 1", "Connected", Color.Green),
+            ("Server 2", "Disconnected", Color.Red),
+            ("Server 3", "Connecting", Color.Yellow)
+        };
+
+        using var list = new SelectionListNode<(string Name, string Status, Color StatusColor)>(
+            items,
+            item => new SelectionItemContent()
+                .AddLine(new StaticTextSegment(item.Name, Color.White, decoration: TextDecoration.Bold))
+                .AddLine(
+                    new StaticTextSegment("   Status: ", Color.Gray),
+                    new StaticTextSegment(item.Status, item.StatusColor)));
+
+        Assert.Equal(3, list.Items.Count);
+        Assert.Equal("Server 1", list.Items[0].DisplayText);
+        Assert.Equal("Server 2", list.Items[1].DisplayText);
+        Assert.Equal(2, list.Items[0].LineCount);
+    }
+
+    [Fact]
+    public void SelectionListNode_Content_AccessibleThroughSelectItem()
+    {
+        using var list = new SelectionListNode<string>(
+            new[] { "Test" },
+            s => new SelectionItemContent()
+                .AddLine("Header", Color.White)
+                .AddLine("Body", Color.Gray));
+
+        var item = list.Items[0];
+
+        Assert.NotNull(item.Content);
+        Assert.Equal(2, item.Content.LineCount);
+        Assert.Equal("Header\nBody", item.Content.ToPlainText());
+    }
+
+    #endregion
 }
