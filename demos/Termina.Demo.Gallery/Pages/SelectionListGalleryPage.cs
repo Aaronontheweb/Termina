@@ -98,7 +98,7 @@ public class SelectionListGalleryPage : ReactivePage<SelectionListGalleryViewMod
             .WithHighlightColors(Color.Black, Color.Yellow)
             .WithVisibleRows(8);
 
-        // Numbered list with 12 items - demonstrates Issue #101 fix
+        // Scrolling list with 12 items in 6 visible rows
         _numberedList = Layouts.SelectionList(
             Enumerable.Range(1, 12).Select(i => $"Item number {i}"))
             .WithMode(SelectionMode.Single)
@@ -163,16 +163,16 @@ public class SelectionListGalleryPage : ReactivePage<SelectionListGalleryViewMod
                         .Height(2))
                 .WithChild(_multiSelectRichList));
 
-        // Column 3: Numbered list (12 items)
+        // Column 3: Scrolling numbered list (12 items)
         grid.SetCell(0, 2,
             Layouts.Vertical()
                 .WithChild(
-                    new TextNode("12+ Items (Issue #101)")
+                    new TextNode("Scrolling List")
                         .WithForeground(Color.BrightCyan)
                         .Bold()
                         .Height(1))
                 .WithChild(
-                    new TextNode("All items show numbers!")
+                    new TextNode("12 items in 6 visible rows")
                         .WithForeground(Color.DarkGray)
                         .Height(2))
                 .WithChild(_numberedList));
