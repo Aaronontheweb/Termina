@@ -348,17 +348,7 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode
 
         _highlightedIndex = Math.Clamp(_highlightedIndex + delta, 0, _items.Count - 1);
         EnsureVisible();
-
-        // Auto-start text input when navigating to "Other" option
-        var item = _items[_highlightedIndex];
-        if (item.IsOther && !_isEditingOther)
-        {
-            StartOtherInput();
-        }
-        else
-        {
-            Invalidate();
-        }
+        Invalidate();
     }
 
     /// <summary>
@@ -504,8 +494,8 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode
     {
         var parts = new List<string>();
 
-        // Number prefix
-        if (_showNumbers && index < 9)
+        // Number prefix (display numbers for all items; keyboard shortcuts still limited to 1-9)
+        if (_showNumbers)
         {
             parts.Add($"{index + 1}.");
         }
@@ -589,8 +579,8 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode
         if (_otherInput == null)
             return;
 
-        // Render the number prefix (e.g., "4. ") in dimmed color
-        var prefix = _showNumbers && itemIndex < 9 ? $"{itemIndex + 1}. " : "";
+        // Render the number prefix (e.g., "4. " or "10. ") in dimmed color
+        var prefix = _showNumbers ? $"{itemIndex + 1}. " : "";
         if (prefix.Length > 0)
         {
             context.SetForeground(Color.BrightBlack);
