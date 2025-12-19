@@ -196,6 +196,37 @@ public class ReactiveViewModelTests
         Assert.Throws<ObjectDisposedException>(() => vm.Value = 100);
     }
 
+    [Fact]
+    public void ReactiveViewModel_WithNullableFields_PreservesNullability()
+    {
+        var vm = new TestReactiveViewModelWithNullable();
+
+        // Properties should be nullable and initially null
+        Assert.Null(vm.NullableString);
+        Assert.Null(vm.NullableInt);
+        Assert.Null(vm.NullableObject);
+
+        // Can set to non-null values
+        vm.NullableString = "test";
+        vm.NullableInt = 42;
+        vm.NullableObject = new object();
+
+        Assert.Equal("test", vm.NullableString);
+        Assert.Equal(42, vm.NullableInt);
+        Assert.NotNull(vm.NullableObject);
+
+        // Can set back to null
+        vm.NullableString = null;
+        vm.NullableInt = null;
+        vm.NullableObject = null;
+
+        Assert.Null(vm.NullableString);
+        Assert.Null(vm.NullableInt);
+        Assert.Null(vm.NullableObject);
+
+        vm.Dispose();
+    }
+
     private class TestViewModel : ReactiveViewModel
     {
         public bool WasActivated { get; private set; }
@@ -248,5 +279,15 @@ public partial class TestReactiveViewModelWithCustomDispose : ReactiveViewModel
         DisposeReactiveFields();
         base.Dispose();
     }
+}
+
+/// <summary>
+/// Test ViewModel with nullable [Reactive] fields to verify nullability annotations are preserved.
+/// </summary>
+public partial class TestReactiveViewModelWithNullable : ReactiveViewModel
+{
+    [Reactive] private string? _nullableString = null;
+    [Reactive] private int? _nullableInt = null;
+    [Reactive] private object? _nullableObject = null;
 }
 
