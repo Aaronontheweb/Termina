@@ -29,6 +29,18 @@ public class ReactivePropertyGenerator : IIncrementalGenerator
     private const string FromRouteAttributeFullName = "Termina.Routing.FromRouteAttribute";
 
     /// <summary>
+    /// Symbol display format that includes nullable reference type annotations (e.g., string? instead of string).
+    /// Based on FullyQualifiedFormat but with IncludeNullableReferenceTypeModifier added.
+    /// </summary>
+    private static readonly SymbolDisplayFormat FullyQualifiedFormatWithNullability = new(
+        globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
+        typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
+        genericsOptions: SymbolDisplayGenericsOptions.IncludeTypeParameters,
+        miscellaneousOptions: SymbolDisplayMiscellaneousOptions.EscapeKeywordIdentifiers |
+                              SymbolDisplayMiscellaneousOptions.UseSpecialTypes |
+                              SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier);
+
+    /// <summary>
     /// Diagnostic reported when a ReactiveViewModel subclass has a custom Dispose() method
     /// but needs to call DisposeReactiveFields() to properly dispose generated BehaviorSubjects.
     /// </summary>
@@ -133,9 +145,9 @@ public class ReactivePropertyGenerator : IIncrementalGenerator
             }
         }
 
-        // Get field name and type
+        // Get field name and type (including nullability annotations)
         var fieldName = fieldSymbol.Name;
-        var fieldType = fieldSymbol.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        var fieldType = fieldSymbol.Type.ToDisplayString(FullyQualifiedFormatWithNullability);
 
         // Get the initial value if present
         string? initialValue = null;
