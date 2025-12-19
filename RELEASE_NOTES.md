@@ -1,3 +1,14 @@
+#### 0.5.1 December 19th 2025 ####
+
+**Bug Fixes**:
+- **Fix nullability propagation in [Reactive] source generator** ([#112](https://github.com/Aaronontheweb/Termina/pull/112))
+  - Source generator now preserves nullable reference type annotations (e.g., `string?`, `int?`) in generated properties
+  - Added custom `SymbolDisplayFormat` with `IncludeNullableReferenceTypeModifier` option
+  - Nullable fields now generate properties with matching nullability annotations, providing correct nullability hints in consuming code
+  - Previously, nullable fields like `string? _field` would generate non-nullable properties, losing nullability information
+
+---
+
 #### 0.5.0 December 18th 2025 ####
 
 **New Features**:
