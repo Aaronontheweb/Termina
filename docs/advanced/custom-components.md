@@ -7,12 +7,57 @@ Build reusable layout nodes that integrate with Termina's rendering system.
 All layout nodes implement `ILayoutNode`:
 
 ```csharp
-public interface ILayoutNode
+public interface ILayoutNode : IDisposable
 {
-    SizeConstraint Width { get; }
-    SizeConstraint Height { get; }
-    Size Measure(Size availableSpace);
-    void Render(IRenderContext context, ScreenBounds bounds);
+    SizeConstraint WidthConstraint { get; }
+    SizeConstraint HeightConstraint { get; }
+    Size Measure(Size available);
+    void Render(IRenderContext context, Rect bounds);
+}
+```
+
+## Accessing Dimensions
+
+During rendering, you can access available dimensions from two sources:
+
+### From Rect bounds (Recommended)
+
+The `Render` method receives a `Rect bounds` parameter containing the allocated space:
+
+```csharp
+public void Render(IRenderContext context, Rect bounds)
+{
+    int width = bounds.Width;   // Allocated width
+    int height = bounds.Height; // Allocated height
+    int x = bounds.X;           // Left position
+    int y = bounds.Y;           // Top position
+}
+```
+
+### From IRenderContext
+
+The render context also exposes the total region dimensions:
+
+```csharp
+public void Render(IRenderContext context, Rect bounds)
+{
+    int regionWidth = context.Width;   // Total region width
+    int regionHeight = context.Height; // Total region height
+}
+```
+
+### From Size available (During Measurement)
+
+The `Measure` method receives available space to determine desired size:
+
+```csharp
+public Size Measure(Size available)
+{
+    int maxWidth = available.Width;
+    int maxHeight = available.Height;
+
+    // Return desired size (should not exceed available)
+    return new Size(Math.Min(desiredWidth, maxWidth), Math.Min(desiredHeight, maxHeight));
 }
 ```
 
@@ -21,14 +66,17 @@ public interface ILayoutNode
 Here's a minimal custom node:
 
 ```csharp
-public class ProgressBarNode : ILayoutNode
+public class ProgressBarNode : LayoutNode
 {
     private double _progress;
     private Color _fillColor = Color.Green;
     private Color _emptyColor = Color.Gray;
 
-    public SizeConstraint Width { get; private set; } = SizeConstraint.Fill();
-    public SizeConstraint Height { get; private set; } = SizeConstraint.Fixed(1);
+    public ProgressBarNode()
+    {
+        WidthConstraint = new SizeConstraint.Fill();
+        HeightConstraint = new SizeConstraint.Fixed(1);
+    }
 
     public ProgressBarNode WithProgress(double value)
     {
@@ -43,27 +91,31 @@ public class ProgressBarNode : ILayoutNode
         return this;
     }
 
-    public Size Measure(Size availableSpace)
+    public override Size Measure(Size available)
     {
         // Take full width, 1 row height
-        return new Size(availableSpace.Width, 1);
+        return new Size(available.Width, 1);
     }
 
-    public void Render(IRenderContext context, ScreenBounds bounds)
+    public override void Render(IRenderContext context, Rect bounds)
     {
         var filledWidth = (int)(bounds.Width * _progress);
 
         // Render filled portion
+        context.SetForeground(_fillColor);
         for (int x = 0; x < filledWidth; x++)
         {
-            context.SetCell(bounds.Left + x, bounds.Top, '█', _fillColor, Color.Default);
+            context.WriteAt(bounds.X + x, bounds.Y, '█');
         }
 
         // Render empty portion
+        context.SetForeground(_emptyColor);
         for (int x = filledWidth; x < bounds.Width; x++)
         {
-            context.SetCell(bounds.Left + x, bounds.Top, '░', _emptyColor, Color.Default);
+            context.WriteAt(bounds.X + x, bounds.Y, '░');
         }
+
+        context.ResetColors();
     }
 }
 ```
@@ -82,25 +134,33 @@ return Layouts.Vertical()
 
 ## Fluent Size Methods
 
-Add fluent methods for size constraints:
+The `LayoutNode` base class provides fluent methods for size constraints:
 
 ```csharp
-public ProgressBarNode Width(int size)
-{
-    Width = SizeConstraint.Fixed(size);
-    return this;
-}
+// Fixed sizes
+node.Width(20);      // Fixed width of 20 columns
+node.Height(5);      // Fixed height of 5 rows
 
-public ProgressBarNode Fill(int weight = 1)
-{
-    Width = SizeConstraint.Fill(weight);
-    return this;
-}
+// Fill remaining space
+node.WidthFill();    // Fill available width
+node.Fill();         // Fill available height (note: uses Fill(), not HeightFill())
 
-public ProgressBarNode Height(int size)
+// Auto-size based on content
+node.WidthAuto();
+node.HeightAuto();
+
+// Percentage-based
+node.WidthPercent(50);   // 50% of available width
+node.HeightPercent(25);  // 25% of available height
+```
+
+You can also set constraints directly in your constructor:
+
+```csharp
+public MyNode()
 {
-    Height = SizeConstraint.Fixed(size);
-    return this;
+    WidthConstraint = new SizeConstraint.Fixed(20);
+    HeightConstraint = new SizeConstraint.Fill { Weight = 1 };
 }
 ```
 
@@ -109,13 +169,16 @@ public ProgressBarNode Height(int size)
 For nodes that contain children:
 
 ```csharp
-public class BorderedContainer : ILayoutNode
+public class BorderedContainer : LayoutNode
 {
     private ILayoutNode? _content;
     private BorderStyle _style = BorderStyle.Single;
 
-    public SizeConstraint Width { get; private set; } = SizeConstraint.Fill();
-    public SizeConstraint Height { get; private set; } = SizeConstraint.Fill();
+    public BorderedContainer()
+    {
+        WidthConstraint = new SizeConstraint.Fill();
+        HeightConstraint = new SizeConstraint.Fill();
+    }
 
     public BorderedContainer WithContent(ILayoutNode content)
     {
@@ -123,12 +186,12 @@ public class BorderedContainer : ILayoutNode
         return this;
     }
 
-    public Size Measure(Size availableSpace)
+    public override Size Measure(Size available)
     {
         // Account for border (2 chars width, 2 chars height)
         var contentSpace = new Size(
-            Math.Max(0, availableSpace.Width - 2),
-            Math.Max(0, availableSpace.Height - 2));
+            Math.Max(0, available.Width - 2),
+            Math.Max(0, available.Height - 2));
 
         if (_content != null)
         {
@@ -139,7 +202,7 @@ public class BorderedContainer : ILayoutNode
         return new Size(2, 2);
     }
 
-    public void Render(IRenderContext context, ScreenBounds bounds)
+    public override void Render(IRenderContext context, Rect bounds)
     {
         // Draw border
         DrawBorder(context, bounds, _style);
@@ -147,16 +210,16 @@ public class BorderedContainer : ILayoutNode
         // Render content in inner area
         if (_content != null)
         {
-            var innerBounds = new ScreenBounds(
-                bounds.Left + 1,
-                bounds.Top + 1,
+            var innerBounds = new Rect(
+                bounds.X + 1,
+                bounds.Y + 1,
                 bounds.Width - 2,
                 bounds.Height - 2);
             _content.Render(context, innerBounds);
         }
     }
 
-    private void DrawBorder(IRenderContext context, ScreenBounds bounds, BorderStyle style)
+    private void DrawBorder(IRenderContext context, Rect bounds, BorderStyle style)
     {
         // Border drawing implementation...
     }
@@ -168,13 +231,16 @@ public class BorderedContainer : ILayoutNode
 For nodes that need to update based on observables:
 
 ```csharp
-public class LiveValueNode : ILayoutNode
+public class LiveValueNode : LayoutNode
 {
     private string _currentValue = "";
     private IDisposable? _subscription;
 
-    public SizeConstraint Width { get; private set; } = SizeConstraint.Fill();
-    public SizeConstraint Height { get; private set; } = SizeConstraint.Fixed(1);
+    public LiveValueNode()
+    {
+        WidthConstraint = new SizeConstraint.Fill();
+        HeightConstraint = new SizeConstraint.Fixed(1);
+    }
 
     public LiveValueNode BindTo(IObservable<string> source, Action requestRedraw)
     {
@@ -187,28 +253,26 @@ public class LiveValueNode : ILayoutNode
         return this;
     }
 
-    public Size Measure(Size availableSpace)
+    public override Size Measure(Size available)
     {
         return new Size(
-            Math.Min(_currentValue.Length, availableSpace.Width),
+            Math.Min(_currentValue.Length, available.Width),
             1);
     }
 
-    public void Render(IRenderContext context, ScreenBounds bounds)
+    public override void Render(IRenderContext context, Rect bounds)
     {
         var text = _currentValue.Length > bounds.Width
             ? _currentValue[..bounds.Width]
             : _currentValue;
 
-        for (int i = 0; i < text.Length; i++)
-        {
-            context.SetCell(bounds.Left + i, bounds.Top, text[i], Color.Default, Color.Default);
-        }
+        context.WriteAt(bounds.X, bounds.Y, text);
     }
 
-    public void Dispose()
+    public override void Dispose()
     {
         _subscription?.Dispose();
+        base.Dispose();
     }
 }
 ```
@@ -384,14 +448,16 @@ public class CustomContainer : LayoutNode
 
 ### Measurement
 
-- Return sizes that fit within `availableSpace`
+- Return sizes that fit within `available`
 - Account for borders, padding, and decorations
 - Handle zero-size gracefully
 
 ### Rendering
 
 - Only render within your `bounds`
-- Use `context.SetCell()` for character-level control
+- Use `context.WriteAt()` for character-level control
+- Use `context.SetForeground()` and `context.SetBackground()` for colors
+- Call `context.ResetColors()` after custom styling
 - Check bounds before rendering to avoid overflow
 
 ### Immutability
@@ -411,7 +477,7 @@ public class CustomContainer : LayoutNode
 Compose with existing nodes:
 
 ```csharp
-public class LabeledProgressBar : ILayoutNode
+public class LabeledProgressBar : LayoutNode
 {
     private readonly VerticalLayout _layout;
 
@@ -420,13 +486,13 @@ public class LabeledProgressBar : ILayoutNode
         _layout = Layouts.Vertical()
             .WithChild(new TextNode(label).Height(1))
             .WithChild(new ProgressBarNode().WithProgress(progress).Height(1));
+
+        HeightConstraint = new SizeConstraint.Fixed(2);
     }
 
-    public SizeConstraint Width => _layout.Width;
-    public SizeConstraint Height => SizeConstraint.Fixed(2);
+    public override Size Measure(Size available) => _layout.Measure(available);
 
-    public Size Measure(Size availableSpace) => _layout.Measure(availableSpace);
-    public void Render(IRenderContext context, ScreenBounds bounds) =>
+    public override void Render(IRenderContext context, Rect bounds) =>
         _layout.Render(context, bounds);
 }
 ```
