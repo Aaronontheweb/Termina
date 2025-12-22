@@ -12,6 +12,8 @@
   </Folder>
   <Folder Name="/demos/">
     <Project Path="demos/Termina.Demo/Termina.Demo.csproj" />
+    <Project Path="demos/Termina.Demo.Gallery/Termina.Demo.Gallery.csproj" />
+    <Project Path="demos/Termina.Demo.Grid/Termina.Demo.Grid.csproj" />
     <Project Path="demos/Termina.Demo.RegionBased/Termina.Demo.RegionBased.csproj" />
     <Project Path="demos/Termina.Demo.Streaming/Termina.Demo.Streaming.csproj" />
   </Folder>
