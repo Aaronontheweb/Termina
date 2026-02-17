@@ -1,8 +1,7 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Reactive;
-using System.Reactive.Subjects;
+using R3;
 using Termina.Terminal;
 
 namespace Termina.Rendering;
@@ -31,12 +30,12 @@ public sealed class TextInput : IRenderable, IDisposable
     /// <summary>
     /// Observable that emits when Enter is pressed, providing the submitted text.
     /// </summary>
-    public IObservable<string> Submitted => _submitted;
+    public Observable<string> Submitted => _submitted;
 
     /// <summary>
     /// Observable that emits when the component needs to be re-rendered.
     /// </summary>
-    public IObservable<Unit> Dirty => _dirty;
+    public Observable<Unit> Dirty => _dirty;
 
     /// <summary>
     /// Gets or sets the label displayed before the input.

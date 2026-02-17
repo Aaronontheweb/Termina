@@ -1,10 +1,9 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
-using System.Reactive.Linq;
-using System.Reactive.Subjects;
 using System.Threading.Channels;
 using Microsoft.Extensions.DependencyInjection;
+using R3;
 using Termina.Diagnostics;
 using Termina.Hosting;
 using Termina.Input;
@@ -101,7 +100,7 @@ public sealed class TerminaApplication
     /// <summary>
     /// Observable stream of input events. ViewModels subscribe to this.
     /// </summary>
-    public IObservable<IInputEvent> Input => _inputSubject.AsObservable();
+    public Observable<IInputEvent> Input => _inputSubject.AsObservable();
 
     /// <summary>
     /// Gets the focus manager for routing input to focused components.

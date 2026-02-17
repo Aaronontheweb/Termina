@@ -1,10 +1,7 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
-using System.Reactive;
-using System.Reactive.Linq;
-using System.Reactive.Subjects;
-using Termina.Components.Streaming;
+using R3;
 using Termina.Rendering;
 using Termina.Terminal;
 
@@ -104,22 +101,22 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode
     }
 
     /// <inheritdoc />
-    public IObservable<Unit> Invalidated => _invalidated.AsObservable();
+    public Observable<Unit> Invalidated => _invalidated.AsObservable();
 
     /// <summary>
     /// Observable that emits the selected items when Enter is pressed.
     /// </summary>
-    public IObservable<IReadOnlyList<T>> SelectionConfirmed => _selectionConfirmed.AsObservable();
+    public Observable<IReadOnlyList<T>> SelectionConfirmed => _selectionConfirmed.AsObservable();
 
     /// <summary>
     /// Observable that emits the custom text when "Other" is selected and confirmed.
     /// </summary>
-    public IObservable<string> OtherSelected => _otherSelected.AsObservable();
+    public Observable<string> OtherSelected => _otherSelected.AsObservable();
 
     /// <summary>
     /// Observable that emits when Escape is pressed.
     /// </summary>
-    public IObservable<Unit> Cancelled => _cancelled.AsObservable();
+    public Observable<Unit> Cancelled => _cancelled.AsObservable();
 
     /// <inheritdoc />
     public SizeConstraint WidthConstraint => SizeConstraint.FillRemaining();

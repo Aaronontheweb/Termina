@@ -1,7 +1,7 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
-using System.Reactive.Linq;
+using R3;
 using Termina.Input;
 using Termina.Reactive;
 
@@ -37,7 +37,7 @@ public partial class DashboardViewModel : ReactiveViewModel
         };
 
         // Subscribe to keyboard input
-        Input.OfType<KeyPressed>()
+        Input.OfType<IInputEvent, KeyPressed>()
             .Subscribe(HandleKeyPress)
             .DisposeWith(Subscriptions);
 

@@ -1,8 +1,7 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
-using System.Reactive;
-using System.Reactive.Linq;
+using R3;
 using Termina.Layout;
 using Termina.Rendering;
 using Termina.Terminal;
@@ -167,10 +166,10 @@ public class ModalNodeTests
 
         modal.Invalidated.Subscribe(
             onNext: _ => { },
-            onCompleted: () => invalidatedCompleted = true);
+            onCompleted: _ => invalidatedCompleted = true);
         modal.Dismissed.Subscribe(
             onNext: _ => { },
-            onCompleted: () => dismissedCompleted = true);
+            onCompleted: _ => dismissedCompleted = true);
 
         modal.Dispose();
 

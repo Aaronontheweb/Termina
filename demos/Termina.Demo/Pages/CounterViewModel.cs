@@ -1,4 +1,4 @@
-using System.Reactive.Linq;
+using R3;
 using Termina.Input;
 using Termina.Reactive;
 
@@ -28,7 +28,7 @@ public partial class CounterViewModel : ReactiveViewModel
     public override void OnActivated()
     {
         // Subscribe to keyboard input
-        Input.OfType<KeyPressed>()
+        Input.OfType<IInputEvent, KeyPressed>()
             .Subscribe(HandleKeyPress)
             .DisposeWith(Subscriptions);
     }

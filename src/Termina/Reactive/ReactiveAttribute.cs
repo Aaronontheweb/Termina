@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using R3;
 
 namespace Termina.Reactive;
 
@@ -14,9 +15,9 @@ namespace Termina.Reactive;
 /// The source generator will create:
 /// </para>
 /// <list type="bullet">
-///   <item>A <see cref="System.Reactive.Subjects.BehaviorSubject{T}"/> backing field (<c>_fieldNameSubject</c>)</item>
+///   <item>A <see cref="BehaviorSubject{T}"/> backing field (<c>_fieldNameSubject</c>)</item>
 ///   <item>A public property with get/set that reads/writes to the subject</item>
-///   <item>A public <c>IObservable{T}</c> property (<c>PropertyNameChanged</c>) for subscriptions</item>
+///   <item>A public <c>Observable{T}</c> property (<c>PropertyNameChanged</c>) for subscriptions</item>
 /// </list>
 /// <para>
 /// <b>Usage:</b>
@@ -40,7 +41,7 @@ namespace Termina.Reactive;
 ///     set => _nameSubject.OnNext(value);
 /// }
 ///
-/// public IObservable&lt;string&gt; NameChanged => _nameSubject.AsObservable();
+/// public Observable&lt;string&gt; NameChanged => _nameSubject.AsObservable();
 /// </code>
 /// <para>
 /// <b>Note:</b> The original field marked with [Reactive] is intentionally unused at runtime.

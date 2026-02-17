@@ -1,8 +1,7 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
-using System.Reactive;
-using System.Reactive.Subjects;
+using R3;
 using Termina.Rendering;
 
 namespace Termina.Layout;
@@ -156,7 +155,7 @@ public abstract class ContainerNode : LayoutNode, IContainerNode, IInvalidatingN
     private readonly Subject<Unit> _invalidated = new();
 
     /// <inheritdoc />
-    public IObservable<Unit> Invalidated => _invalidated;
+    public Observable<Unit> Invalidated => _invalidated;
 
     /// <inheritdoc />
     public IReadOnlyList<ILayoutNode> Children => _children;

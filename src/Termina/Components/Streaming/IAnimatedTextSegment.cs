@@ -1,7 +1,7 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
-using System.Reactive;
+using R3;
 
 namespace Termina.Components.Streaming;
 
@@ -15,7 +15,7 @@ public interface IAnimatedTextSegment : ITextSegment
     /// Observable that fires when the segment's display text changes and needs re-rendering.
     /// Subscribe to this to trigger redraws when animation frames change.
     /// </summary>
-    IObservable<Unit> Invalidated { get; }
+    Observable<Unit> Invalidated { get; }
 
     /// <summary>
     /// Start the animation.

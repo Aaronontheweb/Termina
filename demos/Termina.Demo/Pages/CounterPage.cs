@@ -1,7 +1,7 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
-using System.Reactive.Linq;
+using R3;
 using Termina.Extensions;
 using Termina.Layout;
 using Termina.Reactive;
@@ -26,7 +26,7 @@ public class CounterPage : ReactivePage<CounterViewModel>
                     .WithBorderColor(Color.Blue)
                     .WithContent(
                         ViewModel.CountChanged
-                            .Select(count => new TextNode($"\n  Count: {count}\n")
+                            .Select<int, ILayoutNode>(count => new TextNode($"\n  Count: {count}\n")
                                 .WithForeground(Color.Cyan)
                                 .Bold())
                             .AsLayout())
@@ -37,7 +37,7 @@ public class CounterPage : ReactivePage<CounterViewModel>
                     .Height(1))
             .WithChild(
                 ViewModel.StatusMessageChanged
-                    .Select(msg => new TextNode(msg).WithForeground(Color.White))
+                    .Select<string, ILayoutNode>(msg => new TextNode(msg).WithForeground(Color.White))
                     .AsLayout()
                     .Height(1))
             .WithChild(

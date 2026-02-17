@@ -1,10 +1,8 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
-using System.Reactive;
-using System.Reactive.Linq;
 using Termina.Components.Streaming;
-using Termina.Terminal;
+using R3;
 
 namespace Termina.Tests.Components.Streaming;
 
@@ -82,7 +80,7 @@ public class CompositeTextSegmentTests
         // Wait for invalidation from spinner
         await composite.Invalidated
             .FirstAsync()
-            .Timeout(TimeSpan.FromSeconds(1));
+            .WaitAsync(TimeSpan.FromSeconds(1));
 
         // If we got here, invalidation was propagated
         Assert.True(true);
@@ -128,7 +126,7 @@ public class CompositeTextSegmentTests
         var invalidatedCompleted = false;
         composite.Invalidated.Subscribe(
             onNext: _ => { },
-            onCompleted: () => invalidatedCompleted = true);
+            onCompleted: _ => invalidatedCompleted = true);
 
         composite.Dispose();
 

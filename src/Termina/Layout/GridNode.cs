@@ -1,9 +1,7 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
-using System.Reactive;
-using System.Reactive.Linq;
-using System.Reactive.Subjects;
+using R3;
 using Termina.Rendering;
 using Termina.Terminal;
 
@@ -103,17 +101,17 @@ public sealed class GridNode : LayoutNode, IFocusable, IInvalidatingNode
     public bool ShowFocusHighlight { get; private set; } = true;
 
     /// <inheritdoc />
-    public IObservable<Unit> Invalidated => _invalidated.AsObservable();
+    public Observable<Unit> Invalidated => _invalidated.AsObservable();
 
     /// <summary>
     /// Observable that emits when the focused cell changes.
     /// </summary>
-    public IObservable<(int Row, int Col)> FocusedCellChanged => _focusedCellChanged.AsObservable();
+    public Observable<(int Row, int Col)> FocusedCellChanged => _focusedCellChanged.AsObservable();
 
     /// <summary>
     /// Observable that emits when a cell is activated (Enter pressed).
     /// </summary>
-    public IObservable<(int Row, int Col, ILayoutNode? Cell)> CellActivated => _cellActivated.AsObservable();
+    public Observable<(int Row, int Col, ILayoutNode? Cell)> CellActivated => _cellActivated.AsObservable();
 
     /// <summary>
     /// Gets the number of rows in the grid.

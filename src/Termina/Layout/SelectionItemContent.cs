@@ -1,10 +1,7 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
-using System.Reactive;
-using System.Reactive.Disposables;
-using System.Reactive.Linq;
-using System.Reactive.Subjects;
+using R3;
 using Termina.Components.Streaming;
 using Termina.Terminal;
 
@@ -46,7 +43,7 @@ public sealed class SelectionItemContent : IDisposable
     /// <summary>
     /// Observable that fires when any animated segment in this content changes.
     /// </summary>
-    public IObservable<Unit> Invalidated => _invalidated.AsObservable();
+    public Observable<Unit> Invalidated => _invalidated.AsObservable();
 
     /// <summary>
     /// Gets whether this content contains any animated segments.

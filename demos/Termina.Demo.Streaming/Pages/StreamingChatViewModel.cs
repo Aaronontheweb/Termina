@@ -1,11 +1,9 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
-using System.Reactive;
-using System.Reactive.Linq;
-using System.Reactive.Subjects;
 using Akka.Actor;
 using Akka.Hosting;
+using R3;
 using Termina.Components.Streaming;
 using Termina.Demo.Streaming.Actors;
 using Termina.Layout;
@@ -41,12 +39,14 @@ public sealed record RemoveTrackedSegment(SegmentId Id) : IChatMessage;
 /// <summary>
 /// Replace a tracked segment with new content.
 /// </summary>
-public sealed record ReplaceTrackedSegment(SegmentId Id, ITextSegment NewSegment, bool KeepTracked = false) : IChatMessage;
+public sealed record ReplaceTrackedSegment(SegmentId Id, ITextSegment NewSegment, bool KeepTracked = false)
+    : IChatMessage;
 
 /// <summary>
 /// Show a decision point with choices for the user.
 /// </summary>
-public sealed record ShowDecisionPoint(string Question, IReadOnlyList<LlmMessages.DecisionChoice> Choices) : IChatMessage;
+public sealed record ShowDecisionPoint(string Question, IReadOnlyList<LlmMessages.DecisionChoice> Choices)
+    : IChatMessage;
 
 /// <summary>
 /// Hide the decision list (after selection or cancellation).
@@ -77,7 +77,7 @@ public partial class StreamingChatViewModel : ReactiveViewModel
     /// Observable for chat messages.
     /// Includes text appends and tracked segment operations.
     /// </summary>
-    public IObservable<IChatMessage> ChatOutput => _chatOutput.AsObservable();
+    public Observable<IChatMessage> ChatOutput => _chatOutput.AsObservable();
 
     // Reactive properties for UI state
     [Reactive] private bool _isGenerating = false;
@@ -101,7 +101,8 @@ public partial class StreamingChatViewModel : ReactiveViewModel
         _chatOutput.OnNext(new AppendText("🤖 ", Color.Yellow));
         _chatOutput.OnNext(new AppendText("Assistant: ", Color.Green, TextDecoration.Bold));
         _chatOutput.OnNext(new AppendText("Hello! I'm a simulated LLM demo.", Color.White, IsNewLine: true));
-        _chatOutput.OnNext(new AppendText("   Ask me anything and watch the streaming response!", Color.BrightBlack, IsNewLine: true));
+        _chatOutput.OnNext(new AppendText("   Ask me anything and watch the streaming response!", Color.BrightBlack,
+            IsNewLine: true));
         _chatOutput.OnNext(new AppendText("", IsNewLine: true));
     }
 

@@ -3,6 +3,7 @@
 
 using Termina.Rendering;
 using Termina.Terminal;
+using R3;
 
 namespace Termina.Tests.Rendering;
 

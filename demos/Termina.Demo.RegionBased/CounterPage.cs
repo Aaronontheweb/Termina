@@ -1,7 +1,7 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
-using System.Reactive.Linq;
+using R3;
 using Termina.Extensions;
 using Termina.Layout;
 using Termina.Reactive;
@@ -38,7 +38,7 @@ public class CounterPage : ReactivePage<CounterViewModel>
                     .WithBorderColor(Color.Green)
                     .WithContent(
                         ViewModel.CountChanged
-                            .Select(count => new TextNode($"Count: {count}")
+                            .Select<int, ILayoutNode>(count => new TextNode($"Count: {count}")
                                 .WithForeground(Color.BrightCyan))
                             .AsLayout())
                     .Height(3))
@@ -50,7 +50,7 @@ public class CounterPage : ReactivePage<CounterViewModel>
                     .WithBorderColor(Color.Yellow)
                     .WithContent(
                         ViewModel.InputTextChanged
-                            .Select(text => new TextNode($"> {text}_")
+                            .Select<string, ILayoutNode>(text => new TextNode($"> {text}_")
                                 .WithForeground(Color.White)
                                 .NoWrap())
                             .AsLayout())
@@ -63,7 +63,7 @@ public class CounterPage : ReactivePage<CounterViewModel>
                     .WithBorderColor(Color.Magenta)
                     .WithContent(
                         ViewModel.MessagesChanged
-                            .Select(messages => new TextNode(messages.Count > 0
+                            .Select<List<string>, ILayoutNode>(messages => new TextNode(messages.Count > 0
                                 ? string.Join("\n", messages)
                                 : "(no messages yet)")
                                 .WithForeground(Color.Gray))
@@ -75,7 +75,7 @@ public class CounterPage : ReactivePage<CounterViewModel>
                 Layouts.Horizontal()
                     .WithChild(
                         ViewModel.StatusMessageChanged
-                            .Select(status => new TextNode(status)
+                            .Select<string, ILayoutNode>(status => new TextNode(status)
                                 .WithForeground(Color.BrightYellow)
                                 .NoWrap())  // Status should truncate, not wrap
                             .AsLayout()

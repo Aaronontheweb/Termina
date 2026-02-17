@@ -1,6 +1,4 @@
-using System.Reactive.Disposables;
-using System.Reactive.Linq;
-using System.Reactive.Subjects;
+using R3;
 using Termina.Input;
 using Termina.Reactive;
 
@@ -81,7 +79,7 @@ public class ReactiveViewModelTests
             requestRedraw: () => { },
             input: inputSubject);
 
-        vm.TestInput.OfType<KeyPressed>()
+        vm.TestInput.OfType<IInputEvent, KeyPressed>()
             .Subscribe(k => receivedKeys.Add(k.KeyInfo.Key))
             .DisposeWith(vm.TestSubscriptions);
 
@@ -234,7 +232,7 @@ public class ReactiveViewModelTests
 
         // Expose protected members for testing
         public CompositeDisposable TestSubscriptions => Subscriptions;
-        public IObservable<IInputEvent> TestInput => Input;
+        public Observable<IInputEvent> TestInput => Input;
 
         public void TestNavigate(string pageKey) => Navigate(pageKey);
         public void TestShutdown() => Shutdown();

@@ -1,8 +1,7 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
-using System.Reactive;
-using System.Reactive.Linq;
+using R3;
 using Termina.Components.Streaming;
 using Termina.Layout;
 using Termina.Terminal;
@@ -197,7 +196,7 @@ public class StreamingTextNodeTrackedSegmentTests
         // Wait for actual invalidation event instead of sleeping
         await spinner.Invalidated
             .FirstAsync()
-            .Timeout(TimeSpan.FromSeconds(1));
+            .WaitAsync(TimeSpan.FromSeconds(1));
 
         var frame2 = spinner.GetCurrentSegment().Text;
 
@@ -215,7 +214,7 @@ public class StreamingTextNodeTrackedSegmentTests
         // Wait for actual invalidation event instead of sleeping
         await spinner.Invalidated
             .FirstAsync()
-            .Timeout(TimeSpan.FromSeconds(1));
+            .WaitAsync(TimeSpan.FromSeconds(1));
 
         // If we get here without timeout, the event fired
         spinner.Dispose();
@@ -299,7 +298,7 @@ public class StreamingTextNodeTrackedSegmentTests
         // Wait for actual content change event instead of sleeping
         await node.ContentChanged
             .FirstAsync()
-            .Timeout(TimeSpan.FromSeconds(1));
+            .WaitAsync(TimeSpan.FromSeconds(1));
 
         // If we get here without timeout, the event fired
         newSpinner.Dispose();

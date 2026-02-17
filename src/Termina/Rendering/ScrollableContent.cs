@@ -1,8 +1,7 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Reactive;
-using System.Reactive.Subjects;
+using R3;
 using Termina.Terminal;
 
 namespace Termina.Rendering;
@@ -75,7 +74,7 @@ public sealed class ScrollableContent : IRenderable, IDisposable
     /// <summary>
     /// Observable that emits when the component needs to be re-rendered.
     /// </summary>
-    public IObservable<Unit> Dirty => _dirty;
+    public Observable<Unit> Dirty => _dirty;
 
     /// <summary>
     /// Set the content as an array of text lines.

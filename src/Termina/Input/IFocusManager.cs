@@ -1,6 +1,7 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
+using R3;
 using Termina.Layout;
 
 namespace Termina.Input;
@@ -18,7 +19,7 @@ public interface IFocusManager
     /// <summary>
     /// Observable that emits when focus changes.
     /// </summary>
-    IObservable<IFocusable?> FocusChanged { get; }
+    Observable<IFocusable?> FocusChanged { get; }
 
     /// <summary>
     /// Gets the currently focused component, or null if nothing has focus.

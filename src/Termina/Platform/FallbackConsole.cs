@@ -1,7 +1,7 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Reactive.Subjects;
+using R3;
 
 namespace Termina.Platform;
 
@@ -30,7 +30,7 @@ public sealed class FallbackConsole : IPlatformConsole
     public bool SupportsEventDrivenInput => false;
 
     /// <inheritdoc />
-    public IObservable<ConsoleResizeEvent> Resized => _resized;
+    public Observable<ConsoleResizeEvent> Resized => _resized;
 
     /// <inheritdoc />
     public void Initialize()

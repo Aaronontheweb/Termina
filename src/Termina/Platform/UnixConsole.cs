@@ -1,8 +1,8 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Reactive.Subjects;
 using System.Runtime.Versioning;
+using R3;
 
 namespace Termina.Platform;
 
@@ -38,7 +38,7 @@ public sealed class UnixConsole : IPlatformConsole
     public bool SupportsEventDrivenInput => true;
 
     /// <inheritdoc />
-    public IObservable<ConsoleResizeEvent> Resized => _resized;
+    public Observable<ConsoleResizeEvent> Resized => _resized;
 
     /// <inheritdoc />
     public void Initialize()

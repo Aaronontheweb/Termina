@@ -1,7 +1,7 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
-using System.Reactive.Linq;
+using R3;
 using Termina.Components.Streaming;
 using Termina.Terminal;
 using Xunit;
@@ -52,7 +52,7 @@ public class BlockSegmentTests
         block.Invalidated.Subscribe(_ => invalidated = true);
 
         // Wait for spinner animation
-        await spinner.Invalidated.FirstAsync().Timeout(TimeSpan.FromSeconds(1));
+        await spinner.Invalidated.FirstAsync().WaitAsync(TimeSpan.FromSeconds(1));
 
         Assert.True(invalidated);
 

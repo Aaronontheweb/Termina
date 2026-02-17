@@ -1,7 +1,7 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
-using System.Reactive.Linq;
+using R3;
 using Termina.Components.Streaming;
 using Termina.Extensions;
 using Termina.Layout;
@@ -185,7 +185,7 @@ public class SelectionListGalleryPage : ReactivePage<SelectionListGalleryViewMod
         return Layouts.Horizontal()
             .WithChild(
                 ViewModel.StatusMessageChanged
-                    .Select(msg => new TextNode(msg).WithForeground(Color.White))
+                    .Select<string, ILayoutNode>(msg => new TextNode(msg).WithForeground(Color.White))
                     .AsLayout()
                     .Fill())
             .WithChild(

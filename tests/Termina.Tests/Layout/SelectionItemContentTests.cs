@@ -1,8 +1,7 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
-using System.Reactive;
-using System.Reactive.Linq;
+using R3;
 using Termina.Components.Streaming;
 using Termina.Layout;
 using Termina.Terminal;
@@ -155,7 +154,7 @@ public class SelectionItemContentTests
         // Wait for invalidation
         await content.Invalidated
             .FirstAsync()
-            .Timeout(TimeSpan.FromSeconds(1));
+            .WaitAsync(TimeSpan.FromSeconds(1));
 
         Assert.True(true); // Got here means invalidation was received
     }
@@ -169,7 +168,7 @@ public class SelectionItemContentTests
         var completed = false;
         content.Invalidated.Subscribe(
             onNext: _ => { },
-            onCompleted: () => completed = true);
+            onCompleted: _ => completed = true);
 
         content.Dispose();
 

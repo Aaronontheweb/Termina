@@ -1,9 +1,8 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
-using System.Reactive;
-using System.Reactive.Subjects;
 using System.Timers;
+using R3;
 using Termina.Rendering;
 using Termina.Terminal;
 using Timer = System.Timers.Timer;
@@ -83,7 +82,7 @@ public sealed class SpinnerNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     public Color? LabelColor { get; private set; }
 
     /// <inheritdoc />
-    public IObservable<Unit> Invalidated => _invalidated;
+    public Observable<Unit> Invalidated => _invalidated;
 
     /// <inheritdoc />
     public bool IsAnimating { get; private set; }

@@ -1,9 +1,8 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
-using System.Reactive;
-using System.Reactive.Subjects;
 using System.Timers;
+using R3;
 using Termina.Diagnostics;
 using Termina.Input;
 using Termina.Rendering;
@@ -38,17 +37,17 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     private int _maxHistoryEntries;
 
     /// <inheritdoc />
-    public IObservable<Unit> Invalidated => _invalidated;
+    public Observable<Unit> Invalidated => _invalidated;
 
     /// <summary>
     /// Observable that emits when the text value changes.
     /// </summary>
-    public IObservable<string> TextChanged => _textChanged;
+    public Observable<string> TextChanged => _textChanged;
 
     /// <summary>
     /// Observable that emits when Enter is pressed.
     /// </summary>
-    public IObservable<string> Submitted => _submitted;
+    public Observable<string> Submitted => _submitted;
 
     /// <inheritdoc />
     public bool IsAnimating { get; private set; }

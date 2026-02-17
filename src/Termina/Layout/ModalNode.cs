@@ -1,9 +1,7 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
-using System.Reactive;
-using System.Reactive.Linq;
-using System.Reactive.Subjects;
+using R3;
 using Termina.Rendering;
 using Termina.Terminal;
 
@@ -58,12 +56,12 @@ public sealed class ModalNode : LayoutNode, IFocusable, IInvalidatingNode
     };
 
     /// <inheritdoc />
-    public IObservable<Unit> Invalidated => _invalidated.AsObservable();
+    public Observable<Unit> Invalidated => _invalidated.AsObservable();
 
     /// <summary>
     /// Observable that emits when the modal is dismissed (e.g., Escape pressed).
     /// </summary>
-    public IObservable<Unit> Dismissed => _dismissed.AsObservable();
+    public Observable<Unit> Dismissed => _dismissed.AsObservable();
 
     /// <inheritdoc />
     public new SizeConstraint WidthConstraint => SizeConstraint.FillRemaining();

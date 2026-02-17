@@ -1,9 +1,7 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
-using System.Reactive;
-using System.Reactive.Disposables;
-using System.Reactive.Subjects;
+using R3;
 using Termina.Rendering;
 using Termina.Terminal;
 
@@ -46,7 +44,7 @@ public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode
     private IDisposable? _contentSubscription;
 
     /// <inheritdoc />
-    public IObservable<Unit> Invalidated => _invalidated;
+    public Observable<Unit> Invalidated => _invalidated;
 
     /// <summary>
     /// Gets or sets the automatic scroll policy.

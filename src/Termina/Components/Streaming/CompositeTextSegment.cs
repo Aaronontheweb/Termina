@@ -1,12 +1,8 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
-using System.Reactive;
-using System.Reactive.Disposables;
-using System.Reactive.Linq;
-using System.Reactive.Subjects;
 using System.Text;
-using Termina.Terminal;
+using R3;
 
 namespace Termina.Components.Streaming;
 
@@ -70,7 +66,7 @@ public sealed class CompositeTextSegment : ICompositeTextSegment, IAnimatedTextS
     public IReadOnlyList<ITextSegment> Children => _children.AsReadOnly();
 
     /// <inheritdoc />
-    public IObservable<Unit> Invalidated => _invalidated.AsObservable();
+    public Observable<Unit> Invalidated => _invalidated.AsObservable();
 
     /// <inheritdoc />
     public bool IsAnimating => _isAnimating && _children.OfType<IAnimatedTextSegment>().Any(a => a.IsAnimating);

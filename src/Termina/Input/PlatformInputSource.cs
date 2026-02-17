@@ -4,6 +4,7 @@
 using System.Threading.Channels;
 using Termina.Diagnostics;
 using Termina.Platform;
+using R3;
 
 namespace Termina.Input;
 
