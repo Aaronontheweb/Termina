@@ -91,7 +91,11 @@ public sealed class PlatformInputSource : IInputSource
                         TerminaTrace.Input.Trace(this, "KeyEvent: {0}", keyEvent.KeyInfo.Key);
                         var events = _parser.Process(keyEvent.KeyInfo);
                         foreach (var e in events)
+                        {
+                            if (e is PasteEvent pe)
+                                TerminaTrace.Input.Debug(this, "PasteEvent emitted: {0} chars", pe.Content.Length);
                             await writer.WriteAsync(e, cancellationToken);
+                        }
                         break;
 
                     case ConsoleResizeEvent resizeEvent:

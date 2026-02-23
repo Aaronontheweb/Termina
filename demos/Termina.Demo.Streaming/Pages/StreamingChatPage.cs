@@ -291,7 +291,7 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
                         ? "[↑/↓] Navigate [Enter] Select [1-4] Quick Select [Esc] Skip"
                         : isGenerating
                             ? "[Esc] Cancel  [PgUp/PgDn/Wheel] Scroll  [Ctrl+Q] Quit"
-                            : "[Enter/Paste] Send  [↑/↓] History  [PgUp/PgDn/Wheel] Scroll  [Esc] Clear/Quit  [Ctrl+Q] Quit")
+                            : "[Enter] Send  [Ctrl+Shift+V] Paste  [↑/↓] History  [PgUp/PgDn/Wheel] Scroll  [Esc] Clear/Quit  [Ctrl+Q] Quit")
                     .Select(text => new TextNode(text).WithForeground(Color.BrightBlack).NoWrap())
                     .AsLayout()
                     .Height(1))
