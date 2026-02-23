@@ -17,12 +17,15 @@ namespace Termina.Input;
 /// input with no polling delay.
 /// </para>
 /// <para>
-/// This replaces <see cref="ConsoleInputSource"/> which used a 10ms polling loop.
+/// Escape sequences (mouse events, bracketed paste) are transparently decoded by
+/// <see cref="EscapeSequenceParser"/> before being emitted as application events.
+/// This prevents terminal mouse click sequences from appearing as spurious ESC keypresses.
 /// </para>
 /// </remarks>
 public sealed class PlatformInputSource : IInputSource
 {
     private readonly IPlatformConsole _console;
+    private readonly EscapeSequenceParser _parser;
     private IDisposable? _resizeSubscription;
 
     /// <summary>
@@ -32,6 +35,7 @@ public sealed class PlatformInputSource : IInputSource
     public PlatformInputSource(IPlatformConsole console)
     {
         _console = console ?? throw new ArgumentNullException(nameof(console));
+        _parser = new EscapeSequenceParser();
     }
 
     /// <inheritdoc />
@@ -40,11 +44,8 @@ public sealed class PlatformInputSource : IInputSource
         TerminaTrace.Input.Debug(this, "PlatformInputSource.RunAsync starting");
 
         // Subscribe to resize events from the platform console
-        // These come through the observable for signal-based notifications (Unix)
-        // or through ReadInputAsync for Windows (WINDOW_BUFFER_SIZE_EVENT)
         _resizeSubscription = _console.Resized.Subscribe(evt =>
         {
-            // Convert platform resize event to application resize event
             writer.TryWrite(new ResizeEvent(evt.Width, evt.Height));
         });
 
@@ -54,42 +55,62 @@ public sealed class PlatformInputSource : IInputSource
 
             while (!cancellationToken.IsCancellationRequested)
             {
-                var inputEvent = await _console.ReadInputAsync(cancellationToken).ConfigureAwait(false);
+                IConsoleInputEvent? inputEvent;
 
-                if (inputEvent is null)
+                // When buffering an incomplete escape sequence, use a short timeout so a
+                // standalone ESC key (e.g., user pressing Esc) can be flushed after 50 ms.
+                if (_parser.IsBufferingEscape)
                 {
-                    // Cancelled or no event
-                    continue;
+                    inputEvent = await ReadInputWithTimeoutAsync(50, cancellationToken);
+                    if (inputEvent is null)
+                    {
+                        if (cancellationToken.IsCancellationRequested) break;
+
+                        // Timed out — check if the buffered ESC should be flushed
+                        var escEvent = _parser.CheckEscapeTimeout();
+                        if (escEvent is not null)
+                            await writer.WriteAsync(escEvent, cancellationToken);
+                        continue;
+                    }
+                }
+                else
+                {
+                    inputEvent = await _console.ReadInputAsync(cancellationToken);
+                    if (inputEvent is null)
+                    {
+                        if (cancellationToken.IsCancellationRequested) break;
+                        continue;
+                    }
                 }
 
                 TerminaTrace.Input.Debug(this, "Received input event: {0}", inputEvent.GetType().Name);
 
-                // Convert platform events to application events
                 switch (inputEvent)
                 {
                     case ConsoleKeyEvent keyEvent:
                         TerminaTrace.Input.Trace(this, "KeyEvent: {0}", keyEvent.KeyInfo.Key);
-                        await writer.WriteAsync(new KeyPressed(keyEvent.KeyInfo), cancellationToken)
-                            .ConfigureAwait(false);
+                        var events = _parser.Process(keyEvent.KeyInfo);
+                        foreach (var e in events)
+                            await writer.WriteAsync(e, cancellationToken);
                         break;
 
                     case ConsoleResizeEvent resizeEvent:
                         // Resize events are also returned from ReadInputAsync on Windows
-                        // We emit them here too in case the observable subscription missed them
                         TerminaTrace.Input.Debug(this, "ResizeEvent: {0}x{1}", resizeEvent.Width, resizeEvent.Height);
                         await writer.WriteAsync(new ResizeEvent(resizeEvent.Width, resizeEvent.Height), cancellationToken)
                             .ConfigureAwait(false);
                         break;
 
-                    case ConsoleMouseEvent mouseEvent:
-                        // TODO: Convert to MouseEvent when mouse support is added
+                    case ConsoleMouseEvent:
+                        // Silently consume raw platform mouse events (Windows).
+                        // On Unix, mouse events arrive as SGR escape sequences handled by EscapeSequenceParser.
                         break;
                 }
             }
 
             TerminaTrace.Input.Debug(this, "PlatformInputSource loop exited (cancellation requested)");
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             TerminaTrace.Input.Error(this, "PlatformInputSource exception: {0}", ex.Message);
             throw;
@@ -99,6 +120,26 @@ public sealed class PlatformInputSource : IInputSource
             TerminaTrace.Input.Debug(this, "PlatformInputSource cleaning up");
             _resizeSubscription?.Dispose();
             _resizeSubscription = null;
+        }
+    }
+
+    /// <summary>
+    /// Reads the next input event, returning <c>null</c> if <paramref name="timeoutMs"/> elapses
+    /// before any input arrives. Used to detect standalone ESC keys that are not followed
+    /// by a CSI sequence.
+    /// </summary>
+    private async ValueTask<IConsoleInputEvent?> ReadInputWithTimeoutAsync(int timeoutMs, CancellationToken outerCt)
+    {
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(outerCt);
+        timeoutCts.CancelAfter(timeoutMs);
+        try
+        {
+            return await _console.ReadInputAsync(timeoutCts.Token);
+        }
+        catch (OperationCanceledException) when (!outerCt.IsCancellationRequested)
+        {
+            // Timed out (not cancelled by the outer token)
+            return null;
         }
     }
 }
