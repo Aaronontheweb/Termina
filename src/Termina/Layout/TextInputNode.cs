@@ -5,6 +5,7 @@ using System.Reactive;
 using System.Reactive.Subjects;
 using System.Timers;
 using Termina.Diagnostics;
+using Termina.Input;
 using Termina.Rendering;
 using Termina.Terminal;
 using Timer = System.Timers.Timer;
@@ -20,7 +21,7 @@ namespace Termina.Layout;
 /// which can decide whether to enable history, how many entries to keep, and whether to
 /// persist it across sessions.
 /// </remarks>
-public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode, IFocusable
+public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode, IFocusable, IPasteReceiver
 {
     private readonly Timer _cursorTimer;
     private readonly Subject<Unit> _invalidated = new();
@@ -507,6 +508,38 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Handles pasted text from the terminal's bracketed paste mode.
+    /// Newlines in the pasted content are silently skipped — this is a single-line input.
+    /// The <see cref="Submitted"/> observable is NOT fired; only <see cref="TextChanged"/> is emitted.
+    /// Respects <see cref="MaxLength"/> when set.
+    /// </summary>
+    /// <param name="paste">The paste event containing the text to insert.</param>
+    /// <returns><see langword="true"/> if the paste was handled; <see langword="false"/> if empty.</returns>
+    public bool HandlePaste(PasteEvent paste)
+    {
+        if (string.IsNullOrEmpty(paste.Content))
+            return false;
+
+        foreach (var c in paste.Content)
+        {
+            // Single-line input: skip all line-ending characters
+            if (c == '\r' || c == '\n')
+                continue;
+
+            // Respect MaxLength (0 means unlimited)
+            if (MaxLength > 0 && _text.Length >= MaxLength)
+                break;
+
+            _text = _text.Insert(_cursorPosition, c.ToString());
+            _cursorPosition++;
+        }
+
+        _textChanged.OnNext(_text);
+        _invalidated.OnNext(Unit.Default);
+        return true;
     }
 
     private void SelectAll()

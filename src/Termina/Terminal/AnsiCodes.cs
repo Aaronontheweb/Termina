@@ -207,6 +207,21 @@ public static class AnsiCodes
     /// </summary>
     public const string ResetStrikethrough = $"{Csi}29m";
 
+    // Bracketed paste mode
+
+    /// <summary>
+    /// Enable bracketed paste mode. Format: CSI ?2004h
+    /// When enabled, the terminal wraps pasted text with <c>ESC[200~</c> ... <c>ESC[201~</c>,
+    /// allowing the application to distinguish pasted content from typed input.
+    /// </summary>
+    public const string EnableBracketedPaste = $"{Csi}?2004h";
+
+    /// <summary>
+    /// Disable bracketed paste mode. Format: CSI ?2004l
+    /// Should be sent before exiting the application to restore normal paste behavior.
+    /// </summary>
+    public const string DisableBracketedPaste = $"{Csi}?2004l";
+
     // Mouse tracking
 
     /// <summary>
@@ -238,6 +253,19 @@ public static class AnsiCodes
     /// Disable mouse tracking (SGR extended mode). Format: CSI ?1006l
     /// </summary>
     public const string DisableMouseSgr = $"{Csi}?1006l";
+
+    /// <summary>
+    /// Enable button event tracking mode, which reports mouse button presses and scroll wheel events.
+    /// Format: CSI ?1002h
+    /// Use together with <see cref="EnableMouseSgr"/> to receive scroll wheel events.
+    /// </summary>
+    public const string EnableMouseButtonTracking = $"{Csi}?1002h";
+
+    /// <summary>
+    /// Disable button event tracking mode. Format: CSI ?1002l
+    /// Should be sent before exiting the application to restore normal mouse behavior.
+    /// </summary>
+    public const string DisableMouseButtonTracking = $"{Csi}?1002l";
 
     // Alternate screen buffer
 

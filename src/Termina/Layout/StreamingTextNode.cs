@@ -16,10 +16,17 @@ namespace Termina.Layout;
 /// StreamingTextNode wraps an IStreamingTextBuffer (either PersistedStreamBuffer or WindowedStreamBuffer)
 /// and renders the content with automatic word wrapping and optional scrolling.
 /// </remarks>
-public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode
+public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode, IScrollable
 {
     private readonly IStreamingTextBuffer _buffer;
     private readonly Subject<Unit> _invalidated = new();
+
+    // Scrollbar
+    private ScrollbarOptions? _scrollbarOptions;
+
+    // Cached viewport dimensions, updated during Render() and used by IScrollable
+    private int _lastViewportWidth = 80;
+    private int _lastViewportHeight = 24;
 
     // Tracked segment infrastructure
     private readonly List<ContentElement> _content = new();  // Ordered list of all content
@@ -537,6 +544,43 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode
         return this;
     }
 
+    /// <summary>
+    /// Enable the visual scrollbar with default options.
+    /// The scrollbar occupies the rightmost column of the node's bounds.
+    /// It is hidden automatically when all content fits within the viewport.
+    /// </summary>
+    public StreamingTextNode WithScrollbar() => WithScrollbar(new ScrollbarOptions());
+
+    /// <summary>
+    /// Enable the visual scrollbar with the specified options.
+    /// The scrollbar occupies the rightmost column of the node's bounds.
+    /// </summary>
+    /// <param name="options">Scrollbar appearance and behavior options.</param>
+    public StreamingTextNode WithScrollbar(ScrollbarOptions options)
+    {
+        _scrollbarOptions = options;
+        return this;
+    }
+
+    /// <inheritdoc cref="IScrollable.CanScrollUp"/>
+    /// <remarks>
+    /// Depends on cached viewport dimensions updated during <see cref="Render"/>.
+    /// Returns <see langword="false"/> before the first render.
+    /// </remarks>
+    public bool CanScrollUp => _buffer is PersistedStreamBuffer p &&
+        p.ScrollOffset < p.GetMaxScrollOffset(_lastViewportWidth);
+
+    /// <inheritdoc cref="IScrollable.CanScrollDown"/>
+    /// <remarks>
+    /// Depends on cached viewport dimensions updated during <see cref="Render"/>.
+    /// Returns <see langword="false"/> before the first render.
+    /// </remarks>
+    public bool CanScrollDown => _buffer is PersistedStreamBuffer p && p.ScrollOffset > 0;
+
+    void IScrollable.ScrollUp(int lines) => ScrollUp(lines, _lastViewportWidth);
+
+    void IScrollable.ScrollDown(int lines) => ScrollDown(lines);
+
     /// <inheritdoc />
     public override Size Measure(Size available)
     {
@@ -552,9 +596,14 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode
             return;
 
         var prefixLen = Prefix?.Length ?? 0;
-        var contentWidth = bounds.Width - prefixLen;
+        var scrollbarWidth = ShouldDrawScrollbar(bounds) ? 1 : 0;
+        var contentWidth = bounds.Width - prefixLen - scrollbarWidth;
         if (contentWidth <= 0)
             return;
+
+        // Update cached viewport dimensions for IScrollable
+        _lastViewportWidth = contentWidth;
+        _lastViewportHeight = bounds.Height;
 
         // Get styled lines from buffer
         var styledLines = _buffer.GetVisibleStyledLines(bounds.Height, contentWidth);
@@ -603,6 +652,55 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode
                 context.WriteAt(x, i, text);
                 x += text.Length;
             }
+        }
+
+        context.ResetColors();
+
+        if (scrollbarWidth > 0)
+            DrawScrollbar(context, bounds, contentWidth);
+    }
+
+    private bool ShouldDrawScrollbar(Rect bounds)
+    {
+        if (_scrollbarOptions == null || _buffer is not PersistedStreamBuffer persisted)
+            return false;
+        if (!_scrollbarOptions.AutoHide)
+            return true;
+        var prefixLen = Prefix?.Length ?? 0;
+        // Show scrollbar only when wrapped line count exceeds the visible viewport height
+        return persisted.GetWrappedLineCount(bounds.Width - prefixLen - 1) > bounds.Height;
+    }
+
+    private void DrawScrollbar(IRenderContext context, Rect bounds, int contentWidth)
+    {
+        if (_buffer is not PersistedStreamBuffer persisted) return;
+
+        var scrollOffset = persisted.ScrollOffset;
+        var maxScroll = persisted.GetMaxScrollOffset(contentWidth);
+        if (maxScroll <= 0) return;
+
+        var x = bounds.Width - 1;
+        var trackHeight = bounds.Height;
+        var totalLines = trackHeight + maxScroll;
+        var thumbHeight = Math.Max(1, (int)((float)trackHeight / totalLines * trackHeight));
+        var maxThumbTop = trackHeight - thumbHeight;
+
+        // PersistedStreamBuffer uses 0 = bottom convention, so invert the thumb position:
+        // scrollOffset=0       → bottom → thumbTop = maxThumbTop
+        // scrollOffset=maxScroll → top  → thumbTop = 0
+        var thumbTop = maxScroll > 0
+            ? (int)((1f - (float)scrollOffset / maxScroll) * maxThumbTop)
+            : maxThumbTop;
+
+        var opts = _scrollbarOptions!;
+        var trackColor = opts.TrackColor ?? Color.BrightBlack;
+        var thumbColor = opts.ThumbColor ?? Color.White;
+
+        for (var y = 0; y < trackHeight; y++)
+        {
+            var isThumb = y >= thumbTop && y < thumbTop + thumbHeight;
+            context.SetForeground(isThumb ? thumbColor : trackColor);
+            context.WriteAt(x, y, isThumb ? opts.ThumbChar : opts.TrackChar);
         }
 
         context.ResetColors();

@@ -33,7 +33,8 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
     {
         // Create layout nodes
         _chatHistory = StreamingTextNode.Create()
-            .WithPrefix("  ", Color.Gray);
+            .WithPrefix("  ", Color.Gray)
+            .WithScrollbar();
 
         _promptInput = new TextInputNode()
             .WithPlaceholder("Enter your question...")
@@ -94,6 +95,23 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
         // Handle keyboard input - Page routes to interactive layout nodes
         ViewModel.Input.OfType<KeyPressed>()
             .Subscribe(HandleKeyPress)
+            .DisposeWith(Subscriptions);
+
+        // Route bracketed paste events to the prompt input
+        ViewModel.Input.OfType<PasteEvent>()
+            .Subscribe(paste => _promptInput.HandlePaste(paste))
+            .DisposeWith(Subscriptions);
+
+        // Route mouse scroll events to chat history (when no focused IScrollable captures them)
+        ViewModel.Input.OfType<MouseScrollEvent>()
+            .Subscribe(scroll =>
+            {
+                IScrollable scrollable = _chatHistory;
+                if (scroll.Delta > 0)
+                    scrollable.ScrollUp(3);
+                else
+                    scrollable.ScrollDown(3);
+            })
             .DisposeWith(Subscriptions);
 
         // Emit welcome message
@@ -272,8 +290,8 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
                     (isGenerating, showDecision) => showDecision
                         ? "[↑/↓] Navigate [Enter] Select [1-4] Quick Select [Esc] Skip"
                         : isGenerating
-                            ? "[Esc] Cancel [PgUp/PgDn] Scroll [Ctrl+Q] Quit"
-                            : "[Enter] Send [↑/↓] History [PgUp/PgDn] Scroll [Esc] Clear/Quit [Ctrl+Q] Quit")
+                            ? "[Esc] Cancel  [PgUp/PgDn/Wheel] Scroll  [Ctrl+Q] Quit"
+                            : "[Enter/Paste] Send  [↑/↓] History  [PgUp/PgDn/Wheel] Scroll  [Esc] Clear/Quit  [Ctrl+Q] Quit")
                     .Select(text => new TextNode(text).WithForeground(Color.BrightBlack).NoWrap())
                     .AsLayout()
                     .Height(1))

@@ -378,6 +378,10 @@ public sealed class TerminaApplication
             _terminal.Flush();
             TerminaTrace.Render.Debug(this, "Entered alternate screen, cursor hidden, flushed");
 
+            // Enable bracketed paste mode and mouse button tracking (with SGR for scroll events)
+            Console.Write(AnsiCodes.EnableBracketedPaste);
+            Console.Write(AnsiCodes.EnableMouseButtonTracking + AnsiCodes.EnableMouseSgr);
+
             // Initial render
             TerminaTrace.Render.Debug(this, "Starting initial render");
             RenderCurrentPage();
@@ -398,6 +402,10 @@ public sealed class TerminaApplication
         }
         finally
         {
+            // Disable bracketed paste mode and mouse button tracking before restoring terminal
+            Console.Write(AnsiCodes.DisableBracketedPaste);
+            Console.Write(AnsiCodes.DisableMouseButtonTracking);
+
             // Restore terminal state fully to avoid artifacts
             _terminal.DisableMouse();
             _terminal.SetCursorVisible(true);
@@ -461,6 +469,25 @@ public sealed class TerminaApplication
                 // Force full refresh on resize since terminal dimensions changed
                 _diffingTerminal?.ForceFullRefresh();
                 return;
+
+            case PasteEvent pasteEvent:
+                if (_focusManager.CurrentFocus is IPasteReceiver pasteReceiver)
+                    pasteReceiver.HandlePaste(pasteEvent);
+                else
+                    _inputSubject.OnNext(pasteEvent);
+                return;
+
+            case MouseScrollEvent mouseScroll:
+                const int linesPerTick = 3;
+                if (_focusManager.CurrentFocus is IScrollable scrollable)
+                {
+                    if (mouseScroll.Delta > 0)
+                        scrollable.ScrollUp(linesPerTick);
+                    else
+                        scrollable.ScrollDown(linesPerTick);
+                    return; // Handled by focused scrollable
+                }
+                break; // No focused scrollable — fall through to ViewModel input observable
         }
 
         // Route input events: Page (capture) -> Focus Manager (bubble) -> ViewModel
