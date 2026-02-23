@@ -378,9 +378,12 @@ public sealed class TerminaApplication
             _terminal.Flush();
             TerminaTrace.Render.Debug(this, "Entered alternate screen, cursor hidden, flushed");
 
-            // Enable bracketed paste mode and mouse button tracking (with SGR for scroll events)
+            // Enable bracketed paste mode; enable mouse tracking for scroll wheel events.
+            // Use ?1000h (normal mode) + ?1006h (SGR encoding) - sufficient for scroll events
+            // without the noisy button/drag events that ?1002h generates in tmux.
             Console.Write(AnsiCodes.EnableBracketedPaste);
-            Console.Write(AnsiCodes.EnableMouseButtonTracking + AnsiCodes.EnableMouseSgr);
+            _terminal.EnableMouse();
+            _terminal.Flush();
 
             // Initial render
             TerminaTrace.Render.Debug(this, "Starting initial render");
@@ -402,11 +405,11 @@ public sealed class TerminaApplication
         }
         finally
         {
-            // Disable bracketed paste mode and mouse button tracking before restoring terminal
+            // Disable bracketed paste mode before restoring terminal
             Console.Write(AnsiCodes.DisableBracketedPaste);
-            Console.Write(AnsiCodes.DisableMouseButtonTracking);
 
             // Restore terminal state fully to avoid artifacts
+            // DisableMouse() handles ?1000h and ?1006h cleanup
             _terminal.DisableMouse();
             _terminal.SetCursorVisible(true);
             _terminal.ResetColors();
