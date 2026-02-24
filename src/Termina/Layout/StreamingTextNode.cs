@@ -664,11 +664,17 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode, IScrollab
     {
         if (_scrollbarOptions == null || _buffer is not PersistedStreamBuffer persisted)
             return false;
+
+        var prefixLen = Prefix?.Length ?? 0;
+        var contentWidthWithScrollbar = bounds.Width - prefixLen - 1;
+        if (contentWidthWithScrollbar <= 0)
+            return false;
+
         if (!_scrollbarOptions.AutoHide)
             return true;
-        var prefixLen = Prefix?.Length ?? 0;
+
         // Show scrollbar only when wrapped line count exceeds the visible viewport height
-        return persisted.GetWrappedLineCount(bounds.Width - prefixLen - 1) > bounds.Height;
+        return persisted.GetWrappedLineCount(contentWidthWithScrollbar) > bounds.Height;
     }
 
     private void DrawScrollbar(IRenderContext context, Rect bounds, int contentWidth)

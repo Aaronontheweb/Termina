@@ -119,18 +119,6 @@ public class MouseScrollRoutingTests
     }
 
     [Fact]
-    public void EnableMouseButtonTracking_HasCorrectValue()
-    {
-        Assert.Equal("\x1b[?1002h", AnsiCodes.EnableMouseButtonTracking);
-    }
-
-    [Fact]
-    public void DisableMouseButtonTracking_HasCorrectValue()
-    {
-        Assert.Equal("\x1b[?1002l", AnsiCodes.DisableMouseButtonTracking);
-    }
-
-    [Fact]
     public void MouseScrollEvent_PositiveDelta_MeansScrollUp()
     {
         // Verify that positive Delta represents scroll up (toward older content)

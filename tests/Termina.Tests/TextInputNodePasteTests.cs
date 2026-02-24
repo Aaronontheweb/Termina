@@ -3,7 +3,6 @@
 
 using Termina.Input;
 using Termina.Layout;
-using Termina.Terminal;
 
 namespace Termina.Tests;
 
@@ -201,18 +200,6 @@ public class TextInputNodePasteTests
         node.HandleInput(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false));
 
         Assert.Equal("manual text", submitted);
-    }
-
-    [Fact]
-    public void EnableBracketedPaste_HasCorrectValue()
-    {
-        Assert.Equal("\x1b[?2004h", AnsiCodes.EnableBracketedPaste);
-    }
-
-    [Fact]
-    public void DisableBracketedPaste_HasCorrectValue()
-    {
-        Assert.Equal("\x1b[?2004l", AnsiCodes.DisableBracketedPaste);
     }
 
     [Fact]

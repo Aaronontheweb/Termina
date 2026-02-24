@@ -7,8 +7,8 @@ namespace Termina.Input;
 /// Input event fired when the user scrolls the mouse wheel.
 /// </summary>
 /// <remarks>
-/// This event is only emitted when mouse button tracking mode is active
-/// (<c>ESC[?1002h</c> combined with SGR mode <c>ESC[?1006h</c>).
+/// This event is emitted when mouse reporting is active
+/// (<c>ESC[?1000h</c> combined with SGR mode <c>ESC[?1006h</c>).
 /// The terminal reports scroll wheel events using SGR button codes 64 (up) and 65 (down).
 /// </remarks>
 /// <param name="Delta">

@@ -279,24 +279,6 @@ public static class AnsiCodes
     /// </summary>
     public const string DisableMouseSgr = $"{Csi}?1006l";
 
-    /// <summary>
-    /// Enable button event tracking mode, which reports mouse button presses, releases, and drag events.
-    /// Format: CSI ?1002h
-    /// <para>
-    /// NOTE: <see cref="EnableMouseNormal"/> (<c>?1000h</c>) combined with <see cref="EnableMouseSgr"/>
-    /// is sufficient for scroll wheel events. <c>?1002h</c> additionally reports click and drag events,
-    /// which can produce spurious escape sequences in multiplexers like tmux when switching panes.
-    /// Prefer <see cref="EnableMouseNormal"/> + <see cref="EnableMouseSgr"/> for scroll-only use cases.
-    /// </para>
-    /// </summary>
-    public const string EnableMouseButtonTracking = $"{Csi}?1002h";
-
-    /// <summary>
-    /// Disable button event tracking mode. Format: CSI ?1002l
-    /// Should be sent before exiting the application to restore normal mouse behavior.
-    /// </summary>
-    public const string DisableMouseButtonTracking = $"{Csi}?1002l";
-
     // Alternate screen buffer
 
     /// <summary>
