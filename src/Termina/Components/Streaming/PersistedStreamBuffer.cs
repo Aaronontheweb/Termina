@@ -342,7 +342,15 @@ public class PersistedStreamBuffer : IStreamingTextBuffer
         }
     }
 
-    private int GetMaxScrollOffset(int viewportWidth)
+    /// <summary>
+    /// Returns the maximum scroll offset for the given viewport width.
+    /// At maximum offset, the oldest content is visible at the bottom of the viewport.
+    /// </summary>
+    /// <param name="viewportWidth">
+    /// The width of the content area in columns, used for word-wrap calculations.
+    /// This should be the content width excluding any prefix or scrollbar columns.
+    /// </param>
+    public int GetMaxScrollOffset(int viewportWidth)
     {
         var totalWrapped = GetWrappedLineCount(viewportWidth);
         return Math.Max(0, totalWrapped - 1); // Can scroll up to see first line at bottom

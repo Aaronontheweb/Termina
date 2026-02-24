@@ -207,6 +207,46 @@ public static class AnsiCodes
     /// </summary>
     public const string ResetStrikethrough = $"{Csi}29m";
 
+    // Bracketed paste mode
+
+    /// <summary>
+    /// Enable bracketed paste mode. Format: CSI ?2004h
+    /// When enabled, the terminal wraps pasted text with <c>ESC[200~</c> ... <c>ESC[201~</c>,
+    /// allowing the application to distinguish pasted content from typed input.
+    /// </summary>
+    public const string EnableBracketedPaste = $"{Csi}?2004h";
+
+    /// <summary>
+    /// Disable bracketed paste mode. Format: CSI ?2004l
+    /// Should be sent before exiting the application to restore normal paste behavior.
+    /// </summary>
+    public const string DisableBracketedPaste = $"{Csi}?2004l";
+
+    /// <summary>
+    /// Wraps an ANSI escape sequence in a tmux DCS passthrough, allowing it to reach the
+    /// outer terminal when the application runs inside a tmux session.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// tmux intercepts most ANSI sequences from inner applications and handles them itself.
+    /// To send a sequence to the <em>outer</em> terminal (e.g., to enable bracketed paste at
+    /// the outer level so Ctrl+Shift+V pastes are wrapped with <c>ESC[200~</c>), wrap the
+    /// sequence with this passthrough.
+    /// </para>
+    /// <para>
+    /// Requires <c>set -g allow-passthrough on</c> in <c>~/.tmux.conf</c> (tmux 3.3+).
+    /// Without that setting, tmux silently drops the DCS sequence.
+    /// </para>
+    /// </remarks>
+    /// <param name="seq">The escape sequence to forward. All <c>ESC</c> bytes are automatically doubled as required by the DCS passthrough format.</param>
+    /// <returns>The wrapped DCS passthrough sequence ready to write to stdout.</returns>
+    public static string TmuxPassthrough(string seq)
+    {
+        // DCS passthrough syntax: ESC P tmux; ESC <seq-with-doubled-ESCs> ESC \
+        var doubled = seq.Replace("\x1b", "\x1b\x1b");
+        return $"\x1bPtmux;\x1b{doubled}\x1b\\";
+    }
+
     // Mouse tracking
 
     /// <summary>

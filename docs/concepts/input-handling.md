@@ -211,7 +211,20 @@ All input events implement `IInputEvent`. The framework provides:
 
 - `KeyPressed` - Keyboard input
 - `MouseEvent` - Mouse clicks, movement, scrolling
+- `MouseScrollEvent` - Mouse wheel scroll (routed to `IScrollable` components)
+- `PasteEvent` - Bracketed paste (routed to `IPasteReceiver` components)
 - `ResizeEvent` - Terminal window resize
+
+### Automatic Routing
+
+Some events are automatically routed to the focused component before reaching the ViewModel's `Input` observable:
+
+| Event | Routed To | Fallback |
+|-------|-----------|----------|
+| `MouseScrollEvent` | Focused `IScrollable` component | `ViewModel.Input` |
+| `PasteEvent` | Focused `IPasteReceiver` component | `ViewModel.Input` |
+
+This means `StreamingTextNode` (which implements `IScrollable`) automatically handles mouse wheel scrolling, and `TextInputNode` (which implements `IPasteReceiver`) automatically handles paste — no manual wiring needed.
 
 ## Keyboard Input Details
 
@@ -317,6 +330,45 @@ Input.OfType<ResizeEvent>()
     .DisposeWith(Subscriptions);
 ```
 
+## Mouse Wheel Scrolling
+
+Mouse wheel events are detected via SGR mouse escape sequences and emitted as `MouseScrollEvent`:
+
+```csharp
+Input.OfType<MouseScrollEvent>()
+    .Subscribe(scroll =>
+    {
+        // scroll.Delta: +1 = scroll up, -1 = scroll down
+        if (scroll.Delta > 0)
+            ScrollContentUp();
+        else
+            ScrollContentDown();
+    })
+    .DisposeWith(Subscriptions);
+```
+
+::: tip Automatic Routing
+If the focused component implements `IScrollable` (like `StreamingTextNode`), mouse scroll events are routed directly to it — each tick scrolls 3 lines. The event only reaches `ViewModel.Input` if no `IScrollable` component has focus.
+:::
+
+## Paste Events
+
+Termina automatically enables [bracketed paste mode](https://en.wikipedia.org/wiki/Bracketed-paste) so multi-line pastes are received as a single `PasteEvent` instead of individual key presses:
+
+```csharp
+Input.OfType<PasteEvent>()
+    .Subscribe(paste =>
+    {
+        // paste.Content contains the full text including newlines
+        var lines = paste.Content.Split('\n');
+    })
+    .DisposeWith(Subscriptions);
+```
+
+::: tip Automatic Routing
+If the focused component implements `IPasteReceiver` (like `TextInputNode`), paste events are routed directly to it. `TextInputNode` shows a summary placeholder and submits the full content on Enter. The event only reaches `ViewModel.Input` if no `IPasteReceiver` component has focus.
+:::
+
 ## Input Filtering with Rx
 
 ### Filter by Type
@@ -412,4 +464,20 @@ Input.OfType<KeyPressed>()
 
 ::: details View ResizeEvent
 <<< @/../src/Termina/Input/ResizeEvent.cs{csharp}
+:::
+
+::: details View MouseScrollEvent
+<<< @/../src/Termina/Input/MouseScrollEvent.cs{csharp}
+:::
+
+::: details View PasteEvent
+<<< @/../src/Termina/Input/PasteEvent.cs{csharp}
+:::
+
+::: details View IPasteReceiver
+<<< @/../src/Termina/Input/IPasteReceiver.cs{csharp}
+:::
+
+::: details View IScrollable
+<<< @/../src/Termina/Layout/IScrollable.cs{csharp}
 :::
