@@ -382,6 +382,15 @@ public sealed class TerminaApplication
             // Use ?1000h (normal mode) + ?1006h (SGR encoding) - sufficient for scroll events
             // without the noisy button/drag events that ?1002h generates in tmux.
             Console.Write(AnsiCodes.EnableBracketedPaste);
+
+            // When running inside tmux, the inner-pane ESC[?2004h above is intercepted by tmux
+            // and never reaches the outer terminal. The outer terminal therefore does not know
+            // to wrap Ctrl+Shift+V pastes with ESC[200~...ESC[201~. Use a DCS passthrough to
+            // also enable bracketed paste in the outer terminal.
+            // Requires: set -g allow-passthrough on  in ~/.tmux.conf (tmux 3.3+).
+            if (Environment.GetEnvironmentVariable("TMUX") is not null)
+                Console.Write(AnsiCodes.TmuxPassthrough(AnsiCodes.EnableBracketedPaste));
+
             _terminal.EnableMouse();
             _terminal.Flush();
 
@@ -407,6 +416,8 @@ public sealed class TerminaApplication
         {
             // Disable bracketed paste mode before restoring terminal
             Console.Write(AnsiCodes.DisableBracketedPaste);
+            if (Environment.GetEnvironmentVariable("TMUX") is not null)
+                Console.Write(AnsiCodes.TmuxPassthrough(AnsiCodes.DisableBracketedPaste));
 
             // Restore terminal state fully to avoid artifacts
             // DisableMouse() handles ?1000h and ?1006h cleanup
