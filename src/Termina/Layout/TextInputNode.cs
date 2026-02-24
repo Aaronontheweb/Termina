@@ -28,6 +28,7 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     private readonly Subject<string> _textChanged = new();
     private readonly Subject<string> _submitted = new();
     private string _text = "";
+    private string? _pasteContent;  // full paste content (with newlines preserved)
     private int _cursorPosition;
     private int _selectionStart = -1;
     private int _scrollOffset;
@@ -91,6 +92,7 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
         {
             if (_text != value)
             {
+                _pasteContent = null;
                 _text = value ?? "";
                 _cursorPosition = Math.Min(_cursorPosition, _text.Length);
                 _selectionStart = -1;
@@ -321,6 +323,9 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
             return true;
         }
 
+        // Any character input clears paste mode — return to normal editing
+        ClearPasteContent();
+
         // Check max length
         var addLength = HasSelection ? 1 - SelectedText.Length : 1;
         if (MaxLength > 0 && _text.Length + addLength > MaxLength)
@@ -341,6 +346,13 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
 
     private bool HandleBackspace(ConsoleModifiers modifiers)
     {
+        // Backspace clears paste mode — return to normal editing with empty input
+        if (_pasteContent != null)
+        {
+            ClearPasteContent();
+            return true;
+        }
+
         if (HasSelection)
         {
             DeleteSelection();
@@ -371,6 +383,13 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
 
     private bool HandleDelete(ConsoleModifiers modifiers)
     {
+        // Delete clears paste mode — return to normal editing with empty input
+        if (_pasteContent != null)
+        {
+            ClearPasteContent();
+            return true;
+        }
+
         if (HasSelection)
         {
             DeleteSelection();
@@ -471,9 +490,13 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
 
     private bool HandleEnter()
     {
-        TerminaTrace.Input.Debug(this, "HandleEnter: submitting text length={0}", _text.Length);
+        // When paste content is stored, submit the full paste (with newlines) instead of the summary
+        var content = _pasteContent ?? _text;
+        TerminaTrace.Input.Debug(this, "HandleEnter: submitting text length={0} (paste={1})",
+            content.Length, _pasteContent != null);
+        _pasteContent = null;
         // Emit to observable - ViewModel decides what to do (add to history, clear text, etc.)
-        _submitted.OnNext(_text);
+        _submitted.OnNext(content);
         return true;
     }
 
@@ -483,6 +506,7 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     /// </summary>
     public void Clear()
     {
+        _pasteContent = null;
         _text = "";
         _cursorPosition = 0;
         _selectionStart = -1;
@@ -493,6 +517,13 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
 
     private bool HandleEscape()
     {
+        // Escape clears paste mode
+        if (_pasteContent != null)
+        {
+            ClearPasteContent();
+            return true;
+        }
+
         if (HasSelection)
         {
             _selectionStart = -1;
@@ -512,10 +543,19 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
 
     /// <summary>
     /// Handles pasted text from the terminal's bracketed paste mode.
-    /// Newlines in the pasted content are silently skipped — this is a single-line input.
-    /// The <see cref="Submitted"/> observable is NOT fired; only <see cref="TextChanged"/> is emitted.
-    /// Respects <see cref="MaxLength"/> when set.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The full paste content (including newlines) is preserved and will be submitted
+    /// verbatim when the user presses Enter. The input displays a summary placeholder
+    /// (e.g., <c>[Pasted 500 lines, 12345 chars]</c>) instead of the raw content.
+    /// </para>
+    /// <para>
+    /// Any subsequent character input, backspace, or delete clears the paste and returns
+    /// the input to normal editing mode. This matches the behavior of CLI tools like
+    /// Claude Code and OpenCode.
+    /// </para>
+    /// </remarks>
     /// <param name="paste">The paste event containing the text to insert.</param>
     /// <returns><see langword="true"/> if the paste was handled; <see langword="false"/> if empty.</returns>
     public bool HandlePaste(PasteEvent paste)
@@ -523,34 +563,44 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
         if (string.IsNullOrEmpty(paste.Content))
             return false;
 
-        // Build the filtered paste content in one pass (avoids O(n²) string.Insert per char)
-        var sb = new System.Text.StringBuilder(paste.Content.Length);
+        // Store the full paste content (newlines preserved) for submission
+        _pasteContent = paste.Content;
+
+        // Count lines for the summary display
+        var lineCount = 1;
         foreach (var c in paste.Content)
         {
-            if (c == '\r' || c == '\n')
-                continue;
-            sb.Append(c);
+            if (c == '\n') lineCount++;
         }
 
-        var filtered = sb.ToString();
-        if (filtered.Length == 0)
-            return false;
+        // Show a summary in the input instead of the raw content
+        var summary = lineCount > 1
+            ? $"[Pasted {lineCount} lines, {paste.Content.Length} chars]"
+            : $"[Pasted {paste.Content.Length} chars]";
 
-        // Respect MaxLength (0 means unlimited)
-        if (MaxLength > 0)
-        {
-            var available = MaxLength - _text.Length;
-            if (available <= 0) return false;
-            if (filtered.Length > available)
-                filtered = filtered[..available];
-        }
-
-        _text = _text.Insert(_cursorPosition, filtered);
-        _cursorPosition += filtered.Length;
+        _text = summary;
+        _cursorPosition = _text.Length;
+        _selectionStart = -1;
+        _scrollOffset = 0;
 
         _textChanged.OnNext(_text);
         _invalidated.OnNext(Unit.Default);
         return true;
+    }
+
+    /// <summary>
+    /// Clears paste content and resets the input to an empty state.
+    /// Called when the user starts editing (typing, backspace, delete, escape) after a paste.
+    /// </summary>
+    private void ClearPasteContent()
+    {
+        if (_pasteContent == null) return;
+        _pasteContent = null;
+        _text = "";
+        _cursorPosition = 0;
+        _selectionStart = -1;
+        _scrollOffset = 0;
+        _textChanged.OnNext(_text);
     }
 
     private void SelectAll()
