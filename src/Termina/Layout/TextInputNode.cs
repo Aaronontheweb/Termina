@@ -523,19 +523,30 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
         if (string.IsNullOrEmpty(paste.Content))
             return false;
 
+        // Build the filtered paste content in one pass (avoids O(n²) string.Insert per char)
+        var sb = new System.Text.StringBuilder(paste.Content.Length);
         foreach (var c in paste.Content)
         {
-            // Single-line input: skip all line-ending characters
             if (c == '\r' || c == '\n')
                 continue;
-
-            // Respect MaxLength (0 means unlimited)
-            if (MaxLength > 0 && _text.Length >= MaxLength)
-                break;
-
-            _text = _text.Insert(_cursorPosition, c.ToString());
-            _cursorPosition++;
+            sb.Append(c);
         }
+
+        var filtered = sb.ToString();
+        if (filtered.Length == 0)
+            return false;
+
+        // Respect MaxLength (0 means unlimited)
+        if (MaxLength > 0)
+        {
+            var available = MaxLength - _text.Length;
+            if (available <= 0) return false;
+            if (filtered.Length > available)
+                filtered = filtered[..available];
+        }
+
+        _text = _text.Insert(_cursorPosition, filtered);
+        _cursorPosition += filtered.Length;
 
         _textChanged.OnNext(_text);
         _invalidated.OnNext(Unit.Default);

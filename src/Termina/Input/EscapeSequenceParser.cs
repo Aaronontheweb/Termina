@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
 using System.Text;
+using Termina.Diagnostics;
 
 namespace Termina.Input;
 
@@ -97,6 +98,9 @@ internal sealed class EscapeSequenceParser
 
     private void ProcessCore(ConsoleKeyInfo key, List<IInputEvent> results)
     {
+        TerminaTrace.Input.Trace(this, "ESP: state={0} KeyChar=0x{1:X4} Key={2}",
+            _state, (int)key.KeyChar, key.Key);
+
         switch (_state)
         {
             case State.Normal:
@@ -104,6 +108,7 @@ internal sealed class EscapeSequenceParser
                 {
                     _escapeReceivedAt = _getTick();
                     _state = State.AfterEscape;
+                    TerminaTrace.Input.Debug(this, "ESP: ESC received → AfterEscape");
                 }
                 else
                 {
@@ -137,6 +142,7 @@ internal sealed class EscapeSequenceParser
                     _pasteBuffer.Clear();
                     _pendingEndSeqPos = 0;
                     _state = State.PasteBuffering;
+                    TerminaTrace.Input.Debug(this, "ESP: Paste start detected → PasteBuffering");
                     break;
                 }
 
@@ -173,6 +179,7 @@ internal sealed class EscapeSequenceParser
                     _pendingEndSeqPos++;
                     if (_pendingEndSeqPos == PasteEndSeq.Length)
                     {
+                        TerminaTrace.Input.Debug(this, "ESP: Paste end detected, {0} chars", _pasteBuffer.Length);
                         results.Add(new PasteEvent(_pasteBuffer.ToString()));
                         _pasteBuffer.Clear();
                         _pendingEndSeqPos = 0;
