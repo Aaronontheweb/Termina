@@ -1,3 +1,31 @@
+#### 0.6.0 February 23rd 2026 ####
+
+**New Features**:
+- **Scrollbar for StreamingTextNode** ([#138](https://github.com/Aaronontheweb/Termina/pull/138))
+  - Visual scrollbar renders on the right edge of `StreamingTextNode` when content exceeds the viewport
+  - `ScrollbarOptions` record for customizing track/thumb characters and colors, with `AutoHide` support
+  - `WithScrollbar()` fluent method on `StreamingTextNode` for opt-in configuration
+  - `GetMaxScrollOffset()` exposed on `PersistedStreamBuffer` for programmatic scroll position access
+  - Closes [#135](https://github.com/Aaronontheweb/Termina/issues/135)
+
+- **Bracketed paste mode for TextInputNode** ([#138](https://github.com/Aaronontheweb/Termina/pull/138))
+  - `TextInputNode` now implements `IPasteReceiver` and handles terminal bracketed paste sequences
+  - Multi-line pastes are captured as a single unit and displayed as a summary placeholder (e.g., `[Pasted 500 lines, 12345 chars]`)
+  - Full pasted content (with newlines preserved) is submitted on Enter
+  - Any edit action clears the paste and returns to normal input mode
+  - Prevents multi-line pastes from triggering individual per-line submissions
+  - `AnsiCodes.EnableBracketedPaste` / `DisableBracketedPaste` ANSI escape constants added
+  - Closes [#134](https://github.com/Aaronontheweb/Termina/issues/134)
+
+- **Mouse wheel scrolling for scrollable components** ([#138](https://github.com/Aaronontheweb/Termina/pull/138))
+  - New `MouseScrollEvent` input event for mouse wheel up/down
+  - New `IScrollable` interface for components that support scroll input
+  - Mouse scroll events are automatically routed to the currently focused `IScrollable` component
+  - `EscapeSequenceParser` detects SGR mouse scroll sequences
+  - Closes [#136](https://github.com/Aaronontheweb/Termina/issues/136)
+
+---
+
 #### 0.5.1 December 19th 2025 ####
 
 **Bug Fixes**:
