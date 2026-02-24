@@ -574,6 +574,78 @@ Most content should be untracked. Only use tracked segments for dynamic elements
 - **Status indicators**: Live updating connection status, typing indicators
 - **Placeholders**: Temporary content replaced when data loads
 
+## Scrollbar
+
+`StreamingTextNode` can display a visual scrollbar to indicate the current scroll position within the content. The scrollbar auto-hides when all content fits in the viewport.
+
+### Basic Scrollbar
+
+```csharp
+var stream = StreamingTextNode.Create()
+    .WithScrollbar();  // Enable with default options
+```
+
+### Custom Scrollbar
+
+```csharp
+var stream = StreamingTextNode.Create()
+    .WithScrollbar(new ScrollbarOptions(
+        TrackChar: '│',         // Default: '░'
+        ThumbChar: '┃',         // Default: '█'
+        TrackColor: Color.BrightBlack,  // Default: BrightBlack
+        ThumbColor: Color.Cyan,         // Default: White
+        AutoHide: true          // Default: true (hide when content fits)
+    ));
+```
+
+### ScrollbarOptions
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `TrackChar` | `char` | `'░'` | Character for the track (non-thumb area) |
+| `ThumbChar` | `char` | `'█'` | Character for the thumb (position indicator) |
+| `TrackColor` | `Color?` | `BrightBlack` | Track foreground color |
+| `ThumbColor` | `Color?` | `White` | Thumb foreground color |
+| `AutoHide` | `bool` | `true` | Hide scrollbar when content fits in viewport |
+
+The scrollbar occupies 1 column on the right edge, reducing the content area width by 1. When `AutoHide` is `true` (the default), the full width is available until content exceeds the viewport.
+
+## Mouse Wheel Scrolling
+
+`StreamingTextNode` implements `IScrollable`, which enables automatic mouse wheel scroll support. When a `StreamingTextNode` has focus, mouse wheel events are routed to it automatically — no additional code is needed.
+
+```csharp
+// Mouse wheel scrolling works automatically when the node has focus
+var stream = StreamingTextNode.Create()
+    .WithScrollbar();  // Visual indicator of scroll position
+
+// The framework routes MouseScrollEvent to IScrollable.ScrollUp/ScrollDown
+// Each wheel tick scrolls 3 lines
+```
+
+### Scroll State
+
+Query the current scroll state programmatically:
+
+```csharp
+var canUp = stream.CanScrollUp;    // More content above?
+var canDown = stream.CanScrollDown; // More content below?
+```
+
+### IScrollable Interface
+
+Any component that implements `IScrollable` automatically receives mouse wheel events when focused:
+
+```csharp
+public interface IScrollable
+{
+    bool CanScrollUp { get; }
+    bool CanScrollDown { get; }
+    void ScrollUp(int lines = 1);
+    void ScrollDown(int lines = 1);
+}
+```
+
 ## Scrolling API
 
 For persisted buffers:
@@ -598,6 +670,7 @@ stream.HandleInput(keyInfo, viewportHeight: 20, viewportWidth: 80);
 | `PageDown` | Scroll down one page |
 | `Ctrl+Home` | Scroll to top |
 | `Ctrl+End` | Scroll to bottom |
+| Mouse wheel | Scroll 3 lines per tick |
 
 ## Real-World Example
 
@@ -650,6 +723,8 @@ StreamingTextNode.CreateWindowed(windowSize: 100)
 | `Prefix` | `string?` | Line prefix |
 | `PrefixColor` | `Color?` | Prefix color |
 | `ContentChanged` | `IObservable<Unit>` | Content change notifications |
+| `CanScrollUp` | `bool` | Whether content exists above viewport |
+| `CanScrollDown` | `bool` | Whether content exists below viewport |
 
 ### Methods
 
@@ -688,6 +763,8 @@ StreamingTextNode.CreateWindowed(windowSize: 100)
 | `.WithForeground(Color)` | Set default text color |
 | `.WithBackground(Color)` | Set default background color |
 | `.WithPrefix(string, Color?)` | Set line prefix |
+| `.WithScrollbar()` | Enable scrollbar with default options |
+| `.WithScrollbar(ScrollbarOptions)` | Enable scrollbar with custom options |
 
 ## Source Code
 

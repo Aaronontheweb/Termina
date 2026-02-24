@@ -126,6 +126,48 @@ public class MyPage : ReactivePage<MyViewModel>
 }
 ```
 
+## Paste Handling
+
+`TextInputNode` implements `IPasteReceiver` and automatically handles bracketed paste mode. When the user pastes text from the clipboard, Termina detects the terminal's paste escape sequences and delivers the content as a single `PasteEvent` rather than individual key presses.
+
+### How It Works
+
+1. The user pastes text (Ctrl+V or right-click paste)
+2. The terminal wraps the content in `ESC[200~...ESC[201~` markers
+3. Termina detects the markers and emits a `PasteEvent`
+4. `TextInputNode` shows a summary: `[Pasted 500 lines, 12345 chars]`
+5. On **Enter**, the full paste content (with newlines preserved) is submitted
+6. On any **editing action** (typing, backspace, delete, escape), the paste is cleared
+
+This prevents multi-line pastes from triggering individual submissions for each line — a common issue in terminal applications.
+
+```csharp
+// Paste handling is automatic — no additional setup needed
+var input = new TextInputNode()
+    .WithPlaceholder("Paste or type here...");
+
+// Submitted receives the full paste content when Enter is pressed
+input.Submitted.Subscribe(text =>
+{
+    // 'text' contains the full paste with newlines preserved
+    Console.WriteLine($"Received {text.Length} chars");
+});
+```
+
+### Paste in ViewModels
+
+If you need to handle paste events at the ViewModel level (e.g., when no `TextInputNode` has focus):
+
+```csharp
+Input.OfType<PasteEvent>()
+    .Subscribe(paste =>
+    {
+        // paste.Content contains the full pasted text
+        ProcessPastedContent(paste.Content);
+    })
+    .DisposeWith(Subscriptions);
+```
+
 ## Observables
 
 | Observable | Type | Description |
@@ -153,6 +195,7 @@ public class MyPage : ReactivePage<MyViewModel>
 | Method | Description |
 |--------|-------------|
 | `HandleInput(ConsoleKeyInfo)` | Process a key press |
+| `HandlePaste(PasteEvent)` | Handle bracketed paste (implements `IPasteReceiver`) |
 | `Clear()` | Clear text and reset cursor |
 | `Start()` | Start cursor animation |
 | `Stop()` | Stop cursor animation |
