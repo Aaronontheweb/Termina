@@ -38,7 +38,8 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
 
         _promptInput = new TextInputNode()
             .WithPlaceholder("Enter your question...")
-            .WithForeground(Color.Cyan);
+            .WithForeground(Color.Cyan)
+            .WithHistory();
 
         // Subscribe to ViewModel chat output and update nodes
         ViewModel.ChatOutput
@@ -77,10 +78,6 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
                         throw new ArgumentException($"Unknown message type: {message.GetType()}");
                 }
             })
-            .DisposeWith(Subscriptions);
-
-        ViewModel.PromptTextChanged
-            .Subscribe(text => _promptInput.Text = text)
             .DisposeWith(Subscriptions);
 
         // Subscribe to prompt input submission
@@ -159,21 +156,9 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
             return;
         }
 
-        // When not generating, handle other input
+        // When not generating, let the text input handle keys (including history via Up/Down)
         if (!ViewModel.IsGenerating)
         {
-            if (keyInfo.Key == ConsoleKey.UpArrow)
-            {
-                ViewModel.NavigateHistoryUp();
-                return;
-            }
-            if (keyInfo.Key == ConsoleKey.DownArrow)
-            {
-                ViewModel.NavigateHistoryDown();
-                return;
-            }
-
-            // Let the text input handle other keys
             _promptInput.HandleInput(keyInfo);
         }
     }
@@ -214,6 +199,7 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
         _decisionList.OtherSelected
             .Subscribe(customPrompt =>
             {
+                _promptInput.AddHistory(customPrompt);
                 ViewModel.HandleCustomPrompt(customPrompt);
             })
             .DisposeWith(Subscriptions);

@@ -65,8 +65,6 @@ public partial class StreamingChatViewModel : ReactiveViewModel
     private static readonly SegmentId ThinkingBlockId = new(2);
 
     private readonly IRequiredActor<LlmSimulatorActor> _llmActorProvider;
-    private readonly List<string> _promptHistory = new();
-    private int _historyIndex = -1;
     private IActorRef? _llmActor;
     private CancellationTokenSource? _generationCts;
     private SpinnerSegment? _currentSpinner;
@@ -74,18 +72,12 @@ public partial class StreamingChatViewModel : ReactiveViewModel
 
     // Subjects for chat output - Page subscribes to these
     private readonly Subject<IChatMessage> _chatOutput = new();
-    private readonly Subject<string> _promptTextChanged = new();
 
     /// <summary>
     /// Observable for chat messages.
     /// Includes text appends and tracked segment operations.
     /// </summary>
     public IObservable<IChatMessage> ChatOutput => _chatOutput.AsObservable();
-
-    /// <summary>
-    /// Observable for prompt text changes (for history navigation).
-    /// </summary>
-    public IObservable<string> PromptTextChanged => _promptTextChanged.AsObservable();
 
     // Reactive properties for UI state
     [Reactive] private bool _isGenerating = false;
@@ -124,46 +116,6 @@ public partial class StreamingChatViewModel : ReactiveViewModel
     }
 
     /// <summary>
-    /// Navigate up through prompt history.
-    /// </summary>
-    public void NavigateHistoryUp()
-    {
-        if (_promptHistory.Count == 0)
-            return;
-
-        if (_historyIndex < 0)
-        {
-            _historyIndex = _promptHistory.Count - 1;
-        }
-        else if (_historyIndex > 0)
-        {
-            _historyIndex--;
-        }
-
-        _promptTextChanged.OnNext(_promptHistory[_historyIndex]);
-    }
-
-    /// <summary>
-    /// Navigate down through prompt history.
-    /// </summary>
-    public void NavigateHistoryDown()
-    {
-        if (_historyIndex < 0)
-            return;
-
-        if (_historyIndex < _promptHistory.Count - 1)
-        {
-            _historyIndex++;
-            _promptTextChanged.OnNext(_promptHistory[_historyIndex]);
-        }
-        else
-        {
-            _historyIndex = -1;
-            _promptTextChanged.OnNext("");
-        }
-    }
-
-    /// <summary>
     /// Cancel the current generation.
     /// </summary>
     public void CancelGeneration()
@@ -182,10 +134,6 @@ public partial class StreamingChatViewModel : ReactiveViewModel
         prompt = prompt.Trim();
         if (string.IsNullOrEmpty(prompt))
             return;
-
-        // Add to history and reset index
-        _promptHistory.Add(prompt);
-        _historyIndex = -1;
 
         // Add user message to chat
         _chatOutput.OnNext(new AppendText("👤 ", Color.Cyan));
@@ -249,10 +197,6 @@ public partial class StreamingChatViewModel : ReactiveViewModel
         _chatOutput.OnNext(new AppendText("You: ", Color.Cyan, TextDecoration.Bold));
         _chatOutput.OnNext(new AppendText(customPrompt, Color.White, IsNewLine: true));
         _chatOutput.OnNext(new AppendText("", IsNewLine: true));
-
-        // Add to history
-        _promptHistory.Add(customPrompt);
-        _historyIndex = -1;
 
         // Start generation with the custom prompt (not as decision context)
         StartGeneration(customPrompt, decisionContext: null);
@@ -397,7 +341,6 @@ public partial class StreamingChatViewModel : ReactiveViewModel
     {
         _currentSpinner?.Dispose();
         _chatOutput.Dispose();
-        _promptTextChanged.Dispose();
         DisposeReactiveFields();
         base.Dispose();
     }

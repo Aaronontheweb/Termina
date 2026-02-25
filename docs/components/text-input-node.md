@@ -33,8 +33,41 @@ input.Submitted.Subscribe(text => Console.WriteLine($"Submitted: {text}"));
 | `Ctrl+Backspace` | Delete word before |
 | `Delete` | Delete after cursor |
 | `Ctrl+A` | Select all |
-| `Enter` | Submit |
+| `↑/↓` | Navigate history (when enabled via `WithHistory()`) |
+| `Enter` | Submit (auto-records to history when enabled) |
 | `Escape` | Clear text |
+
+## Input History
+
+TextInputNode has built-in, opt-in input history. When enabled, Up/Down arrow keys navigate through previous submissions, and Enter auto-records non-empty text.
+
+```csharp
+var input = new TextInputNode()
+    .WithPlaceholder("Enter command...")
+    .WithHistory();          // Unlimited history
+
+var input2 = new TextInputNode()
+    .WithPlaceholder("Enter command...")
+    .WithHistory(maxEntries: 50);  // Keep last 50 entries
+```
+
+History is **off by default** — existing behavior is unchanged unless you call `WithHistory()`.
+
+### Programmatic History
+
+Use `AddHistory()` for submissions that bypass the normal Enter flow:
+
+```csharp
+// E.g., custom prompts from a SelectionListNode's "Other" option
+input.AddHistory(customPrompt);
+```
+
+### History Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `↑` | Recall previous entry (saves current input on first press) |
+| `↓` | Recall next entry (restores saved input when past the end) |
 
 ## Password Mode
 
@@ -194,6 +227,8 @@ Input.OfType<PasteEvent>()
 
 | Method | Description |
 |--------|-------------|
+| `WithHistory(int maxEntries = 0)` | Enable built-in input history (0 = unlimited) |
+| `AddHistory(string entry)` | Programmatically add a history entry (no-op when disabled) |
 | `HandleInput(ConsoleKeyInfo)` | Process a key press |
 | `HandlePaste(PasteEvent)` | Handle bracketed paste (implements `IPasteReceiver`) |
 | `Clear()` | Clear text and reset cursor |
