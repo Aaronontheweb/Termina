@@ -203,6 +203,32 @@ public class TextInputNodePasteTests
     }
 
     [Fact]
+    public void TextSetter_MultiLineContent_ShowsCondensedSummary()
+    {
+        var node = new TextInputNode();
+
+        // Simulate history recall of previously-pasted multi-line content
+        node.Text = "line 1\nline 2\nline 3";
+
+        Assert.Equal("[Pasted 3 lines, 20 chars]", node.Text);
+    }
+
+    [Fact]
+    public void TextSetter_MultiLineContent_SubmitsFullContent()
+    {
+        var node = new TextInputNode();
+        var multiLine = "line 1\nline 2\nline 3";
+        node.Text = multiLine;
+
+        // Enter should submit the full multi-line content, not the summary
+        string? submitted = null;
+        node.Submitted.Subscribe(t => submitted = t);
+        node.HandleInput(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false));
+
+        Assert.Equal(multiLine, submitted);
+    }
+
+    [Fact]
     public void TextInputNode_ImplementsIPasteReceiver()
     {
         var node = new TextInputNode();
