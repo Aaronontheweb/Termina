@@ -10,30 +10,28 @@
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <VersionPrefix>0.6.0</VersionPrefix>
+    <VersionPrefix>0.6.1</VersionPrefix>
     <PackageReleaseNotes>**New Features**:
-- **Scrollbar for StreamingTextNode** ([#138](https://github.com/Aaronontheweb/Termina/pull/138))
-  - Visual scrollbar renders on the right edge of `StreamingTextNode` when content exceeds the viewport
-  - `ScrollbarOptions` record for customizing track/thumb characters and colors, with `AutoHide` support
-  - `WithScrollbar()` fluent method on `StreamingTextNode` for opt-in configuration
-  - `GetMaxScrollOffset()` exposed on `PersistedStreamBuffer` for programmatic scroll position access
-  - Closes [#135](https://github.com/Aaronontheweb/Termina/issues/135)
+- **Built-in input history for TextInputNode** ([#144](https://github.com/Aaronontheweb/Termina/pull/144))
+  - New `WithHistory(maxEntries)` fluent API for enabling input history
+  - New `AddHistory(text)` method for programmatically adding history entries
+  - Up/Down arrow keys navigate through previous input submissions
+  - Enter key automatically records non-empty text for future recall
+  - Off by default for full backward compatibility
+  - Move history logic from `StreamingChatViewModel` into `TextInputNode` for better reusability
+  - Simplified `StreamingChatPage` by removing manual history wiring
+  - Includes 17 new comprehensive tests covering navigation, eviction, and restoration
+  - Updated text-input-node.md documentation
 
-- **Bracketed paste mode for TextInputNode** ([#138](https://github.com/Aaronontheweb/Termina/pull/138))
-  - `TextInputNode` now implements `IPasteReceiver` and handles terminal bracketed paste sequences
-  - Multi-line pastes are captured as a single unit and displayed as a summary placeholder (e.g., `[Pasted 500 lines, 12345 chars]`)
-  - Full pasted content (with newlines preserved) is submitted on Enter
-  - Any edit action clears the paste and returns to normal input mode
-  - Prevents multi-line pastes from triggering individual per-line submissions
-  - `AnsiCodes.EnableBracketedPaste` / `DisableBracketedPaste` ANSI escape constants added
-  - Closes [#134](https://github.com/Aaronontheweb/Termina/issues/134)
-
-- **Mouse wheel scrolling for scrollable components** ([#138](https://github.com/Aaronontheweb/Termina/pull/138))
-  - New `MouseScrollEvent` input event for mouse wheel up/down
-  - New `IScrollable` interface for components that support scroll input
-  - Mouse scroll events are automatically routed to the currently focused `IScrollable` component
-  - `EscapeSequenceParser` detects SGR mouse scroll sequences
-  - Closes [#136](https://github.com/Aaronontheweb/Termina/issues/136)
+- **Auto-route PasteEvent to focused IPasteReceiver via layout tree walk** ([#143](https://github.com/Aaronontheweb/Termina/pull/143))
+  - Automatic paste event routing when no focused `IPasteReceiver` exists
+  - New `GetChildNodes()` virtual method on `LayoutNode` for tree traversal
+  - Implemented in `ContainerNode`, `PanelNode`, `ModalNode`, `ScrollableContainerNode`, `ReactiveLayoutNode`, and `ConditionalNode`
+  - Eliminates manual paste subscription boilerplate from pages
+  - Paste routing order: focused receiver &gt; tree walk &gt; ViewModel.Input
+  - Multi-line paste content in history recall shows as summary (e.g., `[Pasted 3 lines, 20 chars]`)
+  - `TextInputNode.Text` setter automatically condenses multi-line content into paste-display mode
+  - Includes comprehensive routing tests covering all scenarios
 
 ---</PackageReleaseNotes>
   </PropertyGroup>

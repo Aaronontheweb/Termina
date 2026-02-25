@@ -1,3 +1,29 @@
+#### 0.6.1 February 25th 2026 ####
+
+**New Features**:
+- **Built-in input history for TextInputNode** ([#144](https://github.com/Aaronontheweb/Termina/pull/144))
+  - New `WithHistory(maxEntries)` fluent API for enabling input history
+  - New `AddHistory(text)` method for programmatically adding history entries
+  - Up/Down arrow keys navigate through previous input submissions
+  - Enter key automatically records non-empty text for future recall
+  - Off by default for full backward compatibility
+  - Move history logic from `StreamingChatViewModel` into `TextInputNode` for better reusability
+  - Simplified `StreamingChatPage` by removing manual history wiring
+  - Includes 17 new comprehensive tests covering navigation, eviction, and restoration
+  - Updated text-input-node.md documentation
+
+- **Auto-route PasteEvent to focused IPasteReceiver via layout tree walk** ([#143](https://github.com/Aaronontheweb/Termina/pull/143))
+  - Automatic paste event routing when no focused `IPasteReceiver` exists
+  - New `GetChildNodes()` virtual method on `LayoutNode` for tree traversal
+  - Implemented in `ContainerNode`, `PanelNode`, `ModalNode`, `ScrollableContainerNode`, `ReactiveLayoutNode`, and `ConditionalNode`
+  - Eliminates manual paste subscription boilerplate from pages
+  - Paste routing order: focused receiver > tree walk > ViewModel.Input
+  - Multi-line paste content in history recall shows as summary (e.g., `[Pasted 3 lines, 20 chars]`)
+  - `TextInputNode.Text` setter automatically condenses multi-line content into paste-display mode
+  - Includes comprehensive routing tests covering all scenarios
+
+---
+
 #### 0.6.0 February 23rd 2026 ####
 
 **New Features**:
