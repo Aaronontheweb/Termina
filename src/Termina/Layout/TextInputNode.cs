@@ -14,13 +14,8 @@ namespace Termina.Layout;
 
 /// <summary>
 /// A stateful layout node that handles text input with cursor and selection.
+/// Supports optional built-in input history via <see cref="WithHistory"/>.
 /// </summary>
-/// <remarks>
-/// TextInputNode is a pure UI component that handles text editing (cursor movement, selection,
-/// typing). It does NOT handle input history - that is the responsibility of the ViewModel
-/// which can decide whether to enable history, how many entries to keep, and whether to
-/// persist it across sessions.
-/// </remarks>
 public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode, IFocusable, IPasteReceiver
 {
     private readonly Timer _cursorTimer;
@@ -35,6 +30,12 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     private bool _cursorVisible = true;
     private bool _hasFocus;
     private bool _disposed;
+
+    // Input history (null = disabled, opt-in via WithHistory)
+    private List<string>? _history;
+    private int _historyIndex = -1;
+    private string? _savedInput;
+    private int _maxHistoryEntries;
 
     /// <inheritdoc />
     public IObservable<Unit> Invalidated => _invalidated;
@@ -245,6 +246,34 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
         return this;
     }
 
+    /// <summary>
+    /// Enable built-in input history. When enabled, Up/Down arrow keys navigate
+    /// through previous submissions, and Enter auto-records non-empty text.
+    /// </summary>
+    /// <param name="maxEntries">Maximum history entries to keep (0 = unlimited).</param>
+    public TextInputNode WithHistory(int maxEntries = 0)
+    {
+        _history = new List<string>();
+        _maxHistoryEntries = maxEntries;
+        return this;
+    }
+
+    /// <summary>
+    /// Programmatically add an entry to the input history.
+    /// Use this for submissions that bypass <see cref="HandleInput"/> (e.g., custom prompts).
+    /// No-op when history is not enabled.
+    /// </summary>
+    public void AddHistory(string entry)
+    {
+        if (_history is null || string.IsNullOrEmpty(entry))
+            return;
+
+        _history.Add(entry);
+
+        if (_maxHistoryEntries > 0 && _history.Count > _maxHistoryEntries)
+            _history.RemoveAt(0);
+    }
+
     /// <inheritdoc />
     public void Start()
     {
@@ -301,8 +330,8 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
             ConsoleKey.RightArrow => HandleRightArrow(key.Modifiers),
             ConsoleKey.Home => HandleHome(key.Modifiers),
             ConsoleKey.End => HandleEnd(key.Modifiers),
-            ConsoleKey.UpArrow => false, // Let ViewModel handle history
-            ConsoleKey.DownArrow => false, // Let ViewModel handle history
+            ConsoleKey.UpArrow => HandleUpArrow(),
+            ConsoleKey.DownArrow => HandleDownArrow(),
             ConsoleKey.Enter => HandleEnter(),
             ConsoleKey.Escape => HandleEscape(),
             _ when key.KeyChar != '\0' && !char.IsControl(key.KeyChar) => HandleCharacter(key.KeyChar, key.Modifiers),
@@ -507,6 +536,61 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
         return true;
     }
 
+    private bool HandleUpArrow()
+    {
+        if (_history is null)
+            return false; // History disabled — let caller handle
+
+        if (_history.Count == 0)
+            return true; // History enabled but empty — consume the key
+
+        if (_historyIndex < 0)
+        {
+            // First press: save current input and jump to most recent
+            _savedInput = _pasteContent ?? _text;
+            _historyIndex = _history.Count - 1;
+        }
+        else if (_historyIndex > 0)
+        {
+            _historyIndex--;
+        }
+
+        ApplyHistoryEntry(_history[_historyIndex]);
+        return true;
+    }
+
+    private bool HandleDownArrow()
+    {
+        if (_history is null)
+            return false; // History disabled — let caller handle
+
+        if (_historyIndex < 0)
+            return true; // Not browsing history — consume the key
+
+        if (_historyIndex < _history.Count - 1)
+        {
+            _historyIndex++;
+            ApplyHistoryEntry(_history[_historyIndex]);
+        }
+        else
+        {
+            // Past the end — restore saved input
+            _historyIndex = -1;
+            var saved = _savedInput ?? "";
+            _savedInput = null;
+            ApplyHistoryEntry(saved);
+        }
+
+        return true;
+    }
+
+    private void ApplyHistoryEntry(string entry)
+    {
+        // Use Text setter which handles multi-line condensing
+        Text = entry;
+        _cursorPosition = _text.Length;
+    }
+
     private bool HandleEnter()
     {
         // When paste content is stored, submit the full paste (with newlines) instead of the summary
@@ -514,7 +598,18 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
         TerminaTrace.Input.Debug(this, "HandleEnter: submitting text length={0} (paste={1})",
             content.Length, _pasteContent != null);
         _pasteContent = null;
-        // Emit to observable - ViewModel decides what to do (add to history, clear text, etc.)
+
+        // Auto-record to history when enabled
+        if (_history is not null && !string.IsNullOrWhiteSpace(content))
+        {
+            _history.Add(content);
+            if (_maxHistoryEntries > 0 && _history.Count > _maxHistoryEntries)
+                _history.RemoveAt(0);
+        }
+
+        _historyIndex = -1;
+        _savedInput = null;
+
         _submitted.OnNext(content);
         return true;
     }
