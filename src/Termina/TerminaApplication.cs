@@ -485,10 +485,18 @@ public sealed class TerminaApplication
                 return;
 
             case PasteEvent pasteEvent:
-                if (_focusManager.CurrentFocus is IPasteReceiver pasteReceiver)
-                    pasteReceiver.HandlePaste(pasteEvent);
+                if (_focusManager.CurrentFocus is IPasteReceiver focused)
+                {
+                    focused.HandlePaste(pasteEvent);
+                }
+                else if (FindPasteReceiver(GetCurrentLayoutRoot()) is { } fallback)
+                {
+                    fallback.HandlePaste(pasteEvent);
+                }
                 else
+                {
                     _inputSubject.OnNext(pasteEvent);
+                }
                 return;
 
             case MouseScrollEvent mouseScroll:
@@ -535,6 +543,29 @@ public sealed class TerminaApplication
             TerminaTrace.Input.Trace(this, "Routing input to ViewModel");
             _inputSubject.OnNext(inputEvent);
         }
+    }
+
+    /// <summary>
+    /// Recursively walks the layout tree to find the first <see cref="IPasteReceiver"/>.
+    /// </summary>
+    private static IPasteReceiver? FindPasteReceiver(ILayoutNode? node)
+    {
+        if (node is null) return null;
+        if (node is IPasteReceiver receiver) return receiver;
+
+        var children = node switch
+        {
+            LayoutNode layoutNode => layoutNode.GetChildNodes(),
+            IContainerNode container => container.Children,
+            _ => Enumerable.Empty<ILayoutNode>()
+        };
+
+        foreach (var child in children)
+        {
+            var found = FindPasteReceiver(child);
+            if (found != null) return found;
+        }
+        return null;
     }
 
     /// <summary>

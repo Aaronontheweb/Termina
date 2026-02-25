@@ -97,11 +97,6 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
             .Subscribe(HandleKeyPress)
             .DisposeWith(Subscriptions);
 
-        // Route bracketed paste events to the prompt input
-        ViewModel.Input.OfType<PasteEvent>()
-            .Subscribe(paste => _promptInput.HandlePaste(paste))
-            .DisposeWith(Subscriptions);
-
         // Route mouse scroll events to chat history (when no focused IScrollable captures them)
         ViewModel.Input.OfType<MouseScrollEvent>()
             .Subscribe(scroll =>
