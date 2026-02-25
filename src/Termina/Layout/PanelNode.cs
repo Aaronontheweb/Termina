@@ -128,6 +128,9 @@ public sealed class PanelNode : LayoutNode, IInvalidatingNode
     }
 
     /// <inheritdoc />
+    internal override IEnumerable<ILayoutNode> GetChildNodes() => [_content];
+
+    /// <inheritdoc />
     public override Size Measure(Size available)
     {
         // Border takes 2 chars horizontally (left + right) and 2 rows vertically (top + bottom)

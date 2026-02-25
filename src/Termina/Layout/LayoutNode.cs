@@ -68,6 +68,12 @@ public abstract class LayoutNode : ILayoutNode
     }
 
     /// <summary>
+    /// Gets the child nodes of this layout node for tree traversal.
+    /// Override in nodes that wrap or contain children.
+    /// </summary>
+    internal virtual IEnumerable<ILayoutNode> GetChildNodes() => [];
+
+    /// <summary>
     /// Set width to a fixed value.
     /// </summary>
     public LayoutNode Width(int value)
@@ -154,6 +160,9 @@ public abstract class ContainerNode : LayoutNode, IContainerNode, IInvalidatingN
 
     /// <inheritdoc />
     public IReadOnlyList<ILayoutNode> Children => _children;
+
+    /// <inheritdoc />
+    internal override IEnumerable<ILayoutNode> GetChildNodes() => _children;
 
     /// <summary>
     /// Add a child node.

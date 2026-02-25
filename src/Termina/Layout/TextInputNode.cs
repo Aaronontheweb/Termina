@@ -90,10 +90,29 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
         get => _text;
         set
         {
-            if (_text != value)
+            var newValue = value ?? "";
+            if (_text != newValue || _pasteContent != null)
             {
-                _pasteContent = null;
-                _text = value ?? "";
+                // Multi-line content should display condensed, same as HandlePaste
+                if (newValue.Contains('\n'))
+                {
+                    _pasteContent = newValue;
+                    var lineCount = 1;
+                    foreach (var c in newValue)
+                    {
+                        if (c == '\n') lineCount++;
+                    }
+
+                    _text = lineCount > 1
+                        ? $"[Pasted {lineCount} lines, {newValue.Length} chars]"
+                        : $"[Pasted {newValue.Length} chars]";
+                }
+                else
+                {
+                    _pasteContent = null;
+                    _text = newValue;
+                }
+
                 _cursorPosition = Math.Min(_cursorPosition, _text.Length);
                 _selectionStart = -1;
                 _textChanged.OnNext(_text);

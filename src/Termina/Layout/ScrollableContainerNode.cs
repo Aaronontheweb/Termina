@@ -254,6 +254,9 @@ public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode
     }
 
     /// <inheritdoc />
+    internal override IEnumerable<ILayoutNode> GetChildNodes() => [_content];
+
+    /// <inheritdoc />
     public override Size Measure(Size available)
     {
         // Calculate available width accounting for scrollbar

@@ -243,6 +243,9 @@ public sealed class ModalNode : LayoutNode, IFocusable, IInvalidatingNode
     }
 
     /// <inheritdoc />
+    internal override IEnumerable<ILayoutNode> GetChildNodes() => _content != null ? [_content] : [];
+
+    /// <inheritdoc />
     public override Size Measure(Size available)
     {
         // Modal takes full available space (for backdrop)

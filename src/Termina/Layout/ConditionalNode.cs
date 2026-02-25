@@ -51,6 +51,9 @@ public sealed class ConditionalNode : LayoutNode, IInvalidatingNode
     private ILayoutNode ActiveNode => _condition ? _thenNode : _elseNode;
 
     /// <inheritdoc />
+    internal override IEnumerable<ILayoutNode> GetChildNodes() => [ActiveNode];
+
+    /// <inheritdoc />
     public override Size Measure(Size available)
     {
         return ActiveNode.Measure(available);

@@ -73,6 +73,9 @@ public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
     }
 
     /// <inheritdoc />
+    internal override IEnumerable<ILayoutNode> GetChildNodes() => [_currentChild];
+
+    /// <inheritdoc />
     public override Size Measure(Size available)
     {
         var childSize = _currentChild.Measure(available);
@@ -226,6 +229,9 @@ public sealed class ReactiveLayoutNode<T> : LayoutNode, IInvalidatingNode
             _childInvalidationSubscription = invalidating.Invalidated.Subscribe(_ => _invalidated.OnNext(Unit.Default));
         }
     }
+
+    /// <inheritdoc />
+    internal override IEnumerable<ILayoutNode> GetChildNodes() => [_currentChild];
 
     /// <inheritdoc />
     public override Size Measure(Size available)
