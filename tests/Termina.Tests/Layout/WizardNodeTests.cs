@@ -460,6 +460,92 @@ public class WizardNodeTests
         Assert.Equal(0, wizard.StepCount);
     }
 
+    [Fact]
+    public void HandleInput_WithRealSelectionList_ArrowKeysWork()
+    {
+        // Arrange: wizard with an actual SelectionListNode — matches the demo exactly
+        var selectionConfirmed = new List<string>();
+        SelectionListNode<string>? capturedList = null;
+
+        var wizard = Layouts.Wizard<TestWizardStep>()
+            .WithStep(TestWizardStep.Provider, "Provider", () =>
+            {
+                // Only create the list once (mirroring the cache behavior)
+                capturedList ??= Layouts.SelectionList("AWS", "Azure", "GCP")
+                    .WithMode(SelectionMode.Single)
+                    .WithShowNumbers(true)
+                    .WithHighlightColors(Color.Black, Color.Cyan);
+
+                capturedList.SelectionConfirmed.Subscribe(items =>
+                {
+                    selectionConfirmed.AddRange(items);
+                });
+
+                return Layouts.Vertical(
+                    new TextNode("Choose provider:"),
+                    capturedList
+                );
+            })
+            .WithStep(TestWizardStep.Auth, "Auth", () => new TextNode("Auth step"));
+
+        // First render to initialize DynamicLayoutNode content
+        var ctx = new NullRenderContext();
+        wizard.Render(ctx, new Rect(0, 0, 80, 24));
+
+        // Act: Press DownArrow to move highlight from AWS (0) to Azure (1)
+        var downKey = new ConsoleKeyInfo('\0', ConsoleKey.DownArrow, false, false, false);
+        var downResult = wizard.HandleInput(downKey);
+
+        // Assert: DownArrow was handled
+        Assert.True(downResult);
+        // Wizard should still be on Provider step (didn't advance)
+        Assert.Equal(TestWizardStep.Provider, wizard.CurrentStep);
+
+        // Act: Press Enter to confirm selection
+        var enterKey = new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false);
+        var enterResult = wizard.HandleInput(enterKey);
+
+        // Assert: Enter was handled by SelectionListNode
+        Assert.True(enterResult);
+        // The SelectionConfirmed should have fired with "Azure"
+        Assert.Contains("Azure", selectionConfirmed);
+    }
+
+    [Fact]
+    public void HandleInput_WithRealSelectionList_SubscriptionAdvancesWizard()
+    {
+        // Arrange: wizard where the subscription calls TryAdvance (like the demo)
+        SelectionListNode<string>? capturedList = null;
+        WizardNode<TestWizardStep>? wizard = null;
+
+        wizard = Layouts.Wizard<TestWizardStep>()
+            .WithStep(TestWizardStep.Provider, "Provider", () =>
+            {
+                capturedList ??= Layouts.SelectionList("AWS", "Azure", "GCP")
+                    .WithMode(SelectionMode.Single);
+
+                capturedList.SelectionConfirmed.Subscribe(items =>
+                {
+                    if (items.Count > 0)
+                        wizard!.TryAdvance();
+                });
+
+                return Layouts.Vertical(new TextNode("Choose:"), capturedList);
+            })
+            .WithStep(TestWizardStep.Auth, "Auth", () => new TextNode("Auth"));
+
+        // Render to initialize
+        var ctx = new NullRenderContext();
+        wizard.Render(ctx, new Rect(0, 0, 80, 24));
+
+        // DownArrow then Enter
+        wizard.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.DownArrow, false, false, false));
+        wizard.HandleInput(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false));
+
+        // Assert: wizard advanced to Auth step via the subscription
+        Assert.Equal(TestWizardStep.Auth, wizard.CurrentStep);
+    }
+
     /// <summary>
     /// Test IFocusable that extends LayoutNode so it's discoverable by tree walk.
     /// </summary>

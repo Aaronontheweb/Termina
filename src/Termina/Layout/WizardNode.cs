@@ -27,6 +27,7 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
     private int _currentSubStep;
     private bool _hasFocus;
     private bool _isActive;
+    private IFocusable? _focusedChild;
 
     // Internal layout
     private DynamicLayoutNode? _contentNode;
@@ -84,6 +85,7 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
     public void OnFocused()
     {
         _hasFocus = true;
+        PropagateFocusToContent();
         _invalidated.OnNext(Unit.Default);
     }
 
@@ -91,6 +93,7 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
     public void OnBlurred()
     {
         _hasFocus = false;
+        BlurContentChild();
         _invalidated.OnNext(Unit.Default);
     }
 
@@ -151,6 +154,53 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Propagate focus to the first focusable child in the current step content.
+    /// </summary>
+    private void PropagateFocusToContent()
+    {
+        BlurContentChild();
+
+        if (_steps.Count == 0)
+            return;
+
+        // Get or create the step content directly (so focus works before first Render)
+        var content = GetOrCreateStepContent(_currentStepIndex);
+        _focusedChild = FindFirstFocusable(content);
+        _focusedChild?.OnFocused();
+    }
+
+    /// <summary>
+    /// Blur the currently focused content child.
+    /// </summary>
+    private void BlurContentChild()
+    {
+        if (_focusedChild is { HasFocus: true })
+            _focusedChild.OnBlurred();
+        _focusedChild = null;
+    }
+
+    /// <summary>
+    /// Walk the layout tree depth-first to find the first focusable node.
+    /// </summary>
+    private static IFocusable? FindFirstFocusable(ILayoutNode node)
+    {
+        if (node is IFocusable { CanFocus: true } focusable)
+            return focusable;
+
+        if (node is LayoutNode layoutNode)
+        {
+            foreach (var child in layoutNode.GetChildNodes())
+            {
+                var found = FindFirstFocusable(child);
+                if (found != null)
+                    return found;
+            }
+        }
+
+        return null;
     }
 
     #endregion
@@ -236,6 +286,8 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
 
         _currentStepIndex++;
         _currentSubStep = 0;
+        if (_hasFocus)
+            PropagateFocusToContent();
         _invalidated.OnNext(Unit.Default);
         _stepChanged.OnNext(CurrentStep);
         return true;
@@ -263,6 +315,8 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
         _currentStepIndex--;
         // Return to last sub-step of previous step
         _currentSubStep = _steps[_currentStepIndex].SubStepCount - 1;
+        if (_hasFocus)
+            PropagateFocusToContent();
         _invalidated.OnNext(Unit.Default);
         _stepChanged.OnNext(CurrentStep);
         return true;
@@ -281,6 +335,8 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
 
         _currentStepIndex = index;
         _currentSubStep = 0;
+        if (_hasFocus)
+            PropagateFocusToContent();
         _invalidated.OnNext(Unit.Default);
         _stepChanged.OnNext(CurrentStep);
         return true;
@@ -419,6 +475,11 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
 
         if (_isActive)
             _contentNode.OnActivate();
+
+        // If wizard already has focus (OnFocused called before first Render),
+        // propagate focus to the content's first focusable child now
+        if (_hasFocus && _focusedChild == null)
+            PropagateFocusToContent();
     }
 
     /// <summary>
