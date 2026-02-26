@@ -1,6 +1,6 @@
 # Building a Setup Wizard
 
-This tutorial walks through building a 3-step setup wizard using `WizardNode<TStep>`, `DynamicLayoutNode`, `FocusPolicy.FirstFocusable`, and Tab cycling.
+This tutorial walks through building a 3-step setup wizard using `WizardNode<TStep>`, `FocusPolicy.FirstFocusable`, and Tab cycling. WizardNode uses `KeyedDynamicLayoutNode<int>` internally for automatic step content caching — each step's content factory is called once and the result is cached for reuse when navigating back.
 
 ## Define the Steps
 
@@ -120,7 +120,7 @@ public class SetupWizardPage : ReactivePage<SetupWizardViewModel>
 ## Key Concepts Used
 
 1. **`WizardNode<SetupStep>`** manages step navigation, progress display, and completion
-2. **`DynamicLayoutNode`** (used internally by WizardNode) switches step content without observable pipelines
+2. **`KeyedDynamicLayoutNode<int>`** (used internally by WizardNode) caches step content by index — navigating back reuses cached instances, preserving child state
 3. **`FocusPolicy.FirstFocusable`** auto-focuses the first interactive control on each page visit
 4. **`BeforeAdvance`** can be subscribed to for step validation (set `args.Cancel = true` to prevent navigation)
 

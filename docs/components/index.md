@@ -32,6 +32,14 @@ Termina provides a set of built-in layout nodes (components) for building termin
 |-----------|-------------|
 | [ReactiveLayoutNode](/components/reactive-layout) | Updates content from observables |
 | [ConditionalNode](/components/conditional-node) | Show/hide based on condition |
+| [DynamicLayoutNode](/components/dynamic-layout) | Re-evaluates factory on invalidation |
+| [KeyedDynamicLayoutNode](/components/keyed-dynamic-layout) | Key-based content switching with caching |
+
+## Composite Components
+
+| Component | Description |
+|-----------|-------------|
+| [WizardNode](/components/wizard-node) | Multi-step wizard with progress, navigation, and focus |
 
 ## Utility Components
 

@@ -7,20 +7,25 @@ using Termina.Rendering;
 namespace Termina.Layout;
 
 /// <summary>
-/// A layout node that evaluates a factory function once, then re-evaluates only when
-/// <see cref="Invalidate"/> is called. Uses reference equality to detect child changes —
-/// same instance means no lifecycle churn.
+/// A dynamic layout node that caches content by key. When the key changes, looks up the cache
+/// first — only creates new content on cache miss. Navigating back to a previous key reuses the
+/// cached instance, preserving all child state (highlights, typed text, focus).
 /// </summary>
+/// <typeparam name="TKey">The type of key used to identify content variants.</typeparam>
 /// <remarks>
-/// For content that switches based on a key (enum, step index, tab), prefer
-/// <see cref="KeyedDynamicLayoutNode{TKey}"/> which provides automatic caching and state preservation.
+/// This is the preferred API for content that switches based on a key (enum, step index, tab).
+/// Use <see cref="Layouts.KeyedDynamic{TKey}"/> to create instances.
 /// </remarks>
-public sealed class DynamicLayoutNode : LayoutNode, IInvalidatingNode
+public sealed class KeyedDynamicLayoutNode<TKey> : LayoutNode, IInvalidatingNode
+    where TKey : notnull
 {
-    private readonly Func<ILayoutNode> _factory;
+    private readonly Func<TKey> _keySelector;
+    private readonly Func<TKey, ILayoutNode> _contentFactory;
+    private readonly Dictionary<TKey, ILayoutNode> _cache = new();
     private readonly Subject<Unit> _invalidated = new();
     private IDisposable? _childInvalidationSubscription;
     private ILayoutNode _currentChild;
+    private TKey? _currentKey;
     private bool _isActive;
     private bool _needsEvaluation = true;
 
@@ -28,18 +33,20 @@ public sealed class DynamicLayoutNode : LayoutNode, IInvalidatingNode
     public Observable<Unit> Invalidated => _invalidated;
 
     /// <summary>
-    /// Create a dynamic layout node that evaluates a factory once, then only on <see cref="Invalidate"/>.
+    /// Create a keyed dynamic layout node.
     /// </summary>
-    /// <param name="factory">Factory function that returns the current child node.</param>
-    public DynamicLayoutNode(Func<ILayoutNode> factory)
+    /// <param name="keySelector">Function that returns the current key.</param>
+    /// <param name="contentFactory">Function that creates content for a given key (called once per key).</param>
+    public KeyedDynamicLayoutNode(Func<TKey> keySelector, Func<TKey, ILayoutNode> contentFactory)
     {
-        _factory = factory;
+        _keySelector = keySelector;
+        _contentFactory = contentFactory;
         _currentChild = new EmptyNode();
     }
 
     /// <summary>
-    /// Signal that the factory output may have changed.
-    /// Eagerly re-evaluates the factory so the new child is immediately available
+    /// Signal that the key may have changed.
+    /// Eagerly re-evaluates so the new child is immediately available
     /// for tree traversal (e.g., focus propagation).
     /// </summary>
     public void Invalidate()
@@ -50,7 +57,7 @@ public sealed class DynamicLayoutNode : LayoutNode, IInvalidatingNode
     }
 
     /// <summary>
-    /// Evaluate the factory and update the child if it changed (by reference).
+    /// Evaluate the key selector, look up or create content, and swap child if changed.
     /// No-op when clean (not invalidated).
     /// </summary>
     private void EvaluateFactory()
@@ -59,13 +66,22 @@ public sealed class DynamicLayoutNode : LayoutNode, IInvalidatingNode
             return;
 
         _needsEvaluation = false;
-        var newChild = _factory();
+        var key = _keySelector();
+
+        // Look up cache, create on miss
+        if (!_cache.TryGetValue(key, out var newChild))
+        {
+            newChild = _contentFactory(key);
+            _cache[key] = newChild;
+        }
+
+        _currentKey = key;
 
         // Same instance — no lifecycle churn needed
         if (ReferenceEquals(newChild, _currentChild))
             return;
 
-        // Deactivate old child (active/inactive pattern — don't dispose)
+        // Deactivate old child
         if (_isActive && _currentChild is LayoutNode oldLayoutNode)
         {
             oldLayoutNode.OnDeactivate();
@@ -157,7 +173,23 @@ public sealed class DynamicLayoutNode : LayoutNode, IInvalidatingNode
         _childInvalidationSubscription?.Dispose();
         _invalidated.OnCompleted();
         _invalidated.Dispose();
-        _currentChild.Dispose();
+
+        // Check if _currentChild is in the cache (it won't be if factory was never evaluated)
+        var currentChildInCache = _cache.Values.Any(c => ReferenceEquals(c, _currentChild));
+
+        // Dispose ALL cached children
+        foreach (var child in _cache.Values)
+        {
+            child.Dispose();
+        }
+        _cache.Clear();
+
+        // Dispose the initial EmptyNode if it was never replaced by a cached entry
+        if (!currentChildInCache)
+        {
+            _currentChild.Dispose();
+        }
+
         base.Dispose();
     }
 }

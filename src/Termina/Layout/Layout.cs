@@ -82,14 +82,24 @@ public static class Layouts
     public static WizardNode<TStep> Wizard<TStep>() where TStep : struct, Enum => new();
 
     /// <summary>
-    /// Create a dynamic layout node that re-evaluates a factory on every render cycle.
+    /// Create a dynamic layout node that evaluates a factory once, then only on <see cref="DynamicLayoutNode.Invalidate"/>.
     /// </summary>
     /// <remarks>
-    /// Use this for imperative, page-local state (e.g., switch/case on an enum) where
-    /// the state doesn't need to live in a ViewModel as an observable.
-    /// The factory is called on each Measure/Render — use reference equality to avoid
-    /// unnecessary child lifecycle transitions.
+    /// For content that switches based on a key (enum, step index, tab), prefer
+    /// <see cref="KeyedDynamic{TKey}"/> which provides automatic caching and state preservation.
     /// </remarks>
     /// <param name="factory">Factory that returns the current child node.</param>
     public static DynamicLayoutNode Dynamic(Func<ILayoutNode> factory) => new(factory);
+
+    /// <summary>
+    /// Create a keyed dynamic layout node that caches content by key.
+    /// Navigating back to a previous key reuses the cached instance, preserving all child state.
+    /// </summary>
+    /// <typeparam name="TKey">The type of key used to identify content variants.</typeparam>
+    /// <param name="keySelector">Function that returns the current key.</param>
+    /// <param name="contentFactory">Function that creates content for a given key (called once per key).</param>
+    public static KeyedDynamicLayoutNode<TKey> KeyedDynamic<TKey>(
+        Func<TKey> keySelector,
+        Func<TKey, ILayoutNode> contentFactory)
+        where TKey : notnull => new(keySelector, contentFactory);
 }
