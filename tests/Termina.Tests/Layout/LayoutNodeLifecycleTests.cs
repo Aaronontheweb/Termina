@@ -1,9 +1,7 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
-using System.Reactive;
-using System.Reactive.Linq;
-using System.Reactive.Subjects;
+using R3;
 using Termina.Layout;
 
 namespace Termina.Tests.Layout;
@@ -374,7 +372,7 @@ public class LayoutNodeLifecycleTests
 
         node.Submitted.Subscribe(
             _ => { },
-            () => completed = true);
+            _ => completed = true);
 
         // Act
         node.Dispose();

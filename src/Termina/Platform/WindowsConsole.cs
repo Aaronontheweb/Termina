@@ -1,10 +1,9 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Reactive.Subjects;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
-using System.Threading.Channels;
+using R3;
 using Termina.Diagnostics;
 
 namespace Termina.Platform;
@@ -196,7 +195,7 @@ public sealed class WindowsConsole : IPlatformConsole
     public bool SupportsEventDrivenInput => true;
 
     /// <inheritdoc />
-    public IObservable<ConsoleResizeEvent> Resized => _resized;
+    public Observable<ConsoleResizeEvent> Resized => _resized;
 
     /// <inheritdoc />
     public void Initialize()

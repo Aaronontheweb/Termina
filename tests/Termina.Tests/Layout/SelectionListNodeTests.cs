@@ -1,11 +1,9 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
-using System.Reactive;
-using System.Reactive.Linq;
+using R3;
 using Termina.Components.Streaming;
 using Termina.Layout;
-using Termina.Rendering;
 using Termina.Terminal;
 using Streaming = Termina.Components.Streaming;
 
@@ -290,16 +288,16 @@ public class SelectionListNodeTests
 
         list.SelectionConfirmed.Subscribe(
             onNext: _ => { },
-            onCompleted: () => completed++);
+            onCompleted: _ => completed++);
         list.OtherSelected.Subscribe(
             onNext: _ => { },
-            onCompleted: () => completed++);
+            onCompleted: _ => completed++);
         list.Cancelled.Subscribe(
             onNext: _ => { },
-            onCompleted: () => completed++);
+            onCompleted: _ => completed++);
         list.Invalidated.Subscribe(
             onNext: _ => { },
-            onCompleted: () => completed++);
+            onCompleted: _ => completed++);
 
         list.Dispose();
 
@@ -678,7 +676,7 @@ public class SelectionListNodeTests
         // Wait for invalidation from spinner
         await list.Invalidated
             .FirstAsync()
-            .Timeout(TimeSpan.FromSeconds(1));
+            .WaitAsync(TimeSpan.FromSeconds(1));
 
         Assert.True(true); // Got here means invalidation propagated
     }
@@ -693,7 +691,7 @@ public class SelectionListNodeTests
         var completed = 0;
         list.Invalidated.Subscribe(
             onNext: _ => { },
-            onCompleted: () => completed++);
+            onCompleted: _ => completed++);
 
         list.Dispose();
 

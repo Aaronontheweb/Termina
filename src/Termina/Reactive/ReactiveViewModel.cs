@@ -1,4 +1,4 @@
-using System.Reactive.Disposables;
+using R3;
 using Termina.Input;
 
 namespace Termina.Reactive;
@@ -106,7 +106,7 @@ public abstract class ReactiveViewModel : IDisposable
     /// Subscribe to this in the ViewModel to handle keyboard input,
     /// or access from the Page to route input to interactive layout nodes.
     /// </summary>
-    public IObservable<IInputEvent> Input { get; private set; } = null!;
+    public Observable<IInputEvent> Input { get; private set; } = null!;
 
     /// <summary>
     /// Request graceful application shutdown.
@@ -163,7 +163,7 @@ public abstract class ReactiveViewModel : IDisposable
         Action<string, object?> navigateWithParams,
         Action shutdown,
         Action requestRedraw,
-        IObservable<IInputEvent> input)
+        Observable<IInputEvent> input)
     {
         Navigate = navigate;
         NavigateWithParams = navigateWithParams;

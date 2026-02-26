@@ -1,8 +1,7 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
-using System.Reactive;
-using System.Reactive.Subjects;
+using R3;
 using Termina.Components.Streaming;
 using Termina.Rendering;
 using Termina.Terminal;
@@ -40,12 +39,12 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode, IScrollab
     private record TrackedElement(SegmentId Id, ITextSegment Segment) : ContentElement;  // Tracked segment
 
     /// <inheritdoc />
-    public IObservable<Unit> Invalidated => _invalidated;
+    public Observable<Unit> Invalidated => _invalidated;
 
     /// <summary>
     /// Observable that emits when content changes. Alias for Invalidated.
     /// </summary>
-    public IObservable<Unit> ContentChanged => _invalidated;
+    public Observable<Unit> ContentChanged => _invalidated;
 
     /// <summary>
     /// Gets or sets the foreground color.

@@ -1,6 +1,8 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using R3;
+
 namespace Termina.Platform;
 
 /// <summary>
@@ -78,7 +80,7 @@ public interface IPlatformConsole : IDisposable
     /// The fallback implementation polls Console.WindowWidth/Height.
     /// </para>
     /// </remarks>
-    IObservable<ConsoleResizeEvent> Resized { get; }
+    Observable<ConsoleResizeEvent> Resized { get; }
 
     /// <summary>
     /// Gets whether this platform console supports true event-driven input.

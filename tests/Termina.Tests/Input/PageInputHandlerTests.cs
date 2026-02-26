@@ -1,12 +1,10 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
-using System.Reactive.Disposables;
 using Termina.Input;
 using Termina.Layout;
 using Termina.Reactive;
 using Termina.Rendering;
-using Termina.Terminal;
 
 namespace Termina.Tests.Input;
 

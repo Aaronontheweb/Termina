@@ -295,8 +295,7 @@ public class ReactivePropertyGenerator : IIncrementalGenerator
         sb.AppendLine("using System;");
         if (reactiveFields.Count > 0)
         {
-            sb.AppendLine("using System.Reactive.Linq;");
-            sb.AppendLine("using System.Reactive.Subjects;");
+            sb.AppendLine("using R3;");
         }
         if (hasFromRouteFields)
         {
@@ -377,7 +376,7 @@ public class ReactivePropertyGenerator : IIncrementalGenerator
         sb.AppendLine($"        set => {subjectFieldName}.OnNext(value);");
         sb.AppendLine("    }");
         sb.AppendLine();
-        sb.AppendLine($"    public IObservable<{field.FieldType}> {propertyName}Changed => {subjectFieldName}.AsObservable();");
+        sb.AppendLine($"    public Observable<{field.FieldType}> {propertyName}Changed => {subjectFieldName}.AsObservable();");
     }
 
     private static void GenerateRouteProperty(StringBuilder sb, FieldInfo field)

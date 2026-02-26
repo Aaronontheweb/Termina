@@ -1,8 +1,7 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
-using System.Reactive;
-using System.Reactive.Subjects;
+using R3;
 using Termina.Rendering;
 
 namespace Termina.Layout;
@@ -12,7 +11,7 @@ namespace Termina.Layout;
 /// </summary>
 public sealed class ConditionalNode : LayoutNode, IInvalidatingNode
 {
-    private readonly IObservable<bool> _source;
+    private readonly Observable<bool> _source;
     private IDisposable? _subscription;
     private readonly Subject<Unit> _invalidated = new();
     private bool _condition;
@@ -21,7 +20,7 @@ public sealed class ConditionalNode : LayoutNode, IInvalidatingNode
     private bool _isActive = true;
 
     /// <inheritdoc />
-    public IObservable<Unit> Invalidated => _invalidated;
+    public Observable<Unit> Invalidated => _invalidated;
 
     /// <summary>
     /// Create a conditional node that shows/hides based on an observable condition.
@@ -29,7 +28,7 @@ public sealed class ConditionalNode : LayoutNode, IInvalidatingNode
     /// <param name="condition">Observable that emits true/false.</param>
     /// <param name="thenNode">Node to show when condition is true.</param>
     /// <param name="elseNode">Node to show when condition is false (optional).</param>
-    public ConditionalNode(IObservable<bool> condition, ILayoutNode thenNode, ILayoutNode? elseNode = null)
+    public ConditionalNode(Observable<bool> condition, ILayoutNode thenNode, ILayoutNode? elseNode = null)
     {
         _source = condition;
         _thenNode = thenNode;
@@ -44,8 +43,8 @@ public sealed class ConditionalNode : LayoutNode, IInvalidatingNode
                     _invalidated.OnNext(Unit.Default);
                 }
             },
-            onError: _ => { },
-            onCompleted: () => { });
+            onErrorResume: _ => { },
+            onCompleted: _ => { });
     }
 
     private ILayoutNode ActiveNode => _condition ? _thenNode : _elseNode;
@@ -71,7 +70,10 @@ public sealed class ConditionalNode : LayoutNode, IInvalidatingNode
         _isActive = true;
 
         // If subscription was disposed during deactivation, recreate it
-        if (_subscription == null || _subscription is System.Reactive.Disposables.BooleanDisposable { IsDisposed: true })
+        if (_subscription == null || _subscription is BooleanDisposable
+            {
+                IsDisposed: true
+            })
         {
             _subscription = _source.Subscribe(
                 onNext: value =>
@@ -82,8 +84,8 @@ public sealed class ConditionalNode : LayoutNode, IInvalidatingNode
                         _invalidated.OnNext(Unit.Default);
                     }
                 },
-                onError: _ => { },
-                onCompleted: () => { });
+                onErrorResume: _ => { },
+                onCompleted: _ => { });
         }
 
         // Activate both branches (both are always kept in memory)
@@ -141,7 +143,7 @@ public static class When
     /// <summary>
     /// Show content when condition is true.
     /// </summary>
-    public static ConditionalNode True(IObservable<bool> condition, ILayoutNode content)
+    public static ConditionalNode True(Observable<bool> condition, ILayoutNode content)
     {
         return new ConditionalNode(condition, content);
     }
@@ -150,7 +152,7 @@ public static class When
     /// Show content when condition is true, otherwise show else content.
     /// </summary>
     public static ConditionalNode TrueElse(
-        IObservable<bool> condition,
+        Observable<bool> condition,
         ILayoutNode thenContent,
         ILayoutNode elseContent)
     {
@@ -160,10 +162,10 @@ public static class When
     /// <summary>
     /// Show content when condition is false.
     /// </summary>
-    public static ConditionalNode False(IObservable<bool> condition, ILayoutNode content)
+    public static ConditionalNode False(Observable<bool> condition, ILayoutNode content)
     {
         return new ConditionalNode(
-            System.Reactive.Linq.Observable.Select(condition, c => !c),
+            condition.Select(c => !c),
             content);
     }
 }

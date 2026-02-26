@@ -1,7 +1,7 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
-using System.Reactive.Linq;
+using R3;
 using Termina.Extensions;
 using Termina.Layout;
 using Termina.Reactive;
@@ -91,7 +91,7 @@ public class TextInputGalleryPage : ReactivePage<TextInputGalleryViewModel>
                     .Height(1))
             .WithChild(
                 ViewModel.StatusMessageChanged
-                    .Select(msg => new TextNode(msg).WithForeground(Color.White))
+                    .Select<string, ILayoutNode>(msg => new TextNode(msg).WithForeground(Color.White))
                     .AsLayout()
                     .Height(1));
     }

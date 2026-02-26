@@ -1,9 +1,7 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
-using System.Reactive;
-using System.Reactive.Linq;
-using System.Reactive.Subjects;
+using R3;
 using Termina.Components.Streaming;
 using Termina.Demo.Streaming.Actors;
 using Termina.Extensions;
@@ -90,12 +88,12 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
             .DisposeWith(Subscriptions);
 
         // Handle keyboard input - Page routes to interactive layout nodes
-        ViewModel.Input.OfType<KeyPressed>()
+        ViewModel.Input.OfType<IInputEvent, KeyPressed>()
             .Subscribe(HandleKeyPress)
             .DisposeWith(Subscriptions);
 
         // Route mouse scroll events to chat history (when no focused IScrollable captures them)
-        ViewModel.Input.OfType<MouseScrollEvent>()
+        ViewModel.Input.OfType<IInputEvent, MouseScrollEvent>()
             .Subscribe(scroll =>
             {
                 IScrollable scrollable = _chatHistory;
@@ -147,6 +145,7 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
             {
                 ViewModel.RequestShutdown();
             }
+
             return;
         }
 
@@ -246,7 +245,7 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
             // Decision list - appears between chat history and input when active
             .WithChild(
                 _decisionListChanged
-                    .StartWith((ILayoutNode?)null)
+                    .Prepend((ILayoutNode?)null)
                     .Select(decisionList => decisionList == null
                         ? (ILayoutNode)new EmptyNode().Height(0)
                         : Layouts.Vertical()
@@ -266,21 +265,20 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
             // Status bar
             .WithChild(
                 Observable.CombineLatest(
-                    ViewModel.IsGeneratingChanged,
-                    ViewModel.ShowDecisionListChanged.StartWith(false),
-                    (isGenerating, showDecision) => showDecision
-                        ? "[↑/↓] Navigate [Enter] Select [1-4] Quick Select [Esc] Skip"
-                        : isGenerating
-                            ? "[Esc] Cancel  [PgUp/PgDn/Wheel] Scroll  [Ctrl+Q] Quit"
-                            : "[Enter] Send  [Ctrl+Shift+V] Paste  [↑/↓] History  [PgUp/PgDn/Wheel] Scroll  [Esc] Clear/Quit  [Ctrl+Q] Quit")
-                    .Select(text => new TextNode(text).WithForeground(Color.BrightBlack).NoWrap())
+                        ViewModel.IsGeneratingChanged,
+                        ViewModel.ShowDecisionListChanged.Prepend(false),
+                        (isGenerating, showDecision) => showDecision
+                            ? "[↑/↓] Navigate [Enter] Select [1-4] Quick Select [Esc] Skip"
+                            : isGenerating
+                                ? "[Esc] Cancel  [PgUp/PgDn/Wheel] Scroll  [Ctrl+Q] Quit"
+                                : "[Enter] Send  [Ctrl+Shift+V] Paste  [↑/↓] History  [PgUp/PgDn/Wheel] Scroll  [Esc] Clear/Quit  [Ctrl+Q] Quit")
+                    .Select<string, ILayoutNode>(text => new TextNode(text).WithForeground(Color.BrightBlack).NoWrap())
                     .AsLayout()
                     .Height(1))
             .WithChild(
                 ViewModel.StatusMessageChanged
-                    .Select(msg => new TextNode(msg).WithForeground(Color.White))
+                    .Select<string, ILayoutNode>(msg => new TextNode(msg).WithForeground(Color.White))
                     .AsLayout()
                     .Height(1));
     }
-
 }

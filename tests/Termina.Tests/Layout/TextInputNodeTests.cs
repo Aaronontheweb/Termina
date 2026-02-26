@@ -3,6 +3,7 @@
 
 using Termina.Layout;
 
+using R3;
 namespace Termina.Tests.Layout;
 
 /// <summary>

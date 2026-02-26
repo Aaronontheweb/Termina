@@ -1,9 +1,7 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
-using System.Reactive;
-using System.Reactive.Disposables;
-using System.Reactive.Subjects;
+using R3;
 using Termina.Rendering;
 
 namespace Termina.Layout;
@@ -14,7 +12,7 @@ namespace Termina.Layout;
 /// </summary>
 public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
 {
-    private readonly IObservable<ILayoutNode> _source;
+    private readonly Observable<ILayoutNode> _source;
     private IDisposable? _subscription;
     private IDisposable? _childInvalidationSubscription;
     private readonly Subject<Unit> _invalidated = new();
@@ -23,12 +21,12 @@ public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
     private bool _isActive = false;
 
     /// <inheritdoc />
-    public IObservable<Unit> Invalidated => _invalidated;
+    public Observable<Unit> Invalidated => _invalidated;
 
     /// <summary>
     /// Create a reactive layout node from an observable of layout nodes.
     /// </summary>
-    public ReactiveLayoutNode(IObservable<ILayoutNode> source, ILayoutNode? initialChild = null)
+    public ReactiveLayoutNode(Observable<ILayoutNode> source, ILayoutNode? initialChild = null)
     {
         _source = source;
         _currentChild = initialChild ?? new EmptyNode();
@@ -53,8 +51,8 @@ public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
 
                 _invalidated.OnNext(Unit.Default);
             },
-            onError: _ => { },
-            onCompleted: () => { });
+            onErrorResume: _ => { },
+            onCompleted: _ => { });
     }
 
     /// <summary>
@@ -121,8 +119,8 @@ public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
 
                     _invalidated.OnNext(Unit.Default);
                 },
-                onError: _ => { },
-                onCompleted: () => { });
+                onErrorResume: _ => { },
+                onCompleted: _ => { });
         }
 
         // Re-subscribe to current child's invalidation events (might have been disposed)
@@ -172,7 +170,7 @@ public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
 /// </summary>
 public sealed class ReactiveLayoutNode<T> : LayoutNode, IInvalidatingNode
 {
-    private readonly IObservable<T> _source;
+    private readonly Observable<T> _source;
     private readonly Func<T, ILayoutNode> _transform;
     private IDisposable? _subscription;
     private IDisposable? _childInvalidationSubscription;
@@ -181,12 +179,12 @@ public sealed class ReactiveLayoutNode<T> : LayoutNode, IInvalidatingNode
     private bool _isActive = false;
 
     /// <inheritdoc />
-    public IObservable<Unit> Invalidated => _invalidated;
+    public Observable<Unit> Invalidated => _invalidated;
 
     /// <summary>
     /// Create a reactive layout node from an observable with a transform function.
     /// </summary>
-    public ReactiveLayoutNode(IObservable<T> source, Func<T, ILayoutNode> transform)
+    public ReactiveLayoutNode(Observable<T> source, Func<T, ILayoutNode> transform)
     {
         _source = source;
         _transform = transform;
@@ -211,8 +209,8 @@ public sealed class ReactiveLayoutNode<T> : LayoutNode, IInvalidatingNode
 
                 _invalidated.OnNext(Unit.Default);
             },
-            onError: _ => { },
-            onCompleted: () => { });
+            onErrorResume: _ => { },
+            onCompleted: _ => { });
     }
 
     /// <summary>
@@ -277,8 +275,8 @@ public sealed class ReactiveLayoutNode<T> : LayoutNode, IInvalidatingNode
 
                     _invalidated.OnNext(Unit.Default);
                 },
-                onError: _ => { },
-                onCompleted: () => { });
+                onErrorResume: _ => { },
+                onCompleted: _ => { });
         }
 
         // Re-subscribe to current child's invalidation events (might have been disposed)

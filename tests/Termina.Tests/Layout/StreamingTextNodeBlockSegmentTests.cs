@@ -1,7 +1,7 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
-using System.Reactive.Linq;
+using R3;
 using Termina.Components.Streaming;
 using Termina.Layout;
 using Termina.Terminal;
@@ -142,7 +142,7 @@ public class StreamingTextNodeBlockSegmentTests
         var frame1 = node.Buffer.GetAllStyledLines()[1].ToPlainText();
 
         // Wait for animation frame
-        await spinner.Invalidated.FirstAsync().Timeout(TimeSpan.FromSeconds(1));
+        await spinner.Invalidated.FirstAsync().WaitAsync(TimeSpan.FromSeconds(1));
 
         var frame2 = node.Buffer.GetAllStyledLines()[1].ToPlainText();
 

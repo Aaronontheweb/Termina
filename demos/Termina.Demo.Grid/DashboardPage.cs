@@ -1,7 +1,7 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
-using System.Reactive.Linq;
+using R3;
 using Termina.Extensions;
 using Termina.Layout;
 using Termina.Reactive;
@@ -78,28 +78,28 @@ public class DashboardPage : ReactivePage<DashboardViewModel>
         metricsGrid.AddRow(
             new TextNode("CPU:").WithForeground(Color.Gray),
             ViewModel.CpuUsageChanged
-                .Select(cpu => BuildProgressBar(cpu, GetMetricColor(cpu)))
+                .Select<int, ILayoutNode>(cpu => BuildProgressBar(cpu, GetMetricColor(cpu)))
                 .AsLayout());
 
         // Memory row
         metricsGrid.AddRow(
             new TextNode("Memory:").WithForeground(Color.Gray),
             ViewModel.MemoryUsageChanged
-                .Select(mem => BuildProgressBar(mem, GetMetricColor(mem)))
+                .Select<int, ILayoutNode>(mem => BuildProgressBar(mem, GetMetricColor(mem)))
                 .AsLayout());
 
         // Disk row
         metricsGrid.AddRow(
             new TextNode("Disk:").WithForeground(Color.Gray),
             ViewModel.DiskUsageChanged
-                .Select(disk => BuildProgressBar(disk, GetMetricColor(disk)))
+                .Select<int, ILayoutNode>(disk => BuildProgressBar(disk, GetMetricColor(disk)))
                 .AsLayout());
 
         // Network row
         metricsGrid.AddRow(
             new TextNode("Network:").WithForeground(Color.Gray),
             ViewModel.NetworkUsageChanged
-                .Select(net => BuildProgressBar(net, GetMetricColor(net)))
+                .Select<int, ILayoutNode>(net => BuildProgressBar(net, GetMetricColor(net)))
                 .AsLayout());
 
         return metricsGrid;
@@ -203,7 +203,7 @@ public class DashboardPage : ReactivePage<DashboardViewModel>
         var statusBar = Layouts.Horizontal()
             .WithChild(
                 ViewModel.StatusMessageChanged
-                    .Select(status => new TextNode(status)
+                    .Select<string, ILayoutNode>(status => new TextNode(status)
                         .WithForeground(Color.BrightYellow)
                         .NoWrap())
                     .AsLayout()
