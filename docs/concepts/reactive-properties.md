@@ -1,94 +1,105 @@
 # Reactive Properties
 
-The `[Reactive]` attribute is the foundation of Termina's reactive state management. It uses source generation to create observable properties from private fields.
+`ReactiveProperty<T>` is the foundation of Termina's reactive state management. It provides a value holder that is also an `Observable<T>`, enabling automatic UI updates when state changes.
 
 ## Basic Usage
 
 ```csharp
-public partial class MyViewModel : ReactiveViewModel
+public class MyViewModel : ReactiveViewModel
 {
-    [Reactive] private int _count;
-    [Reactive] private string _status = "Ready";
+    public ReactiveProperty<int> Count { get; } = new(0);
+    public ReactiveProperty<string> Status { get; } = new("Ready");
+
+    public override void Dispose()
+    {
+        Count.Dispose();
+        Status.Dispose();
+        base.Dispose();
+    }
 }
 ```
 
 ::: warning
-Your class **must** be `partial` for the source generator to work.
+You **must** dispose all `ReactiveProperty<T>` instances in your ViewModel's `Dispose()` method.
 :::
 
-## What Gets Generated
+## How It Works
 
-For each `[Reactive]` field, the source generator creates:
+`ReactiveProperty<T>` combines three capabilities:
+
+1. **Holds current value** — read/write via `.Value`
+2. **Is an Observable** — subscribers receive updates when `.Value` changes
+3. **DistinctUntilChanged** — only emits when the value actually changes (built-in)
 
 ```csharp
-// You write:
-[Reactive] private int _count;
+// Declare in ViewModel
+public ReactiveProperty<int> Count { get; } = new(0);
 
-// Generator creates:
-private readonly BehaviorSubject<int> _countSubject = new(default);
+// Read/write the value
+Count.Value++;
+var current = Count.Value;
 
-public int Count
-{
-    get => _countSubject.Value;
-    set => _countSubject.OnNext(value);
-}
-
-public IObservable<int> CountChanged => _countSubject.AsObservable();
+// Subscribe in a Page (ReactiveProperty IS Observable<T>)
+Count.Select<int, ILayoutNode>(c => new TextNode($"Count: {c}")).AsLayout()
 ```
 
 ## Naming Convention
 
-The field name determines the generated property name:
+Properties follow standard C# naming:
 
-| Field | Property | Observable |
-|-------|----------|------------|
-| `_count` | `Count` | `CountChanged` |
-| `_userName` | `UserName` | `UserNameChanged` |
-| `_isVisible` | `IsVisible` | `IsVisibleChanged` |
+| Declaration | Read/Write | Subscribe |
+|------------|-----------|-----------|
+| `ReactiveProperty<int> Count` | `Count.Value` | `Count.Select(...)` |
+| `ReactiveProperty<string> UserName` | `UserName.Value` | `UserName.Select(...)` |
+| `ReactiveProperty<bool> IsVisible` | `IsVisible.Value` | `IsVisible.Select(...)` |
 
-The `_` prefix is removed and the first letter is capitalized.
+Since `ReactiveProperty<T>` is itself an `Observable<T>`, you subscribe directly to the property — there is no separate `*Changed` observable.
 
 ## Default Values
 
-Set default values on the field:
+Set default values in the constructor:
 
 ```csharp
-[Reactive] private int _count = 10;
-[Reactive] private string _status = "Ready";
-[Reactive] private List<string> _items = new();
+public ReactiveProperty<int> Count { get; } = new(10);
+public ReactiveProperty<string> Status { get; } = new("Ready");
+public ReactiveProperty<List<string>> Items { get; } = new(new());
 ```
 
 ## Using in Pages
 
-Subscribe to the generated `*Changed` observable in your page:
+Subscribe directly to the `ReactiveProperty` in your page layout:
 
 ```csharp
 public class MyPage : ReactivePage<MyViewModel>
 {
-    protected override ILayoutNode BuildLayout()
+    public override ILayoutNode BuildLayout()
     {
-        return ViewModel.CountChanged
-            .Select(count => new TextNode($"Count: {count}"))
+        return ViewModel.Count
+            .Select<int, ILayoutNode>(count => new TextNode($"Count: {count}"))
             .AsLayout();
     }
 }
 ```
 
+::: tip
+R3 sometimes requires explicit type parameters on operators like `Select`. Use `Select<TIn, TOut>(...)` when the compiler can't infer the types.
+:::
+
 ## Using in ViewModel Logic
 
-Access the current value via the property:
+Access the current value via `.Value`:
 
 ```csharp
 private void HandleIncrement()
 {
-    Count++;  // Read current value, increment, set new value
+    Count.Value++;  // Read, increment, write
 }
 
 private void HandleReset()
 {
-    if (Count != 0)  // Read current value
+    if (Count.Value != 0)  // Read current value
     {
-        Count = 0;   // Set new value
+        Count.Value = 0;   // Set new value
     }
 }
 ```
@@ -98,35 +109,54 @@ private void HandleReset()
 For collections, replace the entire collection to trigger updates:
 
 ```csharp
-[Reactive] private List<string> _messages = new();
+public ReactiveProperty<List<string>> Messages { get; } = new(new());
 
 private void AddMessage(string msg)
 {
     // Create new list with added item
-    Messages = new List<string>(Messages) { msg };
+    Messages.Value = new List<string>(Messages.Value) { msg };
 
     // Or using LINQ
-    Messages = Messages.Append(msg).ToList();
+    Messages.Value = Messages.Value.Append(msg).ToList();
 }
 ```
 
 ::: tip
-Mutating a collection in-place (e.g., `Messages.Add(msg)`) won't trigger an update because the reference hasn't changed. Always assign a new collection.
+Mutating a collection in-place (e.g., `Messages.Value.Add(msg)`) won't trigger an update because the reference hasn't changed. Always assign a new collection.
 :::
 
-## BehaviorSubject vs Other Observables
+## ReactiveProperty vs Subject
 
-`[Reactive]` properties use `BehaviorSubject<T>` which:
+Use `ReactiveProperty<T>` for **state** (has a current value, subscribers need the latest):
 
-- **Holds current value** - Subscribers immediately receive the latest value
-- **Hot observable** - Emits to all subscribers
-- **Replays last value** - New subscribers get the current value immediately
+```csharp
+// State — use ReactiveProperty<T>
+public ReactiveProperty<string> Status { get; } = new("Ready");
+```
 
-This is ideal for UI state because:
-1. The page gets the current value when it subscribes
-2. All reactive bindings stay in sync
-3. You can read the current value synchronously
+Use `Subject<T>` for **events** (fire-and-forget notifications, no "current value"):
 
-## Source Generator Details
+```csharp
+// Events — use Subject<T>
+private readonly Subject<Unit> _shutdown = new();
+public Observable<Unit> ShutdownRequested => _shutdown;
+```
 
-See [Source Generators](/concepts/source-generators) for implementation details.
+## Disposal
+
+All `ReactiveProperty<T>` instances must be disposed to prevent leaks:
+
+```csharp
+public class MyViewModel : ReactiveViewModel
+{
+    public ReactiveProperty<int> Count { get; } = new(0);
+    public ReactiveProperty<string> Status { get; } = new("Ready");
+
+    public override void Dispose()
+    {
+        Count.Dispose();
+        Status.Dispose();
+        base.Dispose();
+    }
+}
+```

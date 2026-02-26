@@ -22,7 +22,7 @@ dotnet add package Termina
 
 Termina uses an MVVM pattern with three key pieces:
 
-1. **ViewModel** - Manages state with `[Reactive]` properties, handles keyboard input, and provides navigation/shutdown actions
+1. **ViewModel** - Manages state with `ReactiveProperty<T>`, handles keyboard input, and provides navigation/shutdown actions
 2. **Page** - Builds the UI layout from state, manages focus for modals and interactive controls
 3. **Host** - Wires everything together with routing and dependency injection
 
@@ -32,17 +32,17 @@ Here's a complete working example from the Termina demos.
 
 ### The ViewModel
 
-The ViewModel manages state with `[Reactive]` properties that automatically generate observable change notifications:
+The ViewModel manages state with `ReactiveProperty<T>` — a value holder that is also an `Observable<T>`, enabling automatic UI updates:
 
 <<< @/../demos/Termina.Demo.RegionBased/CounterViewModel.cs{csharp}
 
-::: tip The [Reactive] Attribute
-The `[Reactive]` attribute uses source generation to create:
-- A public property (e.g., `Count` from `_count`)
-- An `IObservable<T>` property (e.g., `CountChanged`)
-- Automatic change notifications
+::: tip ReactiveProperty\<T\>
+`ReactiveProperty<T>` provides:
+- A `.Value` property for reading and writing state
+- Built-in `Observable<T>` — subscribe directly in your Page for reactive bindings
+- Built-in `DistinctUntilChanged` — only emits when the value actually changes
 
-Your class must be `partial` for the source generator to work.
+All `ReactiveProperty<T>` instances must be disposed in your ViewModel's `Dispose()` method.
 :::
 
 ### The Page
@@ -71,7 +71,7 @@ You should see a terminal UI with a counter. Press ↑ to increment, ↓ to decr
 2. **AddTermina** - Registered Termina with the starting route `/counter`
 3. **RegisterRoute** - Associated the route with our Page and ViewModel
 4. **BuildLayout** - Defined our UI as a tree of layout nodes
-5. **Reactive Binding** - `CountChanged.Select(...).AsLayout()` automatically updates the UI when `Count` changes
+5. **Reactive Binding** - `Count.Select(...).AsLayout()` automatically updates the UI when `Count.Value` changes
 
 ## Next Steps
 

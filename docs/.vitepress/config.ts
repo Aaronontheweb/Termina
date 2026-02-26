@@ -27,7 +27,8 @@ export default defineConfig({
       '/guide/': [
         { text: 'Introduction', link: '/guide/' },
         { text: 'Getting Started', link: '/guide/getting-started' },
-        { text: 'Installation', link: '/guide/installation' }
+        { text: 'Installation', link: '/guide/installation' },
+        { text: 'Migrating to 0.7.0', link: '/guide/migration-0.7' }
       ],
       '/tutorials/': [
         { text: 'Overview', link: '/tutorials/' },

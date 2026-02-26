@@ -1,3 +1,37 @@
+#### 0.7.0 February 26th 2026 ####
+
+**Breaking Changes**:
+- **Migrate from System.Reactive to R3** ([#140](https://github.com/Aaronontheweb/Termina/pull/140))
+  - Replaced System.Reactive (Rx.NET) with [R3](https://github.com/Cysharp/R3) throughout the framework
+  - `IObservable<T>` → `Observable<T>` in all public APIs
+  - `OfType<T>()` → `OfType<TSrc, TDest>()` (R3 requires both type parameters)
+  - `Select(...)` may require explicit type parameters: `Select<TIn, TOut>(...)`
+  - `Subscribe` callbacks: `onError` → `onErrorResume`, `onCompleted` takes `Result` parameter
+  - `BehaviorSubject<T>` removed — use `ReactiveProperty<T>` instead
+  - `Subject<T>` now from R3 namespace
+  - See [Migration Guide](https://aaronontheweb.github.io/termina/guide/migration-0.7) for details
+
+- **Replace `[Reactive]` source generator with `ReactiveProperty<T>`** ([#149](https://github.com/Aaronontheweb/Termina/pull/149))
+  - Removed `[Reactive]` attribute and its source generator
+  - Use `ReactiveProperty<T>` for all ViewModel state: `public ReactiveProperty<int> Count { get; } = new(0);`
+  - Property access via `.Value`: `Count.Value++` instead of `Count++`
+  - Page bindings subscribe directly to property: `ViewModel.Count.Select(...)` instead of `ViewModel.CountChanged.Select(...)`
+  - ViewModels no longer need `partial` keyword (unless using `[FromRoute]`)
+  - Manual `Dispose()` override required to dispose all `ReactiveProperty<T>` instances
+  - Built-in `DistinctUntilChanged` — only emits when value actually changes
+
+- **Replace timers with `Observable.Interval` + `TimeProvider`** ([#140](https://github.com/Aaronontheweb/Termina/pull/140))
+  - All timer-based components now accept optional `TimeProvider` parameter
+  - Enables deterministic testing with `FakeTimeProvider`
+  - `System.Timers.Timer` and `System.Threading.Timer` no longer used
+
+**Bug Fixes**:
+- **Fix invalidation subscription lost after navigation round-trip** ([#150](https://github.com/Aaronontheweb/Termina/pull/150))
+  - Fixed rendering bug where leaf nodes lost their invalidation subscriptions after navigating away and back
+  - Custom `LayoutNode` subclasses should use `CreateSubContext(bounds)` in Render methods
+
+---
+
 #### 0.6.1 February 25th 2026 ####
 
 **New Features**:
