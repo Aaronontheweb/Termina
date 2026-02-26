@@ -25,10 +25,38 @@
   - Enables deterministic testing with `FakeTimeProvider`
   - `System.Timers.Timer` and `System.Threading.Timer` no longer used
 
+**New Features**:
+- **DynamicLayoutNode** ([#147](https://github.com/Aaronontheweb/Termina/issues/147))
+  - New `Layouts.Dynamic(Func<ILayoutNode> factory)` for imperative, page-local state
+  - Re-evaluates factory on each Render/Measure cycle with reference equality to avoid lifecycle churn
+  - `Invalidate()` method for programmatic trigger; `AsDynamicLayout(Observable<Unit>)` extension
+  - Implements `IInvalidatingNode` for proper invalidation propagation
+
+- **FocusManager auto-focus and Tab cycling** ([#146](https://github.com/Aaronontheweb/Termina/issues/146))
+  - `FocusPolicy` enum: `Manual`, `FirstFocusable`, `ByPriority` — set on `ReactivePage` for automatic focus on navigation
+  - `CollectFocusables(ILayoutNode root)` — depth-first tree walk collecting focusable nodes
+  - `CycleFocus(focusables, reverse)` — next/previous with wrap-around
+  - `CycleFocusForward()` / `CycleFocusBackward()` helpers on `ReactivePage`
+  - `FocusManager` migrated from `BehaviorSubject<IFocusable?>` to `ReactiveProperty<IFocusable?>`
+
+- **WizardNode** ([#148](https://github.com/Aaronontheweb/Termina/issues/148))
+  - Multi-step wizard component: `Layouts.Wizard<TStep>()` where `TStep : struct, Enum`
+  - Fluent builder: `.WithStep()`, `.WithProgressStyle()`, `.WithTitle()`, `.WithBorder()`
+  - Navigation: `TryAdvance()`, `TryGoBack()`, `GoToStep()`, `AdvanceSubStep()`
+  - Cancellable `BeforeAdvance` observable for step validation
+  - `StepChanged` and `Completed` observables
+  - Progress styles: `BlockBar`, `Arrow`, `Dots`, `None`
+  - Sub-step support within each step
+  - Implements `IFocusable` and `IInvalidatingNode`
+  - Uses `DynamicLayoutNode` internally for step content switching
+
 **Bug Fixes**:
 - **Fix invalidation subscription lost after navigation round-trip** ([#150](https://github.com/Aaronontheweb/Termina/pull/150))
   - Fixed rendering bug where leaf nodes lost their invalidation subscriptions after navigating away and back
   - Custom `LayoutNode` subclasses should use `CreateSubContext(bounds)` in Render methods
+
+**Cleanup**:
+- Removed dead `HasReactiveAttribute` helper from `LayoutNodeInViewModelAnalyzer` (references removed `[Reactive]` attribute)
 
 ---
 

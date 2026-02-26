@@ -1,0 +1,149 @@
+// Copyright (c) Petabridge, LLC. All rights reserved.
+// Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
+
+using R3;
+using Termina.Rendering;
+
+namespace Termina.Layout;
+
+/// <summary>
+/// A layout node that re-evaluates a factory function on every Render/Measure cycle.
+/// Uses reference equality to detect child changes — same instance means no lifecycle churn.
+/// Call <see cref="Invalidate"/> to programmatically trigger re-evaluation.
+/// </summary>
+public sealed class DynamicLayoutNode : LayoutNode, IInvalidatingNode
+{
+    private readonly Func<ILayoutNode> _factory;
+    private readonly Subject<Unit> _invalidated = new();
+    private IDisposable? _childInvalidationSubscription;
+    private ILayoutNode _currentChild;
+    private bool _isActive;
+
+    /// <inheritdoc />
+    public Observable<Unit> Invalidated => _invalidated;
+
+    /// <summary>
+    /// Create a dynamic layout node that evaluates a factory on each render cycle.
+    /// </summary>
+    /// <param name="factory">Factory function that returns the current child node.</param>
+    public DynamicLayoutNode(Func<ILayoutNode> factory)
+    {
+        _factory = factory;
+        _currentChild = new EmptyNode();
+    }
+
+    /// <summary>
+    /// Programmatically signal that the factory output may have changed.
+    /// Triggers re-evaluation on the next Measure/Render cycle.
+    /// </summary>
+    public void Invalidate()
+    {
+        _invalidated.OnNext(Unit.Default);
+    }
+
+    /// <summary>
+    /// Evaluate the factory and update the child if it changed (by reference).
+    /// </summary>
+    private void EvaluateFactory()
+    {
+        var newChild = _factory();
+
+        // Same instance — no lifecycle churn needed
+        if (ReferenceEquals(newChild, _currentChild))
+            return;
+
+        // Deactivate old child (active/inactive pattern — don't dispose)
+        if (_isActive && _currentChild is LayoutNode oldLayoutNode)
+        {
+            oldLayoutNode.OnDeactivate();
+        }
+
+        _currentChild = newChild;
+        SubscribeToChildInvalidation(newChild);
+
+        // Activate new child if we're currently active
+        if (_isActive && newChild is LayoutNode newLayoutNode)
+        {
+            newLayoutNode.OnActivate();
+        }
+    }
+
+    /// <summary>
+    /// Subscribe to a child's invalidation events and propagate them upward.
+    /// </summary>
+    private void SubscribeToChildInvalidation(ILayoutNode child)
+    {
+        _childInvalidationSubscription?.Dispose();
+        _childInvalidationSubscription = null;
+
+        if (child is IInvalidatingNode invalidating)
+        {
+            _childInvalidationSubscription = invalidating.Invalidated
+                .Subscribe(_ => _invalidated.OnNext(Unit.Default));
+        }
+    }
+
+    /// <inheritdoc />
+    internal override IEnumerable<ILayoutNode> GetChildNodes() => [_currentChild];
+
+    /// <inheritdoc />
+    public override Size Measure(Size available)
+    {
+        EvaluateFactory();
+
+        var childSize = _currentChild.Measure(available);
+
+        var width = WidthConstraint.Compute(available.Width, childSize.Width, available.Width);
+        var height = HeightConstraint.Compute(available.Height, childSize.Height, available.Height);
+
+        return new Size(width, height);
+    }
+
+    /// <inheritdoc />
+    public override void Render(IRenderContext context, Rect bounds)
+    {
+        EvaluateFactory();
+        _currentChild.Render(context, bounds);
+    }
+
+    /// <inheritdoc />
+    public override void OnActivate()
+    {
+        _isActive = true;
+
+        // Re-subscribe to current child's invalidation events
+        SubscribeToChildInvalidation(_currentChild);
+
+        // Activate current child
+        if (_currentChild is LayoutNode childNode)
+        {
+            childNode.OnActivate();
+        }
+
+        base.OnActivate();
+    }
+
+    /// <inheritdoc />
+    public override void OnDeactivate()
+    {
+        _isActive = false;
+
+        // Deactivate current child
+        if (_currentChild is LayoutNode childNode)
+        {
+            childNode.OnDeactivate();
+        }
+
+        base.OnDeactivate();
+    }
+
+    /// <inheritdoc />
+    public override void Dispose()
+    {
+        _childInvalidationSubscription?.Dispose();
+        _invalidated.OnCompleted();
+        _invalidated.Dispose();
+        _currentChild.Dispose();
+        base.Dispose();
+    }
+}

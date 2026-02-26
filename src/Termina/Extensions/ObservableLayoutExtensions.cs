@@ -45,4 +45,20 @@ public static class ObservableLayoutExtensions
     {
         return new ReactiveLayoutNode<string>(source, text => new TextNode(text));
     }
+
+    /// <summary>
+    /// Create a <see cref="DynamicLayoutNode"/> from a factory, subscribing an observable trigger
+    /// to call <see cref="DynamicLayoutNode.Invalidate"/> whenever it emits.
+    /// </summary>
+    /// <param name="factory">Factory that returns the current child node.</param>
+    /// <param name="invalidateOn">Observable that triggers re-evaluation of the factory.</param>
+    /// <returns>A dynamic layout node that updates when the trigger emits.</returns>
+    public static DynamicLayoutNode AsDynamicLayout(
+        this Func<ILayoutNode> factory,
+        Observable<Unit> invalidateOn)
+    {
+        var node = new DynamicLayoutNode(factory);
+        invalidateOn.Subscribe(_ => node.Invalidate());
+        return node;
+    }
 }

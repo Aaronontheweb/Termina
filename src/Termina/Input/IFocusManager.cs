@@ -66,4 +66,18 @@ public interface IFocusManager
     /// <param name="key">The key info to route.</param>
     /// <returns>True if the input was consumed, false if no component handled it.</returns>
     bool RouteInput(ConsoleKeyInfo key);
+
+    /// <summary>
+    /// Depth-first tree walk collecting all focusable nodes where <see cref="IFocusable.CanFocus"/> is true.
+    /// </summary>
+    /// <param name="root">The root of the layout tree to walk.</param>
+    /// <returns>Focusable nodes in depth-first order.</returns>
+    IReadOnlyList<IFocusable> CollectFocusables(ILayoutNode root);
+
+    /// <summary>
+    /// Cycle focus to the next (or previous) focusable in the list, with wrap-around.
+    /// </summary>
+    /// <param name="focusables">The ordered list of focusable nodes.</param>
+    /// <param name="reverse">True to cycle backward, false to cycle forward.</param>
+    void CycleFocus(IReadOnlyList<IFocusable> focusables, bool reverse = false);
 }

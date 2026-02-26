@@ -18,11 +18,11 @@ namespace Termina.Input;
 public sealed class FocusManager : IFocusManager, IDisposable
 {
     private readonly Stack<IFocusable> _focusStack = new();
-    private readonly BehaviorSubject<IFocusable?> _focusChanged = new(null);
+    private readonly ReactiveProperty<IFocusable?> _focusChanged = new(null);
     private bool _disposed;
 
     /// <inheritdoc />
-    public Observable<IFocusable?> FocusChanged => _focusChanged.AsObservable();
+    public Observable<IFocusable?> FocusChanged => _focusChanged;
 
     /// <inheritdoc />
     public IFocusable? CurrentFocus => _focusStack.Count > 0 ? _focusStack.Peek() : null;
@@ -49,7 +49,7 @@ public sealed class FocusManager : IFocusManager, IDisposable
         // Push and focus the new component
         _focusStack.Push(focusable);
         focusable.OnFocused();
-        _focusChanged.OnNext(focusable);
+        _focusChanged.Value = focusable;
         TerminaTrace.Focus.Debug(this, "PushFocus: {0}, stack depth={1}", focusable.GetType().Name, _focusStack.Count);
     }
 
@@ -73,12 +73,12 @@ public sealed class FocusManager : IFocusManager, IDisposable
             var previous = _focusStack.Peek();
             TerminaTrace.Focus.Debug(this, "PopFocus: restoring focus to {0}", previous.GetType().Name);
             previous.OnFocused();
-            _focusChanged.OnNext(previous);
+            _focusChanged.Value = previous;
         }
         else
         {
             TerminaTrace.Focus.Debug(this, "PopFocus: no previous focus, stack now empty");
-            _focusChanged.OnNext(null);
+            _focusChanged.Value = null;
         }
     }
 
@@ -103,7 +103,7 @@ public sealed class FocusManager : IFocusManager, IDisposable
 
         _focusStack.Push(focusable);
         focusable.OnFocused();
-        _focusChanged.OnNext(focusable);
+        _focusChanged.Value = focusable;
     }
 
     /// <inheritdoc />
@@ -116,7 +116,7 @@ public sealed class FocusManager : IFocusManager, IDisposable
             current.OnBlurred();
         }
 
-        _focusChanged.OnNext(null);
+        _focusChanged.Value = null;
     }
 
     /// <inheritdoc />
@@ -142,6 +142,73 @@ public sealed class FocusManager : IFocusManager, IDisposable
         return handled;
     }
 
+    /// <inheritdoc />
+    public IReadOnlyList<IFocusable> CollectFocusables(ILayoutNode root)
+    {
+        var focusables = new List<IFocusable>();
+        CollectFocusablesRecursive(root, focusables);
+        return focusables;
+    }
+
+    /// <inheritdoc />
+    public void CycleFocus(IReadOnlyList<IFocusable> focusables, bool reverse = false)
+    {
+        if (focusables.Count == 0)
+            return;
+
+        var currentIndex = -1;
+        var current = CurrentFocus;
+
+        if (current != null)
+        {
+            for (var i = 0; i < focusables.Count; i++)
+            {
+                if (ReferenceEquals(focusables[i], current))
+                {
+                    currentIndex = i;
+                    break;
+                }
+            }
+        }
+
+        int nextIndex;
+        if (currentIndex < 0)
+        {
+            // No current focus — go to first (or last if reverse)
+            nextIndex = reverse ? focusables.Count - 1 : 0;
+        }
+        else if (reverse)
+        {
+            nextIndex = (currentIndex - 1 + focusables.Count) % focusables.Count;
+        }
+        else
+        {
+            nextIndex = (currentIndex + 1) % focusables.Count;
+        }
+
+        SetFocus(focusables[nextIndex]);
+    }
+
+    /// <summary>
+    /// Depth-first tree walk collecting focusable nodes.
+    /// </summary>
+    private static void CollectFocusablesRecursive(ILayoutNode node, List<IFocusable> focusables)
+    {
+        if (node is IFocusable { CanFocus: true } focusable)
+        {
+            focusables.Add(focusable);
+        }
+
+        // Only recurse into LayoutNode subclasses (which have GetChildNodes)
+        if (node is LayoutNode layoutNode)
+        {
+            foreach (var child in layoutNode.GetChildNodes())
+            {
+                CollectFocusablesRecursive(child, focusables);
+            }
+        }
+    }
+
     /// <summary>
     /// Disposes the focus manager and releases all resources.
     /// </summary>
@@ -151,7 +218,6 @@ public sealed class FocusManager : IFocusManager, IDisposable
             return;
 
         ClearFocus();
-        _focusChanged.OnCompleted();
         _focusChanged.Dispose();
         _disposed = true;
     }

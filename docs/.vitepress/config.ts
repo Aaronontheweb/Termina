@@ -34,7 +34,8 @@ export default defineConfig({
         { text: 'Overview', link: '/tutorials/' },
         { text: 'Counter App', link: '/tutorials/counter-app' },
         { text: 'Todo List', link: '/tutorials/todo-list' },
-        { text: 'Streaming Chat', link: '/tutorials/streaming-chat' }
+        { text: 'Streaming Chat', link: '/tutorials/streaming-chat' },
+        { text: 'Setup Wizard', link: '/tutorials/wizard-app' }
       ],
       '/layout/': [
         { text: 'Layout System', link: '/layout/' },
@@ -106,6 +107,8 @@ export default defineConfig({
         { text: 'Routing', link: '/concepts/routing' },
         { text: 'Navigation', link: '/concepts/navigation' },
         { text: 'Input Handling', link: '/concepts/input-handling' },
+        { text: 'Dynamic Layouts', link: '/concepts/dynamic-layouts' },
+        { text: 'Focus Management', link: '/concepts/focus-management' },
         { text: 'Hosting & DI', link: '/concepts/hosting' }
       ],
       '/advanced/': [

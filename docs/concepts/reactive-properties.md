@@ -144,6 +144,10 @@ public Observable<Unit> ShutdownRequested => _shutdown;
 
 ## Disposal
 
+::: tip
+For page-level state that doesn't need to be in the ViewModel, see [Dynamic Layouts](../concepts/dynamic-layouts.md). `Layouts.Dynamic()` lets you drive UI from imperative local state without creating an observable pipeline.
+:::
+
 All `ReactiveProperty<T>` instances must be disposed to prevent leaks:
 
 ```csharp

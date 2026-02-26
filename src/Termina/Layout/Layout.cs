@@ -74,4 +74,22 @@ public static class Layouts
     /// </remarks>
     /// <param name="getNode">A function that returns the node to render, or null for no content.</param>
     public static DeferredNode Deferred(Func<ILayoutNode?> getNode) => new(getNode);
+
+    /// <summary>
+    /// Create a multi-step wizard component.
+    /// </summary>
+    /// <typeparam name="TStep">Enum type representing the wizard steps.</typeparam>
+    public static WizardNode<TStep> Wizard<TStep>() where TStep : struct, Enum => new();
+
+    /// <summary>
+    /// Create a dynamic layout node that re-evaluates a factory on every render cycle.
+    /// </summary>
+    /// <remarks>
+    /// Use this for imperative, page-local state (e.g., switch/case on an enum) where
+    /// the state doesn't need to live in a ViewModel as an observable.
+    /// The factory is called on each Measure/Render — use reference equality to avoid
+    /// unnecessary child lifecycle transitions.
+    /// </remarks>
+    /// <param name="factory">Factory that returns the current child node.</param>
+    public static DynamicLayoutNode Dynamic(Func<ILayoutNode> factory) => new(factory);
 }
