@@ -28,36 +28,43 @@ public class SetupWizardPage : ReactivePage<SetupWizardViewModel>
     {
         _wizard = Layouts.Wizard<SetupStep>()
             .WithStep(SetupStep.Provider, "Provider", BuildProviderStep,
-                helpText: "Select a cloud provider and press Enter")
+                helpText: "[↑/↓] Navigate  [Enter] Select  [1-3] Quick Select")
             .WithStep(SetupStep.Auth, "Authentication", BuildAuthStep,
-                helpText: "Enter your username and press Enter to continue")
+                helpText: "Type your username and press Enter")
             .WithStep(SetupStep.Confirm, "Confirm", BuildConfirmStep,
-                helpText: "Press Enter to complete setup, Escape to go back")
+                helpText: "[Enter] Complete Setup  [Esc] Go Back")
             .WithProgressStyle(WizardProgressStyle.Arrow)
             .WithBorder(BorderStyle.Rounded, Color.Cyan);
         _wizard.Fill();
 
         // Update status on step change
         _wizard.StepChanged.Subscribe(step =>
-            ViewModel.StatusMessage.Value = $"Now on: {step}");
+            ViewModel.StatusMessage.Value = $"Step: {step}");
 
         // Shut down on completion
         _wizard.Completed.Subscribe(_ =>
         {
-            ViewModel.StatusMessage.Value = "Setup complete!";
+            ViewModel.StatusMessage.Value = "✓ Setup complete! Press Q to exit.";
             ViewModel.RequestRedraw();
         });
 
-        return Layouts.Vertical(
-            _wizard,
-            ViewModel.StatusMessage
-                .Select<string, ILayoutNode>(msg => new TextNode(msg).WithForeground(Color.BrightBlack))
-                .AsLayout()
-                .Height(1),
-            new TextNode("[Q] Quit")
-                .WithForeground(Color.DarkGray)
-                .Height(1)
-        );
+        return Layouts.Vertical()
+            .WithChild(
+                new PanelNode()
+                    .WithTitle("Cloud Setup Wizard")
+                    .WithBorder(BorderStyle.Double)
+                    .WithBorderColor(Color.Magenta)
+                    .WithContent(_wizard)
+                    .Fill())
+            .WithChild(
+                Layouts.Horizontal(
+                    ViewModel.StatusMessage
+                        .Select<string, ILayoutNode>(msg => new TextNode(msg).WithForeground(Color.White))
+                        .AsLayout()
+                        .Fill(),
+                    new TextNode("[Tab] Cycle Focus  [Q] Quit")
+                        .WithForeground(Color.BrightBlack))
+                .Height(1));
     }
 
     public override void OnNavigatedTo()
@@ -67,7 +74,7 @@ public class SetupWizardPage : ReactivePage<SetupWizardViewModel>
         KeyBindings.Register(ConsoleKey.Tab, CycleFocusForward);
         KeyBindings.Register(ConsoleKey.Tab, ConsoleModifiers.Shift, CycleFocusBackward);
 
-        // Focus the wizard itself so it receives Enter/Escape
+        // Focus the wizard itself so it receives and delegates input
         Focus.PushFocus(_wizard);
     }
 
@@ -76,7 +83,8 @@ public class SetupWizardPage : ReactivePage<SetupWizardViewModel>
         var list = Layouts.SelectionList("AWS", "Azure", "GCP")
             .WithMode(SelectionMode.Single)
             .WithShowNumbers(true)
-            .WithHighlightColors(Color.Black, Color.Cyan);
+            .WithHighlightColors(Color.Black, Color.Cyan)
+            .WithVisibleRows(6);
 
         list.SelectionConfirmed.Subscribe(items =>
         {
@@ -90,9 +98,14 @@ public class SetupWizardPage : ReactivePage<SetupWizardViewModel>
 
         return Layouts.Vertical(
             new TextNode("Choose your cloud provider:")
-                .WithForeground(Color.White),
+                .WithForeground(Color.BrightCyan)
+                .Bold()
+                .Height(1),
+            new TextNode("Select a provider for your infrastructure deployment.")
+                .WithForeground(Color.DarkGray)
+                .Height(2),
             list
-        ).WithSpacing(1);
+        );
     }
 
     private ILayoutNode BuildAuthStep()
@@ -105,36 +118,53 @@ public class SetupWizardPage : ReactivePage<SetupWizardViewModel>
             if (!string.IsNullOrWhiteSpace(text))
             {
                 ViewModel.Username.Value = text.Trim();
-                ViewModel.StatusMessage.Value = $"Username set: {text.Trim()}";
+                ViewModel.StatusMessage.Value = $"Username: {text.Trim()}";
                 _wizard.TryAdvance();
             }
         });
 
         return Layouts.Vertical(
             new TextNode("Enter your credentials:")
-                .WithForeground(Color.White),
-            new TextNode("Username:").WithForeground(Color.Gray),
-            usernameInput
-        ).WithSpacing(1);
+                .WithForeground(Color.BrightCyan)
+                .Bold()
+                .Height(1),
+            new TextNode("Provide the username for your cloud provider account.")
+                .WithForeground(Color.DarkGray)
+                .Height(2),
+            new TextNode("Username:")
+                .WithForeground(Color.Gray)
+                .Height(1),
+            Layouts.Horizontal(
+                new TextNode("  ").Width(2),
+                usernameInput.Fill()
+            ).Height(1)
+        );
     }
 
     private ILayoutNode BuildConfirmStep()
     {
         return Layouts.Vertical(
             new TextNode("Review your settings:")
-                .WithForeground(Color.White)
-                .Bold(),
+                .WithForeground(Color.BrightCyan)
+                .Bold()
+                .Height(1),
+            new TextNode("Verify the details below before completing setup.")
+                .WithForeground(Color.DarkGray)
+                .Height(2),
             ViewModel.SelectedProvider
                 .Select<string, ILayoutNode>(p =>
-                    new TextNode($"  Provider: {p}").WithForeground(Color.Cyan))
-                .AsLayout(),
+                    new TextNode($"  Provider:  {p}").WithForeground(Color.Cyan))
+                .AsLayout()
+                .Height(1),
             ViewModel.Username
                 .Select<string, ILayoutNode>(u =>
-                    new TextNode($"  Username: {u}").WithForeground(Color.Cyan))
-                .AsLayout(),
-            new TextNode(""),
+                    new TextNode($"  Username:  {u}").WithForeground(Color.Cyan))
+                .AsLayout()
+                .Height(1),
+            new TextNode("").Height(1),
             new TextNode("Press Enter to complete setup.")
                 .WithForeground(Color.Green)
+                .Height(1)
         );
     }
 }

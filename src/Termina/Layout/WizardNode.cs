@@ -94,18 +94,9 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
     /// <inheritdoc />
     public bool HandleInput(ConsoleKeyInfo key)
     {
-        // Delegate to step content focusables first
-        if (_contentNode != null)
-        {
-            foreach (var child in _contentNode.GetChildNodes())
-            {
-                if (child is IFocusable { HasFocus: true, CanFocus: true } focusable)
-                {
-                    if (focusable.HandleInput(key))
-                        return true;
-                }
-            }
-        }
+        // Delegate to focusable nodes in step content first (recursive tree walk)
+        if (_contentNode != null && DelegateInputToContent(_contentNode, key))
+            return true;
 
         // Then handle wizard-level keys
         return key.Key switch
@@ -114,6 +105,31 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
             ConsoleKey.Escape => TryGoBack(),
             _ => false
         };
+    }
+
+    /// <summary>
+    /// Recursively walk the content tree to find and delegate input to focusable children.
+    /// </summary>
+    private static bool DelegateInputToContent(ILayoutNode node, ConsoleKeyInfo key)
+    {
+        // Check if this node is focusable and can handle input
+        if (node is IFocusable { CanFocus: true } focusable)
+        {
+            if (focusable.HandleInput(key))
+                return true;
+        }
+
+        // Recurse into LayoutNode children (which expose GetChildNodes)
+        if (node is LayoutNode layoutNode)
+        {
+            foreach (var child in layoutNode.GetChildNodes())
+            {
+                if (DelegateInputToContent(child, key))
+                    return true;
+            }
+        }
+
+        return false;
     }
 
     #endregion

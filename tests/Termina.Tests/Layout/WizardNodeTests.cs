@@ -216,6 +216,69 @@ public class WizardNodeTests
     }
 
     [Fact]
+    public void HandleInput_DelegatesToNestedFocusable()
+    {
+        // Arrange: wizard step content has a focusable node nested inside a vertical layout
+        var handled = false;
+        var focusable = new TestFocusableNode(key =>
+        {
+            if (key.Key == ConsoleKey.DownArrow)
+            {
+                handled = true;
+                return true;
+            }
+            return false;
+        });
+
+        var wizard = Layouts.Wizard<TestWizardStep>()
+            .WithStep(TestWizardStep.Provider, "Provider",
+                () => Layouts.Vertical(
+                    new TextNode("Header"),
+                    focusable // nested inside a container
+                ))
+            .WithStep(TestWizardStep.Auth, "Auth", () => new TextNode("Auth"));
+
+        // Force DynamicLayoutNode to evaluate its factory by rendering
+        var ctx = new NullRenderContext();
+        wizard.Render(ctx, new Rect(0, 0, 80, 24));
+
+        var key = new ConsoleKeyInfo('\0', ConsoleKey.DownArrow, false, false, false);
+
+        // Act
+        var result = wizard.HandleInput(key);
+
+        // Assert: the nested focusable handled the input, not the wizard
+        Assert.True(result);
+        Assert.True(handled);
+        // Wizard did NOT advance (DownArrow is not Enter)
+        Assert.Equal(TestWizardStep.Provider, wizard.CurrentStep);
+    }
+
+    [Fact]
+    public void HandleInput_FallsThroughToWizard_WhenChildDoesNotHandle()
+    {
+        // Arrange: focusable child doesn't handle Enter
+        var focusable = new TestFocusableNode(_ => false);
+
+        var wizard = Layouts.Wizard<TestWizardStep>()
+            .WithStep(TestWizardStep.Provider, "Provider",
+                () => Layouts.Vertical(new TextNode("Header"), focusable))
+            .WithStep(TestWizardStep.Auth, "Auth", () => new TextNode("Auth"));
+
+        // Force DynamicLayoutNode to evaluate its factory by rendering
+        var ctx = new NullRenderContext();
+        wizard.Render(ctx, new Rect(0, 0, 80, 24));
+
+        var key = new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false);
+
+        // Act
+        wizard.HandleInput(key);
+
+        // Assert: wizard advanced because child didn't consume Enter
+        Assert.Equal(TestWizardStep.Auth, wizard.CurrentStep);
+    }
+
+    [Fact]
     public void IFocusable_CanFocus_IsTrue()
     {
         var wizard = CreateThreeStepWizard();
@@ -395,6 +458,29 @@ public class WizardNodeTests
 
         Assert.NotNull(wizard);
         Assert.Equal(0, wizard.StepCount);
+    }
+
+    /// <summary>
+    /// Test IFocusable that extends LayoutNode so it's discoverable by tree walk.
+    /// </summary>
+    private class TestFocusableNode : LayoutNode, IFocusable
+    {
+        private readonly Func<ConsoleKeyInfo, bool> _handleInput;
+
+        public TestFocusableNode(Func<ConsoleKeyInfo, bool> handleInput)
+        {
+            _handleInput = handleInput;
+        }
+
+        public bool CanFocus => true;
+        public bool HasFocus { get; private set; }
+        public int FocusPriority => 0;
+        public void OnFocused() => HasFocus = true;
+        public void OnBlurred() => HasFocus = false;
+        public bool HandleInput(ConsoleKeyInfo key) => _handleInput(key);
+
+        public override Size Measure(Size available) => new(available.Width, 1);
+        public override void Render(IRenderContext context, Rect bounds) { }
     }
 
     private class NullRenderContext : IRenderContext
