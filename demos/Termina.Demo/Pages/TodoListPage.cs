@@ -64,9 +64,9 @@ public class TodoListPage : ReactivePage<TodoListViewModel>
 
         // React to state changes for focus management
         // When IsAddingItem becomes true (and not showing priority), focus add modal
-        ViewModel.IsAddingItemChanged
+        ViewModel.IsAddingItem
             .CombineLatest(
-                ViewModel.ShowPriorityModalChanged,
+                ViewModel.ShowPriorityModal,
                 (adding, showPriority) => (adding, showPriority))
             .DistinctUntilChanged()
             .Subscribe(state =>
@@ -85,7 +85,7 @@ public class TodoListPage : ReactivePage<TodoListViewModel>
             .DisposeWith(Subscriptions);
 
         // When ShowPriorityModal becomes true, switch focus to priority modal
-        ViewModel.ShowPriorityModalChanged
+        ViewModel.ShowPriorityModal
             .Where(show => show)
             .Subscribe(_ =>
             {
@@ -136,8 +136,8 @@ public class TodoListPage : ReactivePage<TodoListViewModel>
                     .WithBorder(BorderStyle.Double)
                     .WithBorderColor(Color.Cyan)
                     .WithContent(
-                        ViewModel.ItemsChanged
-                            .CombineLatest(ViewModel.SelectedIndexChanged, (items, selectedIdx) => (items, selectedIdx))
+                        ViewModel.Items
+                            .CombineLatest(ViewModel.SelectedIndex, (items, selectedIdx) => (items, selectedIdx))
                             .Select(tuple => BuildTodoList(tuple.items, tuple.selectedIdx))
                             .AsLayout())
                     .Fill())
@@ -146,7 +146,7 @@ public class TodoListPage : ReactivePage<TodoListViewModel>
                     .WithForeground(Color.BrightBlack)
                     .Height(1))
             .WithChild(
-                ViewModel.StatusMessageChanged
+                ViewModel.StatusMessage
                     .Select<string, ILayoutNode>(msg => new TextNode(msg).WithForeground(Color.White))
                     .AsLayout()
                     .Height(1))
@@ -159,15 +159,15 @@ public class TodoListPage : ReactivePage<TodoListViewModel>
         return Layouts.Stack()
             .WithChild(mainContent)
             .WithChild(
-                ViewModel.IsAddingItemChanged
-                    .CombineLatest(ViewModel.ShowPriorityModalChanged,
+                ViewModel.IsAddingItem
+                    .CombineLatest(ViewModel.ShowPriorityModal,
                         (adding, showPriority) => adding && !showPriority)
                     .Select(showModal => showModal
                         ? (ILayoutNode)_addModal
                         : Layouts.Empty())
                     .AsLayout())
             .WithChild(
-                ViewModel.ShowPriorityModalChanged
+                ViewModel.ShowPriorityModal
                     .Select(showPriority => showPriority
                         ? (ILayoutNode)_priorityModal
                         : Layouts.Empty())

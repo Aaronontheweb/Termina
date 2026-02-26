@@ -11,15 +11,15 @@ namespace Termina.Demo.Grid;
 /// ViewModel for the GridNode dashboard demo.
 /// Demonstrates reactive properties for system metrics simulation.
 /// </summary>
-public partial class DashboardViewModel : ReactiveViewModel
+public class DashboardViewModel : ReactiveViewModel
 {
-    [Reactive] private int _cpuUsage = 45;
-    [Reactive] private int _memoryUsage = 62;
-    [Reactive] private int _diskUsage = 28;
-    [Reactive] private int _networkUsage = 15;
-    [Reactive] private string _statusMessage = "System running normally";
-    [Reactive] private List<LogEntry> _logEntries = new();
-    [Reactive] private int _selectedLogIndex = -1;
+    public ReactiveProperty<int> CpuUsage { get; } = new(45);
+    public ReactiveProperty<int> MemoryUsage { get; } = new(62);
+    public ReactiveProperty<int> DiskUsage { get; } = new(28);
+    public ReactiveProperty<int> NetworkUsage { get; } = new(15);
+    public ReactiveProperty<string> StatusMessage { get; } = new("System running normally");
+    public ReactiveProperty<List<LogEntry>> LogEntries { get; } = new(new());
+    public ReactiveProperty<int> SelectedLogIndex { get; } = new(-1);
 
     private readonly Random _random = new();
     private IDisposable? _simulationTimer;
@@ -27,7 +27,7 @@ public partial class DashboardViewModel : ReactiveViewModel
     public override void OnActivated()
     {
         // Initialize with some log entries
-        LogEntries = new List<LogEntry>
+        LogEntries.Value = new List<LogEntry>
         {
             new("12:00:00", "INFO", "Application started"),
             new("12:00:01", "DEBUG", "Loading configuration..."),
@@ -51,10 +51,10 @@ public partial class DashboardViewModel : ReactiveViewModel
     private void UpdateMetrics()
     {
         // Simulate changing metrics
-        CpuUsage = Math.Clamp(CpuUsage + _random.Next(-10, 11), 0, 100);
-        MemoryUsage = Math.Clamp(MemoryUsage + _random.Next(-5, 6), 0, 100);
-        DiskUsage = Math.Clamp(DiskUsage + _random.Next(-2, 3), 0, 100);
-        NetworkUsage = Math.Clamp(NetworkUsage + _random.Next(-15, 16), 0, 100);
+        CpuUsage.Value = Math.Clamp(CpuUsage.Value + _random.Next(-10, 11), 0, 100);
+        MemoryUsage.Value = Math.Clamp(MemoryUsage.Value + _random.Next(-5, 6), 0, 100);
+        DiskUsage.Value = Math.Clamp(DiskUsage.Value + _random.Next(-2, 3), 0, 100);
+        NetworkUsage.Value = Math.Clamp(NetworkUsage.Value + _random.Next(-15, 16), 0, 100);
 
         // Add a new log entry occasionally
         if (_random.Next(100) < 30)
@@ -70,7 +70,7 @@ public partial class DashboardViewModel : ReactiveViewModel
                 "Network latency spike"
             };
 
-            var newEntries = new List<LogEntry>(LogEntries)
+            var newEntries = new List<LogEntry>(LogEntries.Value)
             {
                 new(DateTime.Now.ToString("HH:mm:ss"),
                     levels[_random.Next(levels.Length)],
@@ -81,21 +81,21 @@ public partial class DashboardViewModel : ReactiveViewModel
             if (newEntries.Count > 8)
                 newEntries.RemoveAt(0);
 
-            LogEntries = newEntries;
+            LogEntries.Value = newEntries;
         }
 
         // Update status based on metrics
-        if (CpuUsage > 80 || MemoryUsage > 80)
+        if (CpuUsage.Value > 80 || MemoryUsage.Value > 80)
         {
-            StatusMessage = "WARNING: High resource usage!";
+            StatusMessage.Value = "WARNING: High resource usage!";
         }
-        else if (CpuUsage < 20 && MemoryUsage < 40)
+        else if (CpuUsage.Value < 20 && MemoryUsage.Value < 40)
         {
-            StatusMessage = "System idle";
+            StatusMessage.Value = "System idle";
         }
         else
         {
-            StatusMessage = "System running normally";
+            StatusMessage.Value = "System running normally";
         }
     }
 
@@ -104,20 +104,20 @@ public partial class DashboardViewModel : ReactiveViewModel
         switch (key.KeyInfo.Key)
         {
             case ConsoleKey.UpArrow:
-                if (SelectedLogIndex > 0)
+                if (SelectedLogIndex.Value > 0)
                 {
-                    SelectedLogIndex--;
+                    SelectedLogIndex.Value--;
                 }
-                else if (SelectedLogIndex == -1 && LogEntries.Count > 0)
+                else if (SelectedLogIndex.Value == -1 && LogEntries.Value.Count > 0)
                 {
-                    SelectedLogIndex = LogEntries.Count - 1;
+                    SelectedLogIndex.Value = LogEntries.Value.Count - 1;
                 }
                 break;
 
             case ConsoleKey.DownArrow:
-                if (SelectedLogIndex < LogEntries.Count - 1)
+                if (SelectedLogIndex.Value < LogEntries.Value.Count - 1)
                 {
-                    SelectedLogIndex++;
+                    SelectedLogIndex.Value++;
                 }
                 break;
 
@@ -128,14 +128,26 @@ public partial class DashboardViewModel : ReactiveViewModel
             case ConsoleKey.R:
                 // Force refresh metrics
                 UpdateMetrics();
-                StatusMessage = "Metrics refreshed";
+                StatusMessage.Value = "Metrics refreshed";
                 break;
 
             case ConsoleKey.C:
                 // Clear log selection
-                SelectedLogIndex = -1;
+                SelectedLogIndex.Value = -1;
                 break;
         }
+    }
+
+    public override void Dispose()
+    {
+        CpuUsage.Dispose();
+        MemoryUsage.Dispose();
+        DiskUsage.Dispose();
+        NetworkUsage.Dispose();
+        StatusMessage.Dispose();
+        LogEntries.Dispose();
+        SelectedLogIndex.Dispose();
+        base.Dispose();
     }
 }
 

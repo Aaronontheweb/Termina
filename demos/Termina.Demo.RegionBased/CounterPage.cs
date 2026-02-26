@@ -37,7 +37,7 @@ public class CounterPage : ReactivePage<CounterViewModel>
                     .WithBorder(BorderStyle.Single)
                     .WithBorderColor(Color.Green)
                     .WithContent(
-                        ViewModel.CountChanged
+                        ViewModel.Count
                             .Select<int, ILayoutNode>(count => new TextNode($"Count: {count}")
                                 .WithForeground(Color.BrightCyan))
                             .AsLayout())
@@ -49,7 +49,7 @@ public class CounterPage : ReactivePage<CounterViewModel>
                     .WithBorder(BorderStyle.Single)
                     .WithBorderColor(Color.Yellow)
                     .WithContent(
-                        ViewModel.InputTextChanged
+                        ViewModel.InputText
                             .Select<string, ILayoutNode>(text => new TextNode($"> {text}_")
                                 .WithForeground(Color.White)
                                 .NoWrap())
@@ -62,7 +62,7 @@ public class CounterPage : ReactivePage<CounterViewModel>
                     .WithBorder(BorderStyle.Single)
                     .WithBorderColor(Color.Magenta)
                     .WithContent(
-                        ViewModel.MessagesChanged
+                        ViewModel.Messages
                             .Select<List<string>, ILayoutNode>(messages => new TextNode(messages.Count > 0
                                 ? string.Join("\n", messages)
                                 : "(no messages yet)")
@@ -74,7 +74,7 @@ public class CounterPage : ReactivePage<CounterViewModel>
             .WithChild(
                 Layouts.Horizontal()
                     .WithChild(
-                        ViewModel.StatusMessageChanged
+                        ViewModel.StatusMessage
                             .Select<string, ILayoutNode>(status => new TextNode(status)
                                 .WithForeground(Color.BrightYellow)
                                 .NoWrap())  // Status should truncate, not wrap

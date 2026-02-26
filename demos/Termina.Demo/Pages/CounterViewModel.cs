@@ -8,12 +8,12 @@ namespace Termina.Demo.Pages;
 /// ViewModel for a simple counter demo.
 /// Demonstrates reactive properties and input handling.
 /// </summary>
-public partial class CounterViewModel : ReactiveViewModel
+public class CounterViewModel : ReactiveViewModel
 {
     private readonly TraceFileInfo _traceFileInfo;
 
-    [Reactive] private int _count;
-    [Reactive] private string _statusMessage = "Press Up/Down to change count, T for todos, Q to quit";
+    public ReactiveProperty<int> Count { get; } = new(0);
+    public ReactiveProperty<string> StatusMessage { get; } = new("Press Up/Down to change count, T for todos, Q to quit");
 
     public CounterViewModel(TraceFileInfo traceFileInfo)
     {
@@ -38,18 +38,18 @@ public partial class CounterViewModel : ReactiveViewModel
         switch (key.KeyInfo.Key)
         {
             case ConsoleKey.UpArrow:
-                Count++;
-                StatusMessage = $"Incremented to {Count}";
+                Count.Value++;
+                StatusMessage.Value = $"Incremented to {Count.Value}";
                 break;
 
             case ConsoleKey.DownArrow:
-                Count--;
-                StatusMessage = $"Decremented to {Count}";
+                Count.Value--;
+                StatusMessage.Value = $"Decremented to {Count.Value}";
                 break;
 
             case ConsoleKey.R:
-                Count = 0;
-                StatusMessage = "Counter reset";
+                Count.Value = 0;
+                StatusMessage.Value = "Counter reset";
                 break;
 
             case ConsoleKey.T:
@@ -60,5 +60,12 @@ public partial class CounterViewModel : ReactiveViewModel
                 Shutdown();
                 break;
         }
+    }
+
+    public override void Dispose()
+    {
+        Count.Dispose();
+        StatusMessage.Dispose();
+        base.Dispose();
     }
 }

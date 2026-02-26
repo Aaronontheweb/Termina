@@ -184,7 +184,7 @@ public class SelectionListGalleryPage : ReactivePage<SelectionListGalleryViewMod
     {
         return Layouts.Horizontal()
             .WithChild(
-                ViewModel.StatusMessageChanged
+                ViewModel.StatusMessage
                     .Select<string, ILayoutNode>(msg => new TextNode(msg).WithForeground(Color.White))
                     .AsLayout()
                     .Fill())

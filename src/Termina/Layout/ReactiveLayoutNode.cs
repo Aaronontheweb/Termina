@@ -32,8 +32,7 @@ public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
         _currentChild = initialChild ?? new EmptyNode();
         SubscribeToChildInvalidation(_currentChild);
 
-        _subscription = source.Subscribe(
-            onNext: node =>
+        _subscription = source.Subscribe(node =>
             {
                 // Deactivate old child instead of disposing (active/inactive pattern)
                 if (_currentChild is LayoutNode oldChild)
@@ -50,9 +49,7 @@ public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
                 }
 
                 _invalidated.OnNext(Unit.Default);
-            },
-            onErrorResume: _ => { },
-            onCompleted: _ => { });
+            });
     }
 
     /// <summary>
@@ -98,10 +95,9 @@ public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
         _isActive = true;
 
         // If subscription was disposed during deactivation, recreate it
-        if (_subscription == null || _subscription is BooleanDisposable { IsDisposed: true })
+        if (_subscription == null)
         {
-            _subscription = _source.Subscribe(
-                onNext: node =>
+            _subscription = _source.Subscribe(node =>
                 {
                     // Deactivate old child instead of disposing (active/inactive pattern)
                     if (_currentChild is LayoutNode oldChild)
@@ -118,9 +114,7 @@ public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
                     }
 
                     _invalidated.OnNext(Unit.Default);
-                },
-                onErrorResume: _ => { },
-                onCompleted: _ => { });
+                });
         }
 
         // Re-subscribe to current child's invalidation events (might have been disposed)
@@ -190,8 +184,7 @@ public sealed class ReactiveLayoutNode<T> : LayoutNode, IInvalidatingNode
         _transform = transform;
         _currentChild = new EmptyNode();
 
-        _subscription = source.Subscribe(
-            onNext: value =>
+        _subscription = source.Subscribe(value =>
             {
                 // Deactivate old child instead of disposing (active/inactive pattern)
                 if (_currentChild is LayoutNode oldChild)
@@ -208,9 +201,7 @@ public sealed class ReactiveLayoutNode<T> : LayoutNode, IInvalidatingNode
                 }
 
                 _invalidated.OnNext(Unit.Default);
-            },
-            onErrorResume: _ => { },
-            onCompleted: _ => { });
+            });
     }
 
     /// <summary>
@@ -254,10 +245,9 @@ public sealed class ReactiveLayoutNode<T> : LayoutNode, IInvalidatingNode
         _isActive = true;
 
         // If subscription was disposed during deactivation, recreate it
-        if (_subscription == null || _subscription is BooleanDisposable { IsDisposed: true })
+        if (_subscription == null)
         {
-            _subscription = _source.Subscribe(
-                onNext: value =>
+            _subscription = _source.Subscribe(value =>
                 {
                     // Deactivate old child instead of disposing (active/inactive pattern)
                     if (_currentChild is LayoutNode oldChild)
@@ -274,9 +264,7 @@ public sealed class ReactiveLayoutNode<T> : LayoutNode, IInvalidatingNode
                     }
 
                     _invalidated.OnNext(Unit.Default);
-                },
-                onErrorResume: _ => { },
-                onCompleted: _ => { });
+                });
         }
 
         // Re-subscribe to current child's invalidation events (might have been disposed)

@@ -120,7 +120,7 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
         }
 
         // When decision list is visible, route input to it
-        if (ViewModel.ShowDecisionList && _decisionList != null)
+        if (ViewModel.ShowDecisionList.Value && _decisionList != null)
         {
             // Escape cancels the decision
             if (keyInfo.Key == ConsoleKey.Escape)
@@ -137,7 +137,7 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
         // Escape handling
         if (keyInfo.Key == ConsoleKey.Escape)
         {
-            if (ViewModel.IsGenerating)
+            if (ViewModel.IsGenerating.Value)
             {
                 ViewModel.CancelGeneration();
             }
@@ -156,7 +156,7 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
         }
 
         // When not generating, let the text input handle keys (including history via Up/Down)
-        if (!ViewModel.IsGenerating)
+        if (!ViewModel.IsGenerating.Value)
         {
             _promptInput.HandleInput(keyInfo);
         }
@@ -265,8 +265,8 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
             // Status bar
             .WithChild(
                 Observable.CombineLatest(
-                        ViewModel.IsGeneratingChanged,
-                        ViewModel.ShowDecisionListChanged.Prepend(false),
+                        ViewModel.IsGenerating,
+                        ViewModel.ShowDecisionList.Prepend(false),
                         (isGenerating, showDecision) => showDecision
                             ? "[↑/↓] Navigate [Enter] Select [1-4] Quick Select [Esc] Skip"
                             : isGenerating
@@ -276,7 +276,7 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
                     .AsLayout()
                     .Height(1))
             .WithChild(
-                ViewModel.StatusMessageChanged
+                ViewModel.StatusMessage
                     .Select<string, ILayoutNode>(msg => new TextNode(msg).WithForeground(Color.White))
                     .AsLayout()
                     .Height(1));

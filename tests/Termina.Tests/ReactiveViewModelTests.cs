@@ -118,71 +118,69 @@ public class ReactiveViewModelTests
     }
 
     [Fact]
-    public void ReactiveViewModel_WithReactiveFields_HasDisposeReactiveFieldsMethod()
+    public void ReactiveViewModel_WithReactiveProperties_GetSetWorks()
     {
         var vm = new TestReactiveViewModel();
 
-        // The generated DisposeReactiveFields method should be callable
-        // It's generated as protected, so we access it through Dispose()
         Assert.NotNull(vm);
-        vm.Count = 5;
-        Assert.Equal(5, vm.Count);
+        vm.Count.Value = 5;
+        Assert.Equal(5, vm.Count.Value);
 
-        // Dispose should call DisposeReactiveFields automatically
+        // Dispose should dispose reactive properties
         vm.Dispose();
 
         // After disposal, setting a value should throw ObjectDisposedException
-        Assert.Throws<ObjectDisposedException>(() => vm.Count = 10);
+        Assert.Throws<ObjectDisposedException>(() => vm.Count.Value = 10);
     }
 
     [Fact]
-    public void ReactiveViewModel_WithReactiveFields_DisposesAllSubjects()
+    public void ReactiveViewModel_WithReactiveProperties_DisposesAll()
     {
         var vm = new TestReactiveViewModel();
 
-        // Set some values to ensure subjects are active
-        vm.Count = 42;
-        vm.Message = "Hello";
+        // Set some values to ensure properties are active
+        vm.Count.Value = 42;
+        vm.Message.Value = "Hello";
 
-        Assert.Equal(42, vm.Count);
-        Assert.Equal("Hello", vm.Message);
+        Assert.Equal(42, vm.Count.Value);
+        Assert.Equal("Hello", vm.Message.Value);
 
         // Dispose the ViewModel
         vm.Dispose();
 
-        // Both subjects should be disposed
-        Assert.Throws<ObjectDisposedException>(() => vm.Count = 1);
-        Assert.Throws<ObjectDisposedException>(() => vm.Message = "test");
+        // Both properties should be disposed
+        Assert.Throws<ObjectDisposedException>(() => vm.Count.Value = 1);
+        Assert.Throws<ObjectDisposedException>(() => vm.Message.Value = "test");
     }
 
     [Fact]
-    public void ReactiveViewModel_WithReactiveFields_CannotSetValueAfterDispose()
+    public void ReactiveViewModel_WithReactiveProperties_CannotSetValueAfterDispose()
     {
         var vm = new TestReactiveViewModel();
         var valuesReceived = new List<int>();
 
         // Subscribe to track values
-        vm.CountChanged.Subscribe(v => valuesReceived.Add(v));
+        vm.Count.Subscribe(v => valuesReceived.Add(v));
 
         // Set a value before dispose
-        vm.Count = 42;
+        vm.Count.Value = 42;
         Assert.Contains(42, valuesReceived);
 
         // Dispose
         vm.Dispose();
 
         // Attempting to set value after dispose throws
-        Assert.Throws<ObjectDisposedException>(() => vm.Count = 100);
+        Assert.Throws<ObjectDisposedException>(() => vm.Count.Value = 100);
     }
 
     [Fact]
-    public void ReactiveViewModel_WithCustomDispose_CallsDisposeReactiveFields()
+    public void ReactiveViewModel_WithCustomDispose_CallsCustomDispose()
     {
         var vm = new TestReactiveViewModelWithCustomDispose();
 
         // Set a value
-        vm.Value = 42;
-        Assert.Equal(42, vm.Value);
+        vm.Value.Value = 42;
+        Assert.Equal(42, vm.Value.Value);
 
         // Dispose
         vm.Dispose();
@@ -190,37 +188,37 @@ public class ReactiveViewModelTests
         // Custom dispose was called
         Assert.True(vm.CustomDisposeWasCalled);
 
-        // Reactive fields were disposed (setting value throws)
-        Assert.Throws<ObjectDisposedException>(() => vm.Value = 100);
+        // Reactive property was disposed (setting value throws)
+        Assert.Throws<ObjectDisposedException>(() => vm.Value.Value = 100);
     }
 
     [Fact]
-    public void ReactiveViewModel_WithNullableFields_PreservesNullability()
+    public void ReactiveViewModel_WithNullableProperties_PreservesNullability()
     {
         var vm = new TestReactiveViewModelWithNullable();
 
         // Properties should be nullable and initially null
-        Assert.Null(vm.NullableString);
-        Assert.Null(vm.NullableInt);
-        Assert.Null(vm.NullableObject);
+        Assert.Null(vm.NullableString.Value);
+        Assert.Null(vm.NullableInt.Value);
+        Assert.Null(vm.NullableObject.Value);
 
         // Can set to non-null values
-        vm.NullableString = "test";
-        vm.NullableInt = 42;
-        vm.NullableObject = new object();
+        vm.NullableString.Value = "test";
+        vm.NullableInt.Value = 42;
+        vm.NullableObject.Value = new object();
 
-        Assert.Equal("test", vm.NullableString);
-        Assert.Equal(42, vm.NullableInt);
-        Assert.NotNull(vm.NullableObject);
+        Assert.Equal("test", vm.NullableString.Value);
+        Assert.Equal(42, vm.NullableInt.Value);
+        Assert.NotNull(vm.NullableObject.Value);
 
         // Can set back to null
-        vm.NullableString = null;
-        vm.NullableInt = null;
-        vm.NullableObject = null;
+        vm.NullableString.Value = null;
+        vm.NullableInt.Value = null;
+        vm.NullableObject.Value = null;
 
-        Assert.Null(vm.NullableString);
-        Assert.Null(vm.NullableInt);
-        Assert.Null(vm.NullableObject);
+        Assert.Null(vm.NullableString.Value);
+        Assert.Null(vm.NullableInt.Value);
+        Assert.Null(vm.NullableObject.Value);
 
         vm.Dispose();
     }
@@ -252,40 +250,52 @@ public class ReactiveViewModelTests
 }
 
 /// <summary>
-/// Test ViewModel with [Reactive] fields to verify source generator disposal.
-/// This must be partial and outside the test class for the generator to work.
+/// Test ViewModel with ReactiveProperty fields to verify disposal.
 /// </summary>
-public partial class TestReactiveViewModel : ReactiveViewModel
+public class TestReactiveViewModel : ReactiveViewModel
 {
-    [Reactive] private int _count;
-    [Reactive] private string _message = "Initial";
+    public ReactiveProperty<int> Count { get; } = new(0);
+    public ReactiveProperty<string> Message { get; } = new("Initial");
+
+    public override void Dispose()
+    {
+        Count.Dispose();
+        Message.Dispose();
+        base.Dispose();
+    }
 }
 
 /// <summary>
-/// Test ViewModel with custom Dispose() that properly calls DisposeReactiveFields().
-/// This should NOT trigger TERMINA001 error.
+/// Test ViewModel with custom Dispose() that properly disposes reactive properties.
 /// </summary>
-public partial class TestReactiveViewModelWithCustomDispose : ReactiveViewModel
+public class TestReactiveViewModelWithCustomDispose : ReactiveViewModel
 {
-    [Reactive] private int _value;
+    public ReactiveProperty<int> Value { get; } = new(0);
 
     public bool CustomDisposeWasCalled { get; private set; }
 
     public override void Dispose()
     {
         CustomDisposeWasCalled = true;
-        DisposeReactiveFields();
+        Value.Dispose();
         base.Dispose();
     }
 }
 
 /// <summary>
-/// Test ViewModel with nullable [Reactive] fields to verify nullability annotations are preserved.
+/// Test ViewModel with nullable ReactiveProperty fields to verify nullability.
 /// </summary>
-public partial class TestReactiveViewModelWithNullable : ReactiveViewModel
+public class TestReactiveViewModelWithNullable : ReactiveViewModel
 {
-    [Reactive] private string? _nullableString = null;
-    [Reactive] private int? _nullableInt = null;
-    [Reactive] private object? _nullableObject = null;
-}
+    public ReactiveProperty<string?> NullableString { get; } = new(null);
+    public ReactiveProperty<int?> NullableInt { get; } = new(null);
+    public ReactiveProperty<object?> NullableObject { get; } = new(null);
 
+    public override void Dispose()
+    {
+        NullableString.Dispose();
+        NullableInt.Dispose();
+        NullableObject.Dispose();
+        base.Dispose();
+    }
+}

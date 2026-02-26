@@ -33,7 +33,7 @@ public class AnimationsGalleryPage : ReactivePage<AnimationsGalleryViewModel>
             var highlighted = _styleList.HighlightedItem;
             if (highlighted != null)
             {
-                ViewModel.SelectedStyle = highlighted.Value.Style;
+                ViewModel.SelectedStyle.Value = highlighted.Value.Style;
             }
         });
 
@@ -44,7 +44,7 @@ public class AnimationsGalleryPage : ReactivePage<AnimationsGalleryViewModel>
                 var item = items.FirstOrDefault();
                 if (item != null)
                 {
-                    ViewModel.SelectedStyle = item.Style;
+                    ViewModel.SelectedStyle.Value = item.Style;
                 }
             })
             .DisposeWith(Subscriptions);
@@ -113,7 +113,7 @@ public class AnimationsGalleryPage : ReactivePage<AnimationsGalleryViewModel>
     private ILayoutNode BuildPreviewArea()
     {
         // Create a reactive layout that swaps spinners based on selection
-        return ViewModel.SelectedStyleChanged
+        return ViewModel.SelectedStyle
             .Select(style => BuildSpinnerPreview(style))
             .AsLayout()
             .Fill();

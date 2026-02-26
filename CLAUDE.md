@@ -2,27 +2,67 @@
 
 ## Architectural Principles
 
-### Reactive-Only Pattern
+### Reactive-Only Pattern (R3)
 
-**Do NOT mix System.Reactive with .NET events.** Termina uses System.Reactive (Rx) throughout. All asynchronous communication, state changes, and notifications must use observables.
+**Do NOT mix R3 with .NET events.** Termina uses R3 (not System.Reactive) throughout. All asynchronous communication, state changes, and notifications must use observables.
 
-- Use `IObservable<T>` for all event-like patterns
-- Use `Subject<T>`, `BehaviorSubject<T>`, or `ReplaySubject<T>` for event sources
+- Use `Observable<T>` (R3) for all event-like patterns
+- Use `ReactiveProperty<T>` for ViewModel state (built-in `DistinctUntilChanged`, simpler API)
+- Use `Subject<T>` for event sources (fire-and-forget notifications)
+- Do NOT use `BehaviorSubject<T>` — use `ReactiveProperty<T>` instead
 - Do NOT use `event Action` or `event EventHandler<T>`
-- The only exception is the existing `IInvalidatingNode.Invalidated` event (legacy - consider migrating)
+- Do NOT use `System.Timers.Timer` or `System.Threading.Timer` — use `Observable.Interval` with `TimeProvider`
 
-**Correct:**
+**ViewModel state with ReactiveProperty:**
 ```csharp
-public IObservable<IReadOnlyList<T>> SelectionConfirmed => _selectionConfirmed.AsObservable();
+public class CounterViewModel : ReactiveViewModel
+{
+    public ReactiveProperty<int> Count { get; } = new(0);
+    public ReactiveProperty<string> StatusMessage { get; } = new("Ready");
+
+    void Increment()
+    {
+        Count.Value++;
+        StatusMessage.Value = $"Count: {Count.Value}";
+    }
+
+    public override void Dispose()
+    {
+        Count.Dispose();
+        StatusMessage.Dispose();
+        base.Dispose();
+    }
+}
+
+// Page subscribes directly to ReactiveProperty (it IS an Observable<T>):
+ViewModel.Count.Select<int, ILayoutNode>(count => new TextNode($"Count: {count}")).AsLayout()
+```
+
+**Event sources with Subject:**
+```csharp
+public Observable<IReadOnlyList<T>> SelectionConfirmed => _selectionConfirmed.AsObservable();
 private readonly Subject<IReadOnlyList<T>> _selectionConfirmed = new();
 
 // To emit:
 _selectionConfirmed.OnNext(selectedItems);
 ```
 
+**Testable timing with TimeProvider:**
+```csharp
+// Production: uses TimeProvider.System by default
+public SpinnerNode(int intervalMs = 80, TimeProvider? timeProvider = null)
+
+// Test: use FakeTimeProvider for deterministic control
+var timeProvider = new FakeTimeProvider();
+var spinner = new SpinnerNode(intervalMs: 80, timeProvider: timeProvider);
+timeProvider.Advance(TimeSpan.FromMilliseconds(80)); // Deterministic frame advance
+```
+
 **Incorrect:**
 ```csharp
 public event Action<IReadOnlyList<T>>? SelectionConfirmed;  // NO - don't use events
+[Reactive] private int _count;  // NO - [Reactive] attribute is removed, use ReactiveProperty<T>
+private readonly Timer _timer;  // NO - use Observable.Interval + TimeProvider
 ```
 
 ### Fluent API Pattern
@@ -68,26 +108,25 @@ This principle ensures all text-accepting components (TextNode, table cells, sta
 
 ## Testing Guidelines
 
-### Deterministic Observable Testing
+### Deterministic Testing with FakeTimeProvider
 
-**Do NOT use `Thread.Sleep` to test time-based or event-driven behavior.** Instead, await the actual observable events using Rx operators.
+**Do NOT use `Thread.Sleep` or real timers to test time-based behavior.** Use `FakeTimeProvider` from `Microsoft.Extensions.TimeProvider.Testing` for fully deterministic tests.
 
-- Use `FirstAsync()` to await the first emission from an observable
-- Use `Timeout()` to prevent tests from hanging if events don't fire
-- Tests should observe **actual state changes**, not assume timing
+- All timer-based components accept `TimeProvider?` — pass `FakeTimeProvider` in tests
+- Use `timeProvider.Advance(TimeSpan)` to deterministically trigger timer callbacks
+- Tests are synchronous (no `async`) — no timing flakiness
 
 **Correct:**
 ```csharp
 [Fact]
-public async Task AnimationChangesFrame()
+public void AnimationChangesFrame()
 {
-    var spinner = new SpinnerSegment(SpinnerStyle.Line, intervalMs: 10);
+    var timeProvider = new FakeTimeProvider();
+    var spinner = new SpinnerSegment(SpinnerStyle.Line, intervalMs: 80, timeProvider: timeProvider);
     var frame1 = spinner.GetCurrentSegment().Text;
 
-    // Wait for actual invalidation event
-    await spinner.Invalidated
-        .FirstAsync()
-        .Timeout(TimeSpan.FromSeconds(1));
+    // Deterministically advance time
+    timeProvider.Advance(TimeSpan.FromMilliseconds(80));
 
     var frame2 = spinner.GetCurrentSegment().Text;
     Assert.NotEqual(frame1, frame2);
@@ -100,12 +139,7 @@ public async Task AnimationChangesFrame()
 public void AnimationChangesFrame()
 {
     var spinner = new SpinnerSegment(SpinnerStyle.Line, intervalMs: 10);
-    var frame1 = spinner.GetCurrentSegment().Text;
-
-    Thread.Sleep(50);  // NO - non-deterministic, flaky on Windows
-
-    var frame2 = spinner.GetCurrentSegment().Text;
-    Assert.NotEqual(frame1, frame2);
+    Thread.Sleep(50);  // NO - non-deterministic, flaky
 }
 ```
 

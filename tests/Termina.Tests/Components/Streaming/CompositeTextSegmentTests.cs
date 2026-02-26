@@ -1,6 +1,7 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
+using Microsoft.Extensions.Time.Testing;
 using Termina.Components.Streaming;
 using R3;
 
@@ -70,20 +71,21 @@ public class CompositeTextSegmentTests
     }
 
     [Fact]
-    public async Task Invalidated_PropagatesFromAnimatedChild()
+    public void Invalidated_PropagatesFromAnimatedChild()
     {
-        using var spinner = new SpinnerSegment(SpinnerStyle.Line, intervalMs: 10);
+        var timeProvider = new FakeTimeProvider();
+        using var spinner = new SpinnerSegment(SpinnerStyle.Line, intervalMs: 80, timeProvider: timeProvider);
         using var composite = new CompositeTextSegment(
             new StaticTextSegment(new StyledSegment("Loading: ")),
             spinner);
 
-        // Wait for invalidation from spinner
-        await composite.Invalidated
-            .FirstAsync()
-            .WaitAsync(TimeSpan.FromSeconds(1));
+        var invalidated = false;
+        composite.Invalidated.Subscribe(_ => invalidated = true);
 
-        // If we got here, invalidation was propagated
-        Assert.True(true);
+        // Advance time to trigger invalidation from spinner
+        timeProvider.Advance(TimeSpan.FromMilliseconds(80));
+
+        Assert.True(invalidated);
     }
 
     [Fact]

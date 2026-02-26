@@ -90,7 +90,7 @@ public class TextInputGalleryPage : ReactivePage<TextInputGalleryViewModel>
                     .WithForeground(Color.BrightBlack)
                     .Height(1))
             .WithChild(
-                ViewModel.StatusMessageChanged
+                ViewModel.StatusMessage
                     .Select<string, ILayoutNode>(msg => new TextNode(msg).WithForeground(Color.White))
                     .AsLayout()
                     .Height(1));

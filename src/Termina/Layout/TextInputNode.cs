@@ -1,13 +1,11 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
-using System.Timers;
 using R3;
 using Termina.Diagnostics;
 using Termina.Input;
 using Termina.Rendering;
 using Termina.Terminal;
-using Timer = System.Timers.Timer;
 
 namespace Termina.Layout;
 
@@ -17,7 +15,9 @@ namespace Termina.Layout;
 /// </summary>
 public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode, IFocusable, IPasteReceiver
 {
-    private readonly Timer _cursorTimer;
+    private readonly TimeProvider _timeProvider;
+    private readonly int _cursorBlinkMs;
+    private IDisposable? _cursorTimerSubscription;
     private readonly Subject<Unit> _invalidated = new();
     private readonly Subject<string> _textChanged = new();
     private readonly Subject<string> _submitted = new();
@@ -186,11 +186,10 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
         }
     }
 
-    public TextInputNode(int cursorBlinkMs = 530)
+    public TextInputNode(int cursorBlinkMs = 530, TimeProvider? timeProvider = null)
     {
-        _cursorTimer = new Timer(cursorBlinkMs);
-        _cursorTimer.Elapsed += OnCursorBlink;
-        _cursorTimer.AutoReset = true;
+        _cursorBlinkMs = cursorBlinkMs;
+        _timeProvider = timeProvider ?? TimeProvider.System;
 
         HeightConstraint = new SizeConstraint.Fixed(1);
         WidthConstraint = new SizeConstraint.Fill();
@@ -280,7 +279,13 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
         {
             IsAnimating = true;
             _cursorVisible = true;
-            _cursorTimer.Start();
+            _cursorTimerSubscription ??= Observable
+                .Interval(TimeSpan.FromMilliseconds(_cursorBlinkMs), _timeProvider)
+                .Subscribe(_ =>
+                {
+                    _cursorVisible = !_cursorVisible;
+                    _invalidated.OnNext(Unit.Default);
+                });
         }
     }
 
@@ -289,17 +294,12 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     {
         if (IsAnimating)
         {
-            _cursorTimer.Stop();
+            _cursorTimerSubscription?.Dispose();
+            _cursorTimerSubscription = null;
             IsAnimating = false;
             _cursorVisible = false;
             _invalidated.OnNext(Unit.Default);
         }
-    }
-
-    private void OnCursorBlink(object? sender, ElapsedEventArgs e)
-    {
-        _cursorVisible = !_cursorVisible;
-        _invalidated.OnNext(Unit.Default);
     }
 
     /// <summary>
@@ -316,10 +316,12 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
 
         TerminaTrace.Input.Trace(this, "HandleInput: key={0}, char='{1}'", key.Key, key.KeyChar);
 
-        // Reset cursor to visible on any input
+        // Reset cursor to visible on any input - restart the blink cycle
         _cursorVisible = true;
-        _cursorTimer.Stop();
-        _cursorTimer.Start();
+        _cursorTimerSubscription?.Dispose();
+        _cursorTimerSubscription = null;
+        IsAnimating = false;
+        Start();
 
         var handled = key.Key switch
         {
@@ -916,8 +918,7 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
             return;
 
         _disposed = true;
-        _cursorTimer.Stop();
-        _cursorTimer.Dispose();
+        Stop();
 
         _invalidated.OnCompleted();
         _invalidated.Dispose();

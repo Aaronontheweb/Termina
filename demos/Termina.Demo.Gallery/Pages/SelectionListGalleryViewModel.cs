@@ -1,6 +1,7 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
+using R3;
 using Termina.Reactive;
 
 namespace Termina.Demo.Gallery.Pages;
@@ -8,9 +9,9 @@ namespace Termina.Demo.Gallery.Pages;
 /// <summary>
 /// ViewModel for the SelectionList gallery page.
 /// </summary>
-public partial class SelectionListGalleryViewModel : ReactiveViewModel
+public class SelectionListGalleryViewModel : ReactiveViewModel
 {
-    [Reactive] private string _statusMessage = "Select items and explore different SelectionList features";
+    public ReactiveProperty<string> StatusMessage { get; } = new("Select items and explore different SelectionList features");
 
     public IReadOnlyList<ServerInfo> Servers { get; } = new List<ServerInfo>
     {
@@ -26,26 +27,32 @@ public partial class SelectionListGalleryViewModel : ReactiveViewModel
 
     public void OnFocusChanged(int listIndex)
     {
-        StatusMessage = $"Focus: {ListNames[listIndex]} - Use Tab to switch lists";
+        StatusMessage.Value = $"Focus: {ListNames[listIndex]} - Use Tab to switch lists";
     }
 
     public void OnSingleSelection(string item)
     {
-        StatusMessage = $"Single selected: {item}";
+        StatusMessage.Value = $"Single selected: {item}";
     }
 
     public void OnOtherSelected(string customValue)
     {
-        StatusMessage = $"Custom value entered: \"{customValue}\"";
+        StatusMessage.Value = $"Custom value entered: \"{customValue}\"";
     }
 
     public void OnMultiSelection(IReadOnlyList<string> items)
     {
-        StatusMessage = $"Multi-selected {items.Count} servers: {string.Join(", ", items)}";
+        StatusMessage.Value = $"Multi-selected {items.Count} servers: {string.Join(", ", items)}";
     }
 
     public void OnNumberedSelection(string item)
     {
-        StatusMessage = $"Numbered selection: {item}";
+        StatusMessage.Value = $"Numbered selection: {item}";
+    }
+
+    public override void Dispose()
+    {
+        StatusMessage.Dispose();
+        base.Dispose();
     }
 }

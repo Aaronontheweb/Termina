@@ -58,7 +58,7 @@ public sealed record HideDecisionPoint : IChatMessage;
 /// Contains only state and business logic - no UI concerns.
 /// Exposes observables for chat content that the Page subscribes to.
 /// </summary>
-public partial class StreamingChatViewModel : ReactiveViewModel
+public class StreamingChatViewModel : ReactiveViewModel
 {
     // Predefined segment IDs for tracked elements
     private static readonly SegmentId ThinkingSpinnerId = new(1);
@@ -80,10 +80,10 @@ public partial class StreamingChatViewModel : ReactiveViewModel
     public Observable<IChatMessage> ChatOutput => _chatOutput.AsObservable();
 
     // Reactive properties for UI state
-    [Reactive] private bool _isGenerating = false;
-    [Reactive] private bool _hasReceivedText = false; // Tracks if any text has arrived yet
-    [Reactive] private string _statusMessage = "Ready. Enter a question to begin.";
-    [Reactive] private bool _showDecisionList = false; // Whether to show the decision list
+    public ReactiveProperty<bool> IsGenerating { get; } = new(false);
+    public ReactiveProperty<bool> HasReceivedText { get; } = new(false); // Tracks if any text has arrived yet
+    public ReactiveProperty<string> StatusMessage { get; } = new("Ready. Enter a question to begin.");
+    public ReactiveProperty<bool> ShowDecisionList { get; } = new(false); // Whether to show the decision list
 
     // Track current decision context for follow-up
     private string? _pendingDecisionContext;
@@ -124,7 +124,7 @@ public partial class StreamingChatViewModel : ReactiveViewModel
         _generationCts?.Cancel();
         _chatOutput.OnNext(new AppendText(" [cancelled]", Color.Yellow, TextDecoration.Italic, IsNewLine: true));
         CleanupGeneration();
-        StatusMessage = "Generation cancelled.";
+        StatusMessage.Value = "Generation cancelled.";
     }
 
     /// <summary>
@@ -151,7 +151,7 @@ public partial class StreamingChatViewModel : ReactiveViewModel
     public void HandleDecisionSelection(string choiceTitle)
     {
         // Hide the decision list
-        ShowDecisionList = false;
+        ShowDecisionList.Value = false;
         _chatOutput.OnNext(new HideDecisionPoint());
 
         // Show the user's choice in the chat
@@ -169,11 +169,11 @@ public partial class StreamingChatViewModel : ReactiveViewModel
     /// </summary>
     public void HandleDecisionCancelled()
     {
-        ShowDecisionList = false;
+        ShowDecisionList.Value = false;
         _chatOutput.OnNext(new HideDecisionPoint());
         _chatOutput.OnNext(new AppendText(" [decision skipped]", Color.Yellow, TextDecoration.Italic, IsNewLine: true));
         CleanupGeneration();
-        StatusMessage = "Ready. Enter another question.";
+        StatusMessage.Value = "Ready. Enter another question.";
     }
 
     /// <summary>
@@ -189,7 +189,7 @@ public partial class StreamingChatViewModel : ReactiveViewModel
         }
 
         // Hide the decision list
-        ShowDecisionList = false;
+        ShowDecisionList.Value = false;
         _chatOutput.OnNext(new HideDecisionPoint());
 
         // Show the custom prompt as user input
@@ -214,10 +214,10 @@ public partial class StreamingChatViewModel : ReactiveViewModel
         _chatOutput.OnNext(new AppendTrackedSegment(ThinkingSpinnerId, _currentSpinner));
 
         // Start generation
-        IsGenerating = true;
-        HasReceivedText = false;
+        IsGenerating.Value = true;
+        HasReceivedText.Value = false;
         _thinkingBlockShown = false;
-        StatusMessage = "Generating response...";
+        StatusMessage.Value = "Generating response...";
 
         _ = ConsumeResponseStreamAsync(prompt, decisionContext);
     }
@@ -226,8 +226,8 @@ public partial class StreamingChatViewModel : ReactiveViewModel
     {
         if (_llmActor is null)
         {
-            StatusMessage = "Error: Actor not initialized";
-            IsGenerating = false;
+            StatusMessage.Value = "Error: Actor not initialized";
+            IsGenerating.Value = false;
             return;
         }
 
@@ -274,10 +274,10 @@ public partial class StreamingChatViewModel : ReactiveViewModel
 
                     case LlmMessages.TextChunk chunk:
                         // On first text chunk, remove thinking block
-                        if (!HasReceivedText)
+                        if (!HasReceivedText.Value)
                         {
                             _chatOutput.OnNext(new RemoveTrackedSegment(ThinkingBlockId));
-                            HasReceivedText = true;
+                            HasReceivedText.Value = true;
                         }
 
                         _chatOutput.OnNext(new AppendText(chunk.Text));
@@ -285,22 +285,22 @@ public partial class StreamingChatViewModel : ReactiveViewModel
 
                     case LlmMessages.GenerationComplete:
                         CleanupGeneration();
-                        StatusMessage = "Ready. Enter another question.";
+                        StatusMessage.Value = "Ready. Enter another question.";
                         completedNormally = true;
                         break;
 
                     case LlmMessages.DecisionPointToken decision:
                         // On first content (decision point), remove thinking block
-                        if (!HasReceivedText)
+                        if (!HasReceivedText.Value)
                         {
                             _chatOutput.OnNext(new RemoveTrackedSegment(ThinkingBlockId));
-                            HasReceivedText = true;
+                            HasReceivedText.Value = true;
                         }
 
                         // Show the decision list
                         _chatOutput.OnNext(new ShowDecisionPoint(decision.Question, decision.Choices));
-                        ShowDecisionList = true;
-                        StatusMessage = "Make a selection below...";
+                        ShowDecisionList.Value = true;
+                        StatusMessage.Value = "Make a selection below...";
 
                         // We don't mark this as complete - we wait for user to make a decision
                         return;
@@ -317,14 +317,14 @@ public partial class StreamingChatViewModel : ReactiveViewModel
             _chatOutput.OnNext(new AppendText(ex.Message, Color.Red, TextDecoration.Bold));
             _chatOutput.OnNext(new AppendText("]", Color.Red, IsNewLine: true));
             CleanupGeneration();
-            StatusMessage = $"Error: {ex.Message}";
+            StatusMessage.Value = $"Error: {ex.Message}";
         }
         finally
         {
-            if (!completedNormally && IsGenerating)
+            if (!completedNormally && IsGenerating.Value)
             {
                 CleanupGeneration();
-                StatusMessage = "Ready. Enter another question.";
+                StatusMessage.Value = "Ready. Enter another question.";
             }
         }
     }
@@ -333,7 +333,7 @@ public partial class StreamingChatViewModel : ReactiveViewModel
     {
         _chatOutput.OnNext(new AppendText("", IsNewLine: true));
         _chatOutput.OnNext(new AppendText("", IsNewLine: true));
-        IsGenerating = false;
+        IsGenerating.Value = false;
         _generationCts?.Dispose();
         _generationCts = null;
     }
@@ -342,7 +342,10 @@ public partial class StreamingChatViewModel : ReactiveViewModel
     {
         _currentSpinner?.Dispose();
         _chatOutput.Dispose();
-        DisposeReactiveFields();
+        IsGenerating.Dispose();
+        HasReceivedText.Dispose();
+        StatusMessage.Dispose();
+        ShowDecisionList.Dispose();
         base.Dispose();
     }
 }

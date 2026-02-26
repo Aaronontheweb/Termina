@@ -13,25 +13,25 @@ namespace Termina.Reactive;
 /// ReactiveViewModel is the "ViewModel" in MVVM pattern. It:
 /// </para>
 /// <list type="bullet">
-///   <item>Owns application state as observable properties (use [Reactive] attribute)</item>
+///   <item>Owns application state as <c>ReactiveProperty&lt;T&gt;</c> properties</item>
 ///   <item>Subscribes to input events and backend services</item>
 ///   <item>Provides navigation and shutdown actions</item>
 ///   <item>Manages subscription lifecycle via CompositeDisposable</item>
 /// </list>
 /// <para>
-/// Properties marked with [Reactive] get source-generated BehaviorSubject backing.
-/// Pages subscribe to the generated *Changed observables to update UI automatically.
+/// Use <c>ReactiveProperty&lt;T&gt;</c> for observable state. Pages subscribe directly
+/// to the property (which is an <c>Observable&lt;T&gt;</c>) for automatic UI updates.
 /// </para>
 /// </remarks>
 /// <example>
 /// <code>
-/// public partial class CounterViewModel : ReactiveViewModel
+/// public class CounterViewModel : ReactiveViewModel
 /// {
-///     [Reactive] private int _count;
+///     public ReactiveProperty&lt;int&gt; Count { get; } = new(0);
 ///
-///     public CounterViewModel(IObservable&lt;IInputEvent&gt; input)
+///     public override void OnActivated()
 ///     {
-///         input.OfType&lt;KeyPressed&gt;()
+///         Input.OfType&lt;IInputEvent, KeyPressed&gt;()
 ///             .Subscribe(HandleKey)
 ///             .DisposeWith(Subscriptions);
 ///     }
@@ -39,7 +39,13 @@ namespace Termina.Reactive;
 ///     private void HandleKey(KeyPressed key)
 ///     {
 ///         if (key.KeyInfo.Key == ConsoleKey.UpArrow)
-///             Count++;
+///             Count.Value++;
+///     }
+///
+///     public override void Dispose()
+///     {
+///         Count.Dispose();
+///         base.Dispose();
 ///     }
 /// }
 /// </code>
