@@ -109,10 +109,6 @@ public sealed class LayoutNodeInViewModelAnalyzer : DiagnosticAnalyzer
             if (fieldSymbol is null)
                 continue;
 
-            // Skip fields with [Reactive] attribute - these are handled by the source generator
-            if (HasReactiveAttribute(fieldSymbol))
-                continue;
-
             // Check if containing type inherits from ReactiveViewModel
             var containingType = fieldSymbol.ContainingType;
             if (!terminaContext.InheritsFromReactiveViewModel(containingType))
@@ -132,23 +128,6 @@ public sealed class LayoutNodeInViewModelAnalyzer : DiagnosticAnalyzer
 
             context.ReportDiagnostic(diagnostic);
         }
-    }
-
-    /// <summary>
-    /// Checks if a field has the [Reactive] attribute.
-    /// </summary>
-    private static bool HasReactiveAttribute(IFieldSymbol fieldSymbol)
-    {
-        foreach (var attribute in fieldSymbol.GetAttributes())
-        {
-            var attrClass = attribute.AttributeClass;
-            if (attrClass?.Name == "ReactiveAttribute" &&
-                attrClass.ContainingNamespace?.ToDisplayString() == "Termina.Reactive")
-            {
-                return true;
-            }
-        }
-        return false;
     }
 
     /// <summary>

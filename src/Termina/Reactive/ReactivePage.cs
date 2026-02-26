@@ -44,6 +44,12 @@ public abstract class ReactivePage<TViewModel> : IBindablePage, IDisposable
     private ILayoutNode? _layoutRoot;
 
     /// <summary>
+    /// Determines how focus is automatically assigned when this page is navigated to.
+    /// Set in the page constructor or <see cref="OnBound"/> method.
+    /// </summary>
+    protected FocusPolicy FocusPolicy { get; set; } = FocusPolicy.Manual;
+
+    /// <summary>
     /// The ViewModel this page is bound to.
     /// Available after <see cref="Bind"/> is called by the framework.
     /// </summary>
@@ -203,6 +209,56 @@ public abstract class ReactivePage<TViewModel> : IBindablePage, IDisposable
         if (_layoutRoot is LayoutNode node)
         {
             node.OnActivate();
+        }
+
+        // Auto-focus based on policy
+        if (FocusPolicy != FocusPolicy.Manual && _layoutRoot != null)
+        {
+            ApplyFocusPolicy(_layoutRoot);
+        }
+    }
+
+    /// <summary>
+    /// Cycle focus forward through focusable nodes in the layout tree.
+    /// Register as a key binding: <c>KeyBindings.Register(ConsoleKey.Tab, CycleFocusForward);</c>
+    /// </summary>
+    protected void CycleFocusForward()
+    {
+        if (_layoutRoot == null) return;
+        var focusables = Focus.CollectFocusables(_layoutRoot);
+        Focus.CycleFocus(focusables);
+    }
+
+    /// <summary>
+    /// Cycle focus backward through focusable nodes in the layout tree.
+    /// Register as a key binding: <c>KeyBindings.Register(ConsoleKey.Tab, ConsoleModifiers.Shift, CycleFocusBackward);</c>
+    /// </summary>
+    protected void CycleFocusBackward()
+    {
+        if (_layoutRoot == null) return;
+        var focusables = Focus.CollectFocusables(_layoutRoot);
+        Focus.CycleFocus(focusables, reverse: true);
+    }
+
+    /// <summary>
+    /// Apply the configured focus policy to the layout tree.
+    /// </summary>
+    private void ApplyFocusPolicy(ILayoutNode root)
+    {
+        var focusables = Focus.CollectFocusables(root);
+        if (focusables.Count == 0)
+            return;
+
+        IFocusable? target = FocusPolicy switch
+        {
+            FocusPolicy.FirstFocusable => focusables[0],
+            FocusPolicy.ByPriority => focusables.OrderByDescending(f => f.FocusPriority).First(),
+            _ => null
+        };
+
+        if (target != null)
+        {
+            Focus.SetFocus(target);
         }
     }
 
