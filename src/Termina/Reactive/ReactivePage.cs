@@ -187,15 +187,16 @@ public abstract class ReactivePage<TViewModel> : IBindablePage, IDisposable
         if (_layoutRoot == null)
         {
             _layoutRoot = BuildLayout();
+        }
 
-            // Subscribe to layout invalidation events to trigger redraws
-            // This is the bridge between reactive layout nodes and the render loop
-            if (_layoutRoot is IInvalidatingNode invalidating)
-            {
-                invalidating.Invalidated
-                    .Subscribe(_ => ViewModel.RequestRedraw())
-                    .DisposeWith(_subscriptions);
-            }
+        // Subscribe to layout invalidation events to trigger redraws.
+        // This must be outside the null check because _subscriptions is cleared
+        // in OnNavigatingFrom() — the subscription must be re-created on each visit.
+        if (_layoutRoot is IInvalidatingNode invalidating)
+        {
+            invalidating.Invalidated
+                .Subscribe(_ => ViewModel.RequestRedraw())
+                .DisposeWith(_subscriptions);
         }
 
         // Activate the layout tree (resume subscriptions, timers, etc.)

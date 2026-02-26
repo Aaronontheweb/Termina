@@ -1,6 +1,7 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
+using Microsoft.Extensions.Time.Testing;
 using R3;
 using Termina.Input;
 using Termina.Layout;
@@ -295,6 +296,47 @@ public class ReactivePageLifecycleTests
         page.Dispose();
     }
 
+    [Fact]
+    public void ReactivePage_InvalidationSubscription_ReCreatedAfterNavigation()
+    {
+        // Arrange - page with an IInvalidatingNode root (SpinnerNode) using FakeTimeProvider
+        var timeProvider = new FakeTimeProvider();
+        var page = new TestPageWithSpinner(timeProvider);
+
+        var redrawCount = 0;
+
+        // Wire up ViewModel with a redraw counter
+        var vm = new TestViewModel();
+        vm.WireUp(_ => { }, (_, _) => { }, () => { }, () => redrawCount++, Observable.Empty<IInputEvent>());
+        page.BindForTest(vm);
+
+        // First visit - invalidation subscription created
+        page.OnNavigatedTo();
+        Assert.True(page.Spinner.IsAnimating);
+
+        // Advance time to trigger invalidation via the spinner's interval timer
+        redrawCount = 0;
+        timeProvider.Advance(TimeSpan.FromMilliseconds(80));
+        Assert.True(redrawCount > 0, "Invalidation subscription should work on first visit");
+
+        // Navigate away - subscription disposed
+        page.OnNavigatingFrom();
+
+        // Navigate back - subscription must be re-created
+        redrawCount = 0;
+        page.OnNavigatedTo();
+        Assert.True(page.Spinner.IsAnimating);
+
+        // Advance time again - must still reach RequestRedraw
+        timeProvider.Advance(TimeSpan.FromMilliseconds(80));
+
+        // Assert - RequestRedraw should have been called after navigation round-trip
+        Assert.True(redrawCount > 0, "Invalidation subscription was not re-created after navigation round-trip");
+
+        // Cleanup
+        page.Dispose();
+    }
+
     // Test helper classes
     private class TestPage : ReactivePage<TestViewModel>
     {
@@ -326,11 +368,18 @@ public class ReactivePageLifecycleTests
 
     private class TestPageWithSpinner : ReactivePage<TestViewModel>
     {
+        private readonly TimeProvider? _timeProvider;
+
         public SpinnerNode Spinner { get; private set; } = null!;
+
+        public TestPageWithSpinner(TimeProvider? timeProvider = null)
+        {
+            _timeProvider = timeProvider;
+        }
 
         public override ILayoutNode BuildLayout()
         {
-            Spinner = new SpinnerNode();
+            Spinner = new SpinnerNode(timeProvider: _timeProvider);
             return Spinner;
         }
 
@@ -338,6 +387,11 @@ public class ReactivePageLifecycleTests
         {
             var vm = new TestViewModel();
             vm.WireUp(_ => { }, (_, _) => { }, () => { }, () => { }, Observable.Empty<IInputEvent>());
+            Bind(vm);
+        }
+
+        public void BindForTest(TestViewModel vm)
+        {
             Bind(vm);
         }
     }

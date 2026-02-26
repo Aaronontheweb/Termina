@@ -594,6 +594,9 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode, IScrollab
         if (!bounds.HasArea)
             return;
 
+        // Create a sub-context so coordinates are relative to this node's bounds
+        var streamContext = context.CreateSubContext(bounds);
+
         var prefixLen = Prefix?.Length ?? 0;
         var scrollbarWidth = ShouldDrawScrollbar(bounds) ? 1 : 0;
         var contentWidth = bounds.Width - prefixLen - scrollbarWidth;
@@ -616,11 +619,11 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode, IScrollab
             // Draw prefix if any
             if (!string.IsNullOrEmpty(Prefix))
             {
-                context.ResetColors();
+                streamContext.ResetColors();
                 if (PrefixColor.HasValue)
-                    context.SetForeground(PrefixColor.Value);
-                context.WriteAt(0, i, Prefix);
-                context.ResetColors();
+                    streamContext.SetForeground(PrefixColor.Value);
+                streamContext.WriteAt(0, i, Prefix);
+                streamContext.ResetColors();
                 lastStyle = null;
             }
 
@@ -643,20 +646,20 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode, IScrollab
                 // Apply style only if changed (optimization)
                 if (lastStyle == null || !lastStyle.Value.Equals(effectiveStyle))
                 {
-                    context.ResetColors();
-                    context.ApplyStyle(effectiveStyle);
+                    streamContext.ResetColors();
+                    streamContext.ApplyStyle(effectiveStyle);
                     lastStyle = effectiveStyle;
                 }
 
-                context.WriteAt(x, i, text);
+                streamContext.WriteAt(x, i, text);
                 x += text.Length;
             }
         }
 
-        context.ResetColors();
+        streamContext.ResetColors();
 
         if (scrollbarWidth > 0)
-            DrawScrollbar(context, bounds, contentWidth);
+            DrawScrollbar(streamContext, bounds, contentWidth);
     }
 
     private bool ShouldDrawScrollbar(Rect bounds)

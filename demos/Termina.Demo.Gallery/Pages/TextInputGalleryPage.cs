@@ -44,7 +44,7 @@ public class TextInputGalleryPage : ReactivePage<TextInputGalleryViewModel>
     {
         _focusedInputIndex = (_focusedInputIndex + 1) % 2;
         var targetInput = _focusedInputIndex == 0 ? _basicInput : _placeholderInput;
-        Focus.PushFocus(targetInput);
+        Focus.SetFocus(targetInput);
     }
 
     public override ILayoutNode BuildLayout()
