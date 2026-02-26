@@ -25,7 +25,7 @@ public class CounterPage : ReactivePage<CounterViewModel>
                     .WithBorder(BorderStyle.Double)
                     .WithBorderColor(Color.Blue)
                     .WithContent(
-                        ViewModel.CountChanged
+                        ViewModel.Count
                             .Select<int, ILayoutNode>(count => new TextNode($"\n  Count: {count}\n")
                                 .WithForeground(Color.Cyan)
                                 .Bold())
@@ -36,7 +36,7 @@ public class CounterPage : ReactivePage<CounterViewModel>
                     .WithForeground(Color.BrightBlack)
                     .Height(1))
             .WithChild(
-                ViewModel.StatusMessageChanged
+                ViewModel.StatusMessage
                     .Select<string, ILayoutNode>(msg => new TextNode(msg).WithForeground(Color.White))
                     .AsLayout()
                     .Height(1))

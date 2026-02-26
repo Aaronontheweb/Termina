@@ -77,28 +77,28 @@ public class DashboardPage : ReactivePage<DashboardViewModel>
         // CPU row
         metricsGrid.AddRow(
             new TextNode("CPU:").WithForeground(Color.Gray),
-            ViewModel.CpuUsageChanged
+            ViewModel.CpuUsage
                 .Select<int, ILayoutNode>(cpu => BuildProgressBar(cpu, GetMetricColor(cpu)))
                 .AsLayout());
 
         // Memory row
         metricsGrid.AddRow(
             new TextNode("Memory:").WithForeground(Color.Gray),
-            ViewModel.MemoryUsageChanged
+            ViewModel.MemoryUsage
                 .Select<int, ILayoutNode>(mem => BuildProgressBar(mem, GetMetricColor(mem)))
                 .AsLayout());
 
         // Disk row
         metricsGrid.AddRow(
             new TextNode("Disk:").WithForeground(Color.Gray),
-            ViewModel.DiskUsageChanged
+            ViewModel.DiskUsage
                 .Select<int, ILayoutNode>(disk => BuildProgressBar(disk, GetMetricColor(disk)))
                 .AsLayout());
 
         // Network row
         metricsGrid.AddRow(
             new TextNode("Network:").WithForeground(Color.Gray),
-            ViewModel.NetworkUsageChanged
+            ViewModel.NetworkUsage
                 .Select<int, ILayoutNode>(net => BuildProgressBar(net, GetMetricColor(net)))
                 .AsLayout());
 
@@ -139,8 +139,8 @@ public class DashboardPage : ReactivePage<DashboardViewModel>
     {
         // Logs grid: 3 columns (time, level, message)
         // Header row + data rows
-        return ViewModel.LogEntriesChanged
-            .CombineLatest(ViewModel.SelectedLogIndexChanged, (logs, selectedIndex) => (logs, selectedIndex))
+        return ViewModel.LogEntries
+            .CombineLatest(ViewModel.SelectedLogIndex, (logs, selectedIndex) => (logs, selectedIndex))
             .Select(state =>
             {
                 var (logs, selectedIndex) = state;
@@ -202,7 +202,7 @@ public class DashboardPage : ReactivePage<DashboardViewModel>
     {
         var statusBar = Layouts.Horizontal()
             .WithChild(
-                ViewModel.StatusMessageChanged
+                ViewModel.StatusMessage
                     .Select<string, ILayoutNode>(status => new TextNode(status)
                         .WithForeground(Color.BrightYellow)
                         .NoWrap())

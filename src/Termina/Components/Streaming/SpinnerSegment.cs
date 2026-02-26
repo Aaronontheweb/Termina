@@ -1,10 +1,8 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
-using System.Timers;
 using R3;
 using Termina.Terminal;
-using Timer = System.Timers.Timer;
 
 namespace Termina.Components.Streaming;
 
@@ -48,10 +46,12 @@ public sealed class SpinnerSegment : IAnimatedTextSegment
         [SpinnerStyle.Circle] = ["◐", "◓", "◑", "◒"]
     };
 
-    private readonly Timer _timer;
+    private readonly TimeProvider _timeProvider;
+    private readonly int _intervalMs;
     private readonly string[] _frames;
     private readonly Subject<Unit> _invalidated = new();
     private readonly TextStyle _style;
+    private IDisposable? _timerSubscription;
     private int _currentFrame;
     private bool _disposed;
 
@@ -61,13 +61,14 @@ public sealed class SpinnerSegment : IAnimatedTextSegment
     /// <param name="style">The spinner animation style.</param>
     /// <param name="color">The color of the spinner (defaults to terminal default).</param>
     /// <param name="intervalMs">The interval between frame updates in milliseconds (default: 80ms).</param>
-    public SpinnerSegment(SpinnerStyle style = SpinnerStyle.Dots, Color? color = null, int intervalMs = 80)
+    /// <param name="timeProvider">Optional time provider for deterministic testing.</param>
+    public SpinnerSegment(SpinnerStyle style = SpinnerStyle.Dots, Color? color = null, int intervalMs = 80,
+        TimeProvider? timeProvider = null)
     {
         _frames = Frames[style];
         _style = new TextStyle(color ?? Color.Default, Color.Default, TextDecoration.None);
-        _timer = new Timer(intervalMs);
-        _timer.Elapsed += OnTimerTick;
-        _timer.AutoReset = true;
+        _intervalMs = intervalMs;
+        _timeProvider = timeProvider ?? TimeProvider.System;
         Start();
     }
 
@@ -75,7 +76,7 @@ public sealed class SpinnerSegment : IAnimatedTextSegment
     public Observable<Unit> Invalidated => _invalidated.AsObservable();
 
     /// <inheritdoc />
-    public bool IsAnimating => _timer.Enabled;
+    public bool IsAnimating => _timerSubscription != null;
 
     /// <inheritdoc />
     public StyledSegment GetCurrentSegment()
@@ -88,20 +89,20 @@ public sealed class SpinnerSegment : IAnimatedTextSegment
     {
         if (!_disposed)
         {
-            _timer.Start();
+            _timerSubscription ??= Observable.Interval(TimeSpan.FromMilliseconds(_intervalMs), _timeProvider)
+                .Subscribe(_ =>
+                {
+                    _currentFrame = (_currentFrame + 1) % _frames.Length;
+                    _invalidated.OnNext(Unit.Default);
+                });
         }
     }
 
     /// <inheritdoc />
     public void Stop()
     {
-        _timer.Stop();
-    }
-
-    private void OnTimerTick(object? sender, ElapsedEventArgs e)
-    {
-        _currentFrame = (_currentFrame + 1) % _frames.Length;
-        _invalidated.OnNext(Unit.Default);
+        _timerSubscription?.Dispose();
+        _timerSubscription = null;
     }
 
     /// <inheritdoc />
@@ -111,7 +112,6 @@ public sealed class SpinnerSegment : IAnimatedTextSegment
         _disposed = true;
 
         Stop();
-        _timer.Dispose();
         _invalidated.OnCompleted();
         _invalidated.Dispose();
     }

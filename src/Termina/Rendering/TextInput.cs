@@ -19,13 +19,23 @@ public sealed class TextInput : IRenderable, IDisposable
     private int _cursorPosition;
 
     // Cursor blinking state
-    private Timer? _blinkTimer;
+    private readonly TimeProvider _timeProvider;
+    private IDisposable? _blinkSubscription;
     private bool _cursorVisible = true;
     private int _blinkIntervalMs = 530; // Standard cursor blink rate
 
     // Reactive observables
     private readonly Subject<string> _submitted = new();
     private readonly Subject<Unit> _dirty = new();
+
+    /// <summary>
+    /// Creates a new text input with an optional time provider for deterministic testing.
+    /// </summary>
+    /// <param name="timeProvider">Optional time provider for deterministic testing.</param>
+    public TextInput(TimeProvider? timeProvider = null)
+    {
+        _timeProvider = timeProvider ?? TimeProvider.System;
+    }
 
     /// <summary>
     /// Observable that emits when Enter is pressed, providing the submitted text.
@@ -119,7 +129,7 @@ public sealed class TextInput : IRenderable, IDisposable
     /// </summary>
     public bool CursorBlink
     {
-        get => _blinkTimer != null;
+        get => _blinkSubscription != null;
         set
         {
             if (value == CursorBlink)
@@ -142,7 +152,7 @@ public sealed class TextInput : IRenderable, IDisposable
         set
         {
             _blinkIntervalMs = Math.Max(100, value); // Minimum 100ms
-            if (_blinkTimer != null)
+            if (_blinkSubscription != null)
             {
                 // Restart timer with new interval
                 StopBlinking();
@@ -362,11 +372,16 @@ public sealed class TextInput : IRenderable, IDisposable
     /// </summary>
     private void StartBlinking()
     {
-        if (_blinkTimer != null)
+        if (_blinkSubscription != null)
             return;
 
         _cursorVisible = true;
-        _blinkTimer = new Timer(OnBlinkTick, null, _blinkIntervalMs, _blinkIntervalMs);
+        _blinkSubscription = Observable.Interval(TimeSpan.FromMilliseconds(_blinkIntervalMs), _timeProvider)
+            .Subscribe(_ =>
+            {
+                _cursorVisible = !_cursorVisible;
+                MarkDirty();
+            });
     }
 
     /// <summary>
@@ -374,8 +389,8 @@ public sealed class TextInput : IRenderable, IDisposable
     /// </summary>
     private void StopBlinking()
     {
-        _blinkTimer?.Dispose();
-        _blinkTimer = null;
+        _blinkSubscription?.Dispose();
+        _blinkSubscription = null;
         _cursorVisible = true;
     }
 
@@ -385,20 +400,12 @@ public sealed class TextInput : IRenderable, IDisposable
     /// </summary>
     private void ResetCursorBlink()
     {
-        if (_blinkTimer == null)
+        if (_blinkSubscription == null)
             return;
 
         _cursorVisible = true;
-        _blinkTimer.Change(_blinkIntervalMs, _blinkIntervalMs);
-    }
-
-    /// <summary>
-    /// Timer callback for cursor blinking.
-    /// </summary>
-    private void OnBlinkTick(object? state)
-    {
-        _cursorVisible = !_cursorVisible;
-        MarkDirty();
+        StopBlinking();
+        StartBlinking();
     }
 
     /// <summary>

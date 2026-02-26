@@ -34,17 +34,14 @@ public sealed class ConditionalNode : LayoutNode, IInvalidatingNode
         _thenNode = thenNode;
         _elseNode = elseNode ?? new EmptyNode();
 
-        _subscription = condition.Subscribe(
-            onNext: value =>
+        _subscription = condition.Subscribe(value =>
             {
                 if (_condition != value)
                 {
                     _condition = value;
                     _invalidated.OnNext(Unit.Default);
                 }
-            },
-            onErrorResume: _ => { },
-            onCompleted: _ => { });
+            });
     }
 
     private ILayoutNode ActiveNode => _condition ? _thenNode : _elseNode;
@@ -70,22 +67,16 @@ public sealed class ConditionalNode : LayoutNode, IInvalidatingNode
         _isActive = true;
 
         // If subscription was disposed during deactivation, recreate it
-        if (_subscription == null || _subscription is BooleanDisposable
-            {
-                IsDisposed: true
-            })
+        if (_subscription == null)
         {
-            _subscription = _source.Subscribe(
-                onNext: value =>
+            _subscription = _source.Subscribe(value =>
                 {
                     if (_condition != value)
                     {
                         _condition = value;
                         _invalidated.OnNext(Unit.Default);
                     }
-                },
-                onErrorResume: _ => { },
-                onCompleted: _ => { });
+                });
         }
 
         // Activate both branches (both are always kept in memory)

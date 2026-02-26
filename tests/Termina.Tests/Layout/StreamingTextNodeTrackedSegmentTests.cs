@@ -1,6 +1,7 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
+using Microsoft.Extensions.Time.Testing;
 using R3;
 using Termina.Components.Streaming;
 using Termina.Layout;
@@ -186,17 +187,16 @@ public class StreamingTextNodeTrackedSegmentTests
     }
 
     [Fact]
-    public async Task SpinnerSegment_AnimationFramesChange()
+    public void SpinnerSegment_AnimationFramesChange()
     {
-        var spinner = new SpinnerSegment(SpinnerStyle.Line, Color.Yellow, intervalMs: 10);
+        var timeProvider = new FakeTimeProvider();
+        var spinner = new SpinnerSegment(SpinnerStyle.Line, Color.Yellow, intervalMs: 80, timeProvider: timeProvider);
 
         // Get initial frame
         var frame1 = spinner.GetCurrentSegment().Text;
 
-        // Wait for actual invalidation event instead of sleeping
-        await spinner.Invalidated
-            .FirstAsync()
-            .WaitAsync(TimeSpan.FromSeconds(1));
+        // Advance time to trigger frame change
+        timeProvider.Advance(TimeSpan.FromMilliseconds(80));
 
         var frame2 = spinner.GetCurrentSegment().Text;
 
@@ -207,16 +207,19 @@ public class StreamingTextNodeTrackedSegmentTests
     }
 
     [Fact]
-    public async Task SpinnerSegment_InvalidatedEventFires()
+    public void SpinnerSegment_InvalidatedEventFires()
     {
-        var spinner = new SpinnerSegment(SpinnerStyle.Dots, intervalMs: 10);
+        var timeProvider = new FakeTimeProvider();
+        var spinner = new SpinnerSegment(SpinnerStyle.Dots, intervalMs: 80, timeProvider: timeProvider);
+        var invalidated = false;
 
-        // Wait for actual invalidation event instead of sleeping
-        await spinner.Invalidated
-            .FirstAsync()
-            .WaitAsync(TimeSpan.FromSeconds(1));
+        spinner.Invalidated.Subscribe(_ => invalidated = true);
 
-        // If we get here without timeout, the event fired
+        // Advance time to trigger invalidation
+        timeProvider.Advance(TimeSpan.FromMilliseconds(80));
+
+        Assert.True(invalidated);
+
         spinner.Dispose();
     }
 
@@ -284,23 +287,26 @@ public class StreamingTextNodeTrackedSegmentTests
     }
 
     [Fact]
-    public async Task Replace_KeepTracked_SubscribesToNewAnimation()
+    public void Replace_KeepTracked_SubscribesToNewAnimation()
     {
+        var timeProvider = new FakeTimeProvider();
         var node = StreamingTextNode.Create();
         var id = new SegmentId(1);
 
         node.AppendTracked(id, new StaticTextSegment("static", TextStyle.Default));
 
         // Replace with animated segment
-        var newSpinner = new SpinnerSegment(SpinnerStyle.Dots, intervalMs: 10);
+        var newSpinner = new SpinnerSegment(SpinnerStyle.Dots, intervalMs: 80, timeProvider: timeProvider);
         node.Replace(id, newSpinner, keepTracked: true);
 
-        // Wait for actual content change event instead of sleeping
-        await node.ContentChanged
-            .FirstAsync()
-            .WaitAsync(TimeSpan.FromSeconds(1));
+        var contentChanged = false;
+        node.ContentChanged.Subscribe(_ => contentChanged = true);
 
-        // If we get here without timeout, the event fired
+        // Advance time to trigger content change
+        timeProvider.Advance(TimeSpan.FromMilliseconds(80));
+
+        Assert.True(contentChanged);
+
         newSpinner.Dispose();
     }
 }

@@ -1,6 +1,7 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
+using R3;
 using Termina.Reactive;
 using Termina.Terminal;
 using LayoutSpinnerStyle = Termina.Layout.SpinnerStyle;
@@ -10,9 +11,9 @@ namespace Termina.Demo.Gallery.Pages;
 /// <summary>
 /// ViewModel for the Animations gallery page.
 /// </summary>
-public partial class AnimationsGalleryViewModel : ReactiveViewModel
+public class AnimationsGalleryViewModel : ReactiveViewModel
 {
-    [Reactive] private Termina.Layout.SpinnerStyle _selectedStyle = Termina.Layout.SpinnerStyle.Dots;
+    public ReactiveProperty<Termina.Layout.SpinnerStyle> SelectedStyle { get; } = new(Termina.Layout.SpinnerStyle.Dots);
 
     public IReadOnlyList<SpinnerStyleItem> SpinnerStyles { get; } = new List<SpinnerStyleItem>
     {
@@ -23,4 +24,10 @@ public partial class AnimationsGalleryViewModel : ReactiveViewModel
         new("Box", LayoutSpinnerStyle.Box, Color.Cyan, "Rotating box corners"),
         new("Circle", LayoutSpinnerStyle.Circle, Color.Red, "Rotating circle")
     };
+
+    public override void Dispose()
+    {
+        SelectedStyle.Dispose();
+        base.Dispose();
+    }
 }

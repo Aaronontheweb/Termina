@@ -1,11 +1,9 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
-using System.Timers;
 using R3;
 using Termina.Rendering;
 using Termina.Terminal;
-using Timer = System.Timers.Timer;
 
 namespace Termina.Layout;
 
@@ -61,9 +59,11 @@ public sealed class SpinnerNode : LayoutNode, IAnimatedNode, IInvalidatingNode
         [SpinnerStyle.Circle] = ["◐", "◓", "◑", "◒"]
     };
 
-    private readonly Timer _timer;
+    private readonly TimeProvider _timeProvider;
+    private readonly int _intervalMs;
     private readonly string[] _frames;
     private readonly Subject<Unit> _invalidated = new();
+    private IDisposable? _timerSubscription;
     private int _currentFrame;
 
     /// <summary>
@@ -87,12 +87,12 @@ public sealed class SpinnerNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     /// <inheritdoc />
     public bool IsAnimating { get; private set; }
 
-    public SpinnerNode(SpinnerStyle style = SpinnerStyle.Dots, int intervalMs = 80)
+    public SpinnerNode(SpinnerStyle style = SpinnerStyle.Dots, int intervalMs = 80,
+        TimeProvider? timeProvider = null)
     {
         _frames = Frames[style];
-        _timer = new Timer(intervalMs);
-        _timer.Elapsed += OnTimerTick;
-        _timer.AutoReset = true;
+        _intervalMs = intervalMs;
+        _timeProvider = timeProvider ?? TimeProvider.System;
 
         HeightConstraint = new SizeConstraint.Fixed(1);
         WidthConstraint = new SizeConstraint.Auto();
@@ -134,7 +134,12 @@ public sealed class SpinnerNode : LayoutNode, IAnimatedNode, IInvalidatingNode
         if (!IsAnimating)
         {
             IsAnimating = true;
-            _timer.Start();
+            _timerSubscription ??= Observable.Interval(TimeSpan.FromMilliseconds(_intervalMs), _timeProvider)
+                .Subscribe(_ =>
+                {
+                    _currentFrame = (_currentFrame + 1) % _frames.Length;
+                    _invalidated.OnNext(Unit.Default);
+                });
         }
     }
 
@@ -143,15 +148,10 @@ public sealed class SpinnerNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     {
         if (IsAnimating)
         {
-            _timer.Stop();
+            _timerSubscription?.Dispose();
+            _timerSubscription = null;
             IsAnimating = false;
         }
-    }
-
-    private void OnTimerTick(object? sender, ElapsedEventArgs e)
-    {
-        _currentFrame = (_currentFrame + 1) % _frames.Length;
-        _invalidated.OnNext(Unit.Default);
     }
 
     /// <inheritdoc />
@@ -219,8 +219,7 @@ public sealed class SpinnerNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     /// <inheritdoc />
     public override void Dispose()
     {
-        _timer.Stop();
-        _timer.Dispose();
+        Stop();
         _invalidated.OnCompleted();
         _invalidated.Dispose();
         base.Dispose();

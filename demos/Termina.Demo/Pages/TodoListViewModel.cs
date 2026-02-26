@@ -8,7 +8,7 @@ namespace Termina.Demo.Pages;
 /// ViewModel for a todo list demo.
 /// Contains only state and business logic - no UI concerns.
 /// </summary>
-public partial class TodoListViewModel : ReactiveViewModel
+public class TodoListViewModel : ReactiveViewModel
 {
     private readonly TraceFileInfo _traceFileInfo;
 
@@ -22,19 +22,19 @@ public partial class TodoListViewModel : ReactiveViewModel
     /// </summary>
     public string TraceFilePath => _traceFileInfo.FilePath;
 
-    [Reactive] private IReadOnlyList<TodoItem> _items = new List<TodoItem>
+    public ReactiveProperty<IReadOnlyList<TodoItem>> Items { get; } = new(new List<TodoItem>
     {
         new("Learn Termina reactive patterns", false),
         new("Build a TUI app", false),
         new("Deploy to production", false),
         new("Celebrate success", false)
-    };
+    });
 
-    [Reactive] private int _selectedIndex;
-    [Reactive] private string _statusMessage = "Navigate with ↑/↓, Space to toggle, C for counter, Q to quit";
-    [Reactive] private bool _isAddingItem;
-    [Reactive] private bool _showPriorityModal;
-    [Reactive] private string _pendingTaskText = "";
+    public ReactiveProperty<int> SelectedIndex { get; } = new(0);
+    public ReactiveProperty<string> StatusMessage { get; } = new("Navigate with ↑/↓, Space to toggle, C for counter, Q to quit");
+    public ReactiveProperty<bool> IsAddingItem { get; } = new(false);
+    public ReactiveProperty<bool> ShowPriorityModal { get; } = new(false);
+    public ReactiveProperty<string> PendingTaskText { get; } = new("");
 
     public override void OnActivated()
     {
@@ -51,9 +51,9 @@ public partial class TodoListViewModel : ReactiveViewModel
     {
         if (!string.IsNullOrWhiteSpace(text))
         {
-            PendingTaskText = text.Trim();
-            ShowPriorityModal = true;
-            StatusMessage = "Select priority with ↑/↓ or number keys, Enter to confirm";
+            PendingTaskText.Value = text.Trim();
+            ShowPriorityModal.Value = true;
+            StatusMessage.Value = "Select priority with ↑/↓ or number keys, Enter to confirm";
         }
         else
         {
@@ -66,17 +66,17 @@ public partial class TodoListViewModel : ReactiveViewModel
     /// </summary>
     public void OnPrioritySelected(string priority)
     {
-        var newItems = Items.ToList();
-        var displayText = priority != "Normal" ? $"[{priority}] {PendingTaskText}" : PendingTaskText;
+        var newItems = Items.Value.ToList();
+        var displayText = priority != "Normal" ? $"[{priority}] {PendingTaskText.Value}" : PendingTaskText.Value;
         newItems.Add(new TodoItem(displayText, false));
-        Items = newItems;
-        SelectedIndex = Items.Count - 1;
-        StatusMessage = $"Added: {displayText}";
+        Items.Value = newItems;
+        SelectedIndex.Value = Items.Value.Count - 1;
+        StatusMessage.Value = $"Added: {displayText}";
 
         // Clean up state
-        ShowPriorityModal = false;
-        IsAddingItem = false;
-        PendingTaskText = "";
+        ShowPriorityModal.Value = false;
+        IsAddingItem.Value = false;
+        PendingTaskText.Value = "";
     }
 
     /// <summary>
@@ -84,7 +84,7 @@ public partial class TodoListViewModel : ReactiveViewModel
     /// </summary>
     public void OnPriorityCancelled()
     {
-        ShowPriorityModal = false;
+        ShowPriorityModal.Value = false;
     }
 
     /// <summary>
@@ -100,32 +100,32 @@ public partial class TodoListViewModel : ReactiveViewModel
     /// </summary>
     public void OnPriorityModalDismissed()
     {
-        ShowPriorityModal = false;
-        IsAddingItem = false;
-        StatusMessage = "Cancelled adding item";
+        ShowPriorityModal.Value = false;
+        IsAddingItem.Value = false;
+        StatusMessage.Value = "Cancelled adding item";
     }
 
     private void HandleKeyPress(KeyPressed key)
     {
         // Don't handle keys when in modal mode - let the modals handle input
-        if (IsAddingItem || ShowPriorityModal)
+        if (IsAddingItem.Value || ShowPriorityModal.Value)
             return;
 
         switch (key.KeyInfo.Key)
         {
             case ConsoleKey.UpArrow:
-                if (SelectedIndex > 0)
+                if (SelectedIndex.Value > 0)
                 {
-                    SelectedIndex--;
-                    StatusMessage = $"Selected: {Items[SelectedIndex].Description}";
+                    SelectedIndex.Value--;
+                    StatusMessage.Value = $"Selected: {Items.Value[SelectedIndex.Value].Description}";
                 }
                 break;
 
             case ConsoleKey.DownArrow:
-                if (SelectedIndex < Items.Count - 1)
+                if (SelectedIndex.Value < Items.Value.Count - 1)
                 {
-                    SelectedIndex++;
-                    StatusMessage = $"Selected: {Items[SelectedIndex].Description}";
+                    SelectedIndex.Value++;
+                    StatusMessage.Value = $"Selected: {Items.Value[SelectedIndex.Value].Description}";
                 }
                 break;
 
@@ -153,51 +153,62 @@ public partial class TodoListViewModel : ReactiveViewModel
 
     private void StartAddingItem()
     {
-        IsAddingItem = true;
-        ShowPriorityModal = false;
-        PendingTaskText = "";
-        StatusMessage = "Enter task name and press Enter, or Escape to cancel";
+        IsAddingItem.Value = true;
+        ShowPriorityModal.Value = false;
+        PendingTaskText.Value = "";
+        StatusMessage.Value = "Enter task name and press Enter, or Escape to cancel";
     }
 
     private void CancelAddItem()
     {
-        IsAddingItem = false;
-        ShowPriorityModal = false;
-        PendingTaskText = "";
-        StatusMessage = "Cancelled adding item";
+        IsAddingItem.Value = false;
+        ShowPriorityModal.Value = false;
+        PendingTaskText.Value = "";
+        StatusMessage.Value = "Cancelled adding item";
     }
 
     private void ToggleSelected()
     {
-        if (Items.Count == 0) return;
+        if (Items.Value.Count == 0) return;
 
-        var item = Items[SelectedIndex];
+        var item = Items.Value[SelectedIndex.Value];
         var newItem = item with { IsCompleted = !item.IsCompleted };
 
-        var newItems = Items.ToList();
-        newItems[SelectedIndex] = newItem;
-        Items = newItems;
+        var newItems = Items.Value.ToList();
+        newItems[SelectedIndex.Value] = newItem;
+        Items.Value = newItems;
 
-        StatusMessage = newItem.IsCompleted
+        StatusMessage.Value = newItem.IsCompleted
             ? $"Completed: {newItem.Description}"
             : $"Uncompleted: {newItem.Description}";
     }
 
     private void DeleteSelected()
     {
-        if (Items.Count == 0) return;
+        if (Items.Value.Count == 0) return;
 
-        var deleted = Items[SelectedIndex];
-        var newItems = Items.ToList();
-        newItems.RemoveAt(SelectedIndex);
-        Items = newItems;
+        var deleted = Items.Value[SelectedIndex.Value];
+        var newItems = Items.Value.ToList();
+        newItems.RemoveAt(SelectedIndex.Value);
+        Items.Value = newItems;
 
-        if (SelectedIndex >= Items.Count && Items.Count > 0)
+        if (SelectedIndex.Value >= Items.Value.Count && Items.Value.Count > 0)
         {
-            SelectedIndex = Items.Count - 1;
+            SelectedIndex.Value = Items.Value.Count - 1;
         }
 
-        StatusMessage = $"Deleted: {deleted.Description}";
+        StatusMessage.Value = $"Deleted: {deleted.Description}";
+    }
+
+    public override void Dispose()
+    {
+        Items.Dispose();
+        SelectedIndex.Dispose();
+        StatusMessage.Dispose();
+        IsAddingItem.Dispose();
+        ShowPriorityModal.Dispose();
+        PendingTaskText.Dispose();
+        base.Dispose();
     }
 }
 

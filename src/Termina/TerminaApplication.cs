@@ -64,6 +64,11 @@ public sealed class TerminaApplication
     /// <param name="serviceProvider">Optional service provider for resolving ViewModels and input sources.</param>
     public TerminaApplication(IAnsiTerminal terminal, IServiceProvider? serviceProvider = null)
     {
+        ObservableSystem.RegisterUnhandledExceptionHandler(ex =>
+        {
+            TerminaTrace.Reactive.Error("ObservableSystem", "Unhandled observable error: {0}", ex);
+        });
+
         // Wrap terminal with DiffingTerminal for flicker-free rendering
         // unless it's already a DiffingTerminal or VirtualTerminal (for tests)
         if (terminal is DiffingTerminal diffing)
