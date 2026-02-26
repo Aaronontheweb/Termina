@@ -9,7 +9,7 @@
   - `Subscribe` callbacks: `onError` → `onErrorResume`, `onCompleted` takes `Result` parameter
   - `BehaviorSubject<T>` removed — use `ReactiveProperty<T>` instead
   - `Subject<T>` now from R3 namespace
-  - See [Migration Guide](https://aaronontheweb.github.io/termina/guide/migration-0.7) for details
+  - See [Migration Guide](https://aaronstannard.com/termina/guide/migration-0.7.html) for details
 
 - **Replace `[Reactive]` source generator with `ReactiveProperty<T>`** ([#149](https://github.com/Aaronontheweb/Termina/pull/149))
   - Removed `[Reactive]` attribute and its source generator
