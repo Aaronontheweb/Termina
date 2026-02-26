@@ -28,14 +28,30 @@ public class SetupWizardPage : ReactivePage<SetupWizardViewModel>
     {
         _wizard = Layouts.Wizard<SetupStep>()
             .WithStep(SetupStep.Provider, "Provider", BuildProviderStep,
-                helpText: "[↑/↓] Navigate  [Enter] Select  [1-3] Quick Select")
+                helpText: "[↑/↓] Navigate  [Enter/Tab] Select  [1-3] Quick Select")
             .WithStep(SetupStep.Auth, "Authentication", BuildAuthStep,
-                helpText: "Type your username and press Enter")
+                helpText: "Type your username and press Enter  [Shift+Tab] Go Back")
             .WithStep(SetupStep.Confirm, "Confirm", BuildConfirmStep,
-                helpText: "[Enter] Complete Setup  [Esc] Go Back")
+                helpText: "[Enter] Complete Setup  [Shift+Tab] Go Back")
             .WithProgressStyle(WizardProgressStyle.Arrow)
             .WithBorder(BorderStyle.Rounded, Color.Cyan);
         _wizard.Fill();
+
+        // Block advancement if required data is missing
+        _wizard.BeforeAdvance.Subscribe(args =>
+        {
+            switch (args.CurrentStep)
+            {
+                case SetupStep.Provider when string.IsNullOrEmpty(ViewModel.SelectedProvider.Value):
+                    args.Cancel = true;
+                    ViewModel.StatusMessage.Value = "⚠ Please select a provider first";
+                    break;
+                case SetupStep.Auth when string.IsNullOrEmpty(ViewModel.Username.Value):
+                    args.Cancel = true;
+                    ViewModel.StatusMessage.Value = "⚠ Please enter a username first";
+                    break;
+            }
+        });
 
         // Update status on step change
         _wizard.StepChanged.Subscribe(step =>
@@ -62,7 +78,7 @@ public class SetupWizardPage : ReactivePage<SetupWizardViewModel>
                         .Select<string, ILayoutNode>(msg => new TextNode(msg).WithForeground(Color.White))
                         .AsLayout()
                         .Fill(),
-                    new TextNode("[Tab] Cycle Focus  [Q] Quit")
+                    new TextNode("[Tab/Shift+Tab] Step Nav  [Q] Quit")
                         .WithForeground(Color.BrightBlack))
                 .Height(1));
     }
@@ -71,10 +87,8 @@ public class SetupWizardPage : ReactivePage<SetupWizardViewModel>
     {
         base.OnNavigatedTo();
 
-        KeyBindings.Register(ConsoleKey.Tab, CycleFocusForward);
-        KeyBindings.Register(ConsoleKey.Tab, ConsoleModifiers.Shift, CycleFocusBackward);
-
         // Focus the wizard itself so it receives and delegates input
+        // Tab/Shift+Tab are handled by WizardNode for step navigation
         Focus.PushFocus(_wizard);
     }
 

@@ -114,7 +114,9 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
         var result = key.Key switch
         {
             ConsoleKey.Enter => TryAdvance(),
+            ConsoleKey.Tab when key.Modifiers == 0 => TryAdvance(),
             ConsoleKey.Escape => TryGoBack(),
+            ConsoleKey.Tab when (key.Modifiers & ConsoleModifiers.Shift) != 0 => TryGoBack(),
             _ => false
         };
         TerminaTrace.Input.Debug(this, "HandleInput: wizard handled key={0}, result={1}", key.Key, result);
