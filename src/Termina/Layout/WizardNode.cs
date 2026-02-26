@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
 using R3;
+using Termina.Diagnostics;
 using Termina.Rendering;
 using Termina.Terminal;
 
@@ -29,6 +30,7 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
 
     // Internal layout
     private DynamicLayoutNode? _contentNode;
+    private IDisposable? _contentInvalidationSubscription;
     private string? _title;
     private WizardProgressStyle _progressStyle = WizardProgressStyle.BlockBar;
     private BorderStyle? _borderStyle;
@@ -95,17 +97,25 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
     /// <inheritdoc />
     public bool HandleInput(ConsoleKeyInfo key)
     {
+        TerminaTrace.Input.Debug(this, "HandleInput: key={0}, contentNode={1}",
+            key.Key, _contentNode != null ? "exists" : "null");
+
         // Delegate to focusable nodes in step content first (recursive tree walk)
         if (_contentNode != null && DelegateInputToContent(_contentNode, key))
+        {
+            TerminaTrace.Input.Debug(this, "HandleInput: delegated to child, key={0}", key.Key);
             return true;
+        }
 
         // Then handle wizard-level keys
-        return key.Key switch
+        var result = key.Key switch
         {
             ConsoleKey.Enter => TryAdvance(),
             ConsoleKey.Escape => TryGoBack(),
             _ => false
         };
+        TerminaTrace.Input.Debug(this, "HandleInput: wizard handled key={0}, result={1}", key.Key, result);
+        return result;
     }
 
     /// <summary>
@@ -113,17 +123,27 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
     /// </summary>
     private static bool DelegateInputToContent(ILayoutNode node, ConsoleKeyInfo key)
     {
+        TerminaTrace.Input.Trace(node, "DelegateInput: visiting {0}, IsFocusable={1}, IsLayoutNode={2}",
+            node.GetType().Name, node is IFocusable, node is LayoutNode);
+
         // Check if this node is focusable and can handle input
         if (node is IFocusable { CanFocus: true } focusable)
         {
+            TerminaTrace.Input.Debug(node, "DelegateInput: forwarding key={0} to {1}",
+                key.Key, node.GetType().Name);
             if (focusable.HandleInput(key))
                 return true;
+            TerminaTrace.Input.Debug(node, "DelegateInput: {0} did not handle key={1}",
+                node.GetType().Name, key.Key);
         }
 
         // Recurse into LayoutNode children (which expose GetChildNodes)
         if (node is LayoutNode layoutNode)
         {
-            foreach (var child in layoutNode.GetChildNodes())
+            var children = layoutNode.GetChildNodes();
+            TerminaTrace.Input.Trace(node, "DelegateInput: recursing into {0} children of {1}",
+                children.Count(), node.GetType().Name);
+            foreach (var child in children)
             {
                 if (DelegateInputToContent(child, key))
                     return true;
@@ -392,6 +412,11 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
             return GetOrCreateStepContent(_currentStepIndex);
         });
 
+        // Propagate content invalidation (e.g., SelectionListNode highlight changes)
+        // up through the wizard so the page triggers a redraw
+        _contentInvalidationSubscription = _contentNode.Invalidated
+            .Subscribe(_ => _invalidated.OnNext(Unit.Default));
+
         if (_isActive)
             _contentNode.OnActivate();
     }
@@ -556,6 +581,8 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
         _completed.Dispose();
         _invalidated.OnCompleted();
         _invalidated.Dispose();
+
+        _contentInvalidationSubscription?.Dispose();
 
         // Dispose cached step content that isn't the DynamicLayoutNode's current child
         // (DynamicLayoutNode will dispose its own current child)

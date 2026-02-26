@@ -3,6 +3,7 @@
 
 using Microsoft.Extensions.Hosting;
 using Termina.Demo.Wizard.Pages;
+using Termina.Diagnostics;
 using Termina.Hosting;
 using Termina.Input;
 using Termina.Pages;
@@ -11,6 +12,11 @@ using Termina.Pages;
 var testMode = args.Contains("--test");
 
 var builder = Host.CreateApplicationBuilder(args);
+
+// Enable file tracing for debugging
+var traceFile = Path.Combine(Path.GetTempPath(), "termina-wizard-trace.log");
+builder.Services.AddTerminaFileTracing(traceFile, TerminaTraceCategory.All, TerminaTraceLevel.Trace);
+Console.Error.WriteLine($"Trace log: {traceFile}");
 
 // Set up input source based on mode
 VirtualInputSource? scriptedInput = null;
