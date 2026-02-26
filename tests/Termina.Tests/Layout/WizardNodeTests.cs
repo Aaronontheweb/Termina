@@ -546,6 +546,85 @@ public class WizardNodeTests
         Assert.Equal(TestWizardStep.Auth, wizard.CurrentStep);
     }
 
+    [Fact]
+    public void SubStep_TryAdvance_PropagatesFocus()
+    {
+        var focusableA = new TestFocusableNode(_ => false);
+        var focusableB = new TestFocusableNode(_ => false);
+
+        var wizard = Layouts.Wizard<TestWizardStep>()
+            .WithStep(TestWizardStep.Provider, "Provider",
+                () => Layouts.Vertical(focusableA),
+                subSteps: 2)
+            .WithStep(TestWizardStep.Auth, "Auth", () => new TextNode("Auth"));
+
+        // Render to initialize content node, then focus wizard
+        var ctx = new NullRenderContext();
+        wizard.Render(ctx, new Rect(0, 0, 80, 24));
+        wizard.OnFocused();
+
+        Assert.True(focusableA.HasFocus);
+
+        // Advance sub-step
+        wizard.TryAdvance();
+
+        // Focus should have been re-propagated (blur old, find new focusable)
+        // Since the content factory returns the same node (same step), focusableA gets re-focused
+        Assert.True(focusableA.HasFocus);
+        Assert.Equal(1, wizard.CurrentSubStep);
+    }
+
+    [Fact]
+    public void SubStep_TryGoBack_PropagatesFocus()
+    {
+        var focusable = new TestFocusableNode(_ => false);
+
+        var wizard = Layouts.Wizard<TestWizardStep>()
+            .WithStep(TestWizardStep.Provider, "Provider",
+                () => Layouts.Vertical(focusable),
+                subSteps: 2)
+            .WithStep(TestWizardStep.Auth, "Auth", () => new TextNode("Auth"));
+
+        // Render, focus, advance to sub-step 1
+        var ctx = new NullRenderContext();
+        wizard.Render(ctx, new Rect(0, 0, 80, 24));
+        wizard.OnFocused();
+        wizard.TryAdvance(); // sub-step 0 -> 1
+
+        Assert.True(focusable.HasFocus);
+
+        // Go back within sub-steps
+        wizard.TryGoBack(); // sub-step 1 -> 0
+
+        Assert.Equal(0, wizard.CurrentSubStep);
+        Assert.True(focusable.HasFocus);
+    }
+
+    [Fact]
+    public void SubStep_AdvanceSubStep_PropagatesFocus()
+    {
+        var focusable = new TestFocusableNode(_ => false);
+
+        var wizard = Layouts.Wizard<TestWizardStep>()
+            .WithStep(TestWizardStep.Provider, "Provider",
+                () => Layouts.Vertical(focusable),
+                subSteps: 3)
+            .WithStep(TestWizardStep.Auth, "Auth", () => new TextNode("Auth"));
+
+        // Render, focus
+        var ctx = new NullRenderContext();
+        wizard.Render(ctx, new Rect(0, 0, 80, 24));
+        wizard.OnFocused();
+
+        Assert.True(focusable.HasFocus);
+
+        // AdvanceSubStep
+        wizard.AdvanceSubStep();
+
+        Assert.Equal(1, wizard.CurrentSubStep);
+        Assert.True(focusable.HasFocus);
+    }
+
     /// <summary>
     /// Test IFocusable that extends LayoutNode so it's discoverable by tree walk.
     /// </summary>

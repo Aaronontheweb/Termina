@@ -70,9 +70,9 @@ public class DynamicLayoutNodeTests
         node.Measure(new Size(80, 24));
         Assert.Equal(1, childA.ActivateCount);
 
-        // Switch to childB
+        // Switch to childB and invalidate
         current = childB;
-        node.Measure(new Size(80, 24));
+        node.Invalidate();
 
         Assert.Equal(1, childA.DeactivateCount);
         Assert.Equal(1, childB.ActivateCount);
@@ -186,11 +186,80 @@ public class DynamicLayoutNodeTests
         // Evaluate to set childA
         node.Measure(new Size(80, 24));
 
-        // Switch to childB while NOT active
+        // Switch to childB while NOT active and invalidate
         current = childB;
-        node.Measure(new Size(80, 24));
+        node.Invalidate();
 
         Assert.Equal(0, childB.ActivateCount);
+    }
+
+    [Fact]
+    public void DynamicLayoutNode_FactoryNotCalledPerFrame()
+    {
+        var callCount = 0;
+        var child = new TextNode("Hello");
+        var node = new DynamicLayoutNode(() =>
+        {
+            callCount++;
+            return child;
+        });
+
+        // First Measure evaluates (needsEvaluation starts true)
+        node.Measure(new Size(80, 24));
+        Assert.Equal(1, callCount);
+
+        // Subsequent Measure/Render without Invalidate should NOT call factory
+        node.Measure(new Size(80, 24));
+        node.Render(new NullRenderContext(), new Rect(0, 0, 80, 24));
+        Assert.Equal(1, callCount);
+
+        // After Invalidate, factory runs again
+        node.Invalidate();
+        Assert.Equal(2, callCount);
+    }
+
+    [Fact]
+    public void DynamicLayoutNode_Invalidate_EagerlyEvaluatesFactory()
+    {
+        var childA = new TextNode("A");
+        var childB = new TextNode("B");
+        ILayoutNode current = childA;
+
+        var node = new DynamicLayoutNode(() => current);
+
+        // First Measure sets childA
+        node.Measure(new Size(80, 24));
+        Assert.Same(childA, node.GetChildNodes().First());
+
+        // Switch and Invalidate — child swaps immediately (before Measure/Render)
+        current = childB;
+        node.Invalidate();
+        Assert.Same(childB, node.GetChildNodes().First());
+    }
+
+    [Fact]
+    public void DynamicLayoutNode_OnActivate_SetsNeedsEvaluation()
+    {
+        var callCount = 0;
+        var child = new TextNode("Hello");
+        var node = new DynamicLayoutNode(() =>
+        {
+            callCount++;
+            return child;
+        });
+
+        // First Measure evaluates
+        node.Measure(new Size(80, 24));
+        Assert.Equal(1, callCount);
+
+        // Deactivate, then re-activate
+        node.OnActivate();
+        node.OnDeactivate();
+        node.OnActivate();
+
+        // Next Measure should re-evaluate because OnActivate sets _needsEvaluation
+        node.Measure(new Size(80, 24));
+        Assert.Equal(2, callCount);
     }
 
     [Fact]

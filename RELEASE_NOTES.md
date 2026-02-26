@@ -1,3 +1,26 @@
+#### 0.7.1 February 26th 2026 ####
+
+**Bug Fixes**:
+- **DynamicLayoutNode is now invalidation-driven** ([#155](https://github.com/Aaronontheweb/Termina/issues/155))
+  - Factory no longer runs on every Measure/Render cycle — runs once, then only on `Invalidate()`
+  - Fixes silent state destruction (highlights, typed text, focus) when factory creates new instances
+  - `Invalidate()` now eagerly evaluates the factory for immediate child swap
+  - `OnActivate()` marks the node dirty so factory re-evaluates after navigation round-trip
+
+- **WizardNode sub-step focus propagation** ([#156](https://github.com/Aaronontheweb/Termina/issues/156))
+  - `PropagateFocusToContent()` now called on sub-step changes, not just step changes
+  - Fixes stale focus when navigating between sub-steps with different focusable content
+
+**New Features**:
+- **KeyedDynamicLayoutNode&lt;TKey&gt;** — pit-of-success API for key-based content switching
+  - `Layouts.KeyedDynamic<TKey>(keySelector, contentFactory)` factory method
+  - Caches content by key — navigating back reuses cached instances, preserving child state
+  - WizardNode now uses this internally (replaces manual step content cache)
+
+**Upgrade Advisory**:
+- `DynamicLayoutNode` no longer evaluates its factory per-frame. If you relied on per-frame evaluation, add `Invalidate()` calls when state changes. The `AsDynamicLayout(trigger)` extension already calls `Invalidate()` on each trigger emission and works unchanged.
+- For content that switches based on a key (enum, step index, tab), prefer `Layouts.KeyedDynamic<TKey>()` over `Layouts.Dynamic()` for automatic caching and state preservation.
+
 #### 0.7.0 February 26th 2026 ####
 
 **Breaking Changes**:
@@ -28,7 +51,7 @@
 **New Features**:
 - **DynamicLayoutNode** ([#147](https://github.com/Aaronontheweb/Termina/issues/147))
   - New `Layouts.Dynamic(Func<ILayoutNode> factory)` for imperative, page-local state
-  - Re-evaluates factory on each Render/Measure cycle with reference equality to avoid lifecycle churn
+  - Evaluates factory once, then only on `Invalidate()` with reference equality to avoid lifecycle churn
   - `Invalidate()` method for programmatic trigger; `AsDynamicLayout(Observable<Unit>)` extension
   - Implements `IInvalidatingNode` for proper invalidation propagation
 
@@ -48,7 +71,7 @@
   - Progress styles: `BlockBar`, `Arrow`, `Dots`, `None`
   - Sub-step support within each step
   - Implements `IFocusable` and `IInvalidatingNode`
-  - Uses `DynamicLayoutNode` internally for step content switching
+  - Uses `KeyedDynamicLayoutNode<int>` internally for step content switching with automatic caching
 
 **Bug Fixes**:
 - **Fix invalidation subscription lost after navigation round-trip** ([#150](https://github.com/Aaronontheweb/Termina/pull/150))

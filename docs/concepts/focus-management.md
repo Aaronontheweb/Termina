@@ -115,7 +115,7 @@ Focus.PopFocus();
 
 ## Tree Walk
 
-`CollectFocusables` performs a depth-first walk of the layout tree, collecting all nodes that implement `IFocusable` where `CanFocus` is true. This traverses into `VerticalLayout`, `HorizontalLayout`, `ReactiveLayoutNode`, `DynamicLayoutNode`, and other container types.
+`CollectFocusables` performs a depth-first walk of the layout tree, collecting all nodes that implement `IFocusable` where `CanFocus` is true. This traverses into `VerticalLayout`, `HorizontalLayout`, `ReactiveLayoutNode`, `DynamicLayoutNode`, `KeyedDynamicLayoutNode`, and other container types.
 
 ```csharp
 var focusables = Focus.CollectFocusables(layoutRoot);

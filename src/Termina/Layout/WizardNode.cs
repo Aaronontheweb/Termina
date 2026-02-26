@@ -22,7 +22,6 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
     private readonly Subject<Unit> _completed = new();
     private readonly Subject<Unit> _invalidated = new();
 
-    private readonly Dictionary<int, ILayoutNode> _stepContentCache = new();
     private int _currentStepIndex;
     private int _currentSubStep;
     private bool _hasFocus;
@@ -30,7 +29,7 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
     private IFocusable? _focusedChild;
 
     // Internal layout
-    private DynamicLayoutNode? _contentNode;
+    private KeyedDynamicLayoutNode<int>? _contentNode;
     private IDisposable? _contentInvalidationSubscription;
     private string? _title;
     private WizardProgressStyle _progressStyle = WizardProgressStyle.BlockBar;
@@ -165,12 +164,10 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
     {
         BlurContentChild();
 
-        if (_steps.Count == 0)
+        if (_steps.Count == 0 || _contentNode == null)
             return;
 
-        // Get or create the step content directly (so focus works before first Render)
-        var content = GetOrCreateStepContent(_currentStepIndex);
-        _focusedChild = FindFirstFocusable(content);
+        _focusedChild = FindFirstFocusable(_contentNode);
         _focusedChild?.OnFocused();
     }
 
@@ -267,6 +264,9 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
         if (_currentSubStep < currentConfig.SubStepCount - 1)
         {
             _currentSubStep++;
+            _contentNode?.Invalidate();
+            if (_hasFocus)
+                PropagateFocusToContent();
             _invalidated.OnNext(Unit.Default);
             return true;
         }
@@ -288,6 +288,7 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
 
         _currentStepIndex++;
         _currentSubStep = 0;
+        _contentNode?.Invalidate();
         if (_hasFocus)
             PropagateFocusToContent();
         _invalidated.OnNext(Unit.Default);
@@ -307,6 +308,9 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
         if (_currentSubStep > 0)
         {
             _currentSubStep--;
+            _contentNode?.Invalidate();
+            if (_hasFocus)
+                PropagateFocusToContent();
             _invalidated.OnNext(Unit.Default);
             return true;
         }
@@ -317,6 +321,7 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
         _currentStepIndex--;
         // Return to last sub-step of previous step
         _currentSubStep = _steps[_currentStepIndex].SubStepCount - 1;
+        _contentNode?.Invalidate();
         if (_hasFocus)
             PropagateFocusToContent();
         _invalidated.OnNext(Unit.Default);
@@ -337,6 +342,7 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
 
         _currentStepIndex = index;
         _currentSubStep = 0;
+        _contentNode?.Invalidate();
         if (_hasFocus)
             PropagateFocusToContent();
         _invalidated.OnNext(Unit.Default);
@@ -358,6 +364,9 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
             return false;
 
         _currentSubStep++;
+        _contentNode?.Invalidate();
+        if (_hasFocus)
+            PropagateFocusToContent();
         _invalidated.OnNext(Unit.Default);
         return true;
     }
@@ -463,12 +472,14 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
         if (_contentNode != null)
             return;
 
-        _contentNode = new DynamicLayoutNode(() =>
-        {
-            if (_steps.Count == 0)
-                return new EmptyNode();
-            return GetOrCreateStepContent(_currentStepIndex);
-        });
+        _contentNode = new KeyedDynamicLayoutNode<int>(
+            () => _currentStepIndex,
+            stepIndex =>
+            {
+                if (_steps.Count == 0)
+                    return new EmptyNode();
+                return _steps[stepIndex].ContentFactory();
+            });
 
         // Propagate content invalidation (e.g., SelectionListNode highlight changes)
         // up through the wizard so the page triggers a redraw
@@ -478,23 +489,13 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
         if (_isActive)
             _contentNode.OnActivate();
 
+        // Eagerly evaluate so real content is available for focus finding and input delegation
+        _contentNode.Invalidate();
+
         // If wizard already has focus (OnFocused called before first Render),
         // propagate focus to the content's first focusable child now
         if (_hasFocus && _focusedChild == null)
             PropagateFocusToContent();
-    }
-
-    /// <summary>
-    /// Get cached step content or create it once from the factory.
-    /// </summary>
-    private ILayoutNode GetOrCreateStepContent(int stepIndex)
-    {
-        if (!_stepContentCache.TryGetValue(stepIndex, out var content))
-        {
-            content = _steps[stepIndex].ContentFactory();
-            _stepContentCache[stepIndex] = content;
-        }
-        return content;
     }
 
     private void RenderProgress(IRenderContext context, Rect bounds)
@@ -646,16 +647,6 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
         _invalidated.Dispose();
 
         _contentInvalidationSubscription?.Dispose();
-
-        // Dispose cached step content that isn't the DynamicLayoutNode's current child
-        // (DynamicLayoutNode will dispose its own current child)
-        ILayoutNode? currentContent = _steps.Count > 0 && _stepContentCache.TryGetValue(_currentStepIndex, out var c) ? c : null;
-        foreach (var content in _stepContentCache.Values)
-        {
-            if (!ReferenceEquals(content, currentContent))
-                content.Dispose();
-        }
-        _stepContentCache.Clear();
         _contentNode?.Dispose();
         base.Dispose();
     }
