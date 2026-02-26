@@ -34,35 +34,27 @@ The ViewModel holds your application state and handles input.
 **Reactive Properties**
 
 ```csharp
-[Reactive] private int _count;
-[Reactive] private string _statusMessage = "Initial status";
+public ReactiveProperty<int> Count { get; } = new(0);
+public ReactiveProperty<string> StatusMessage { get; } = new("Press Up/Down...");
 ```
 
-The `[Reactive]` attribute generates:
-- A `Count` property with getter/setter
-- A `CountChanged` observable for UI binding
-- A `BehaviorSubject<int>` backing field
+`ReactiveProperty<T>` provides:
+- A `.Value` property for reading and writing state
+- Built-in `Observable<T>` for UI binding — subscribe directly to the property
+- Built-in `DistinctUntilChanged` — only emits when the value actually changes
 
 **Input Handling**
 
 ```csharp
 public override void OnActivated()
 {
-    Input.OfType<KeyPressed>()
+    Input.OfType<IInputEvent, KeyPressed>()
         .Subscribe(HandleKeyPress)
         .DisposeWith(Subscriptions);
 }
 ```
 
-Subscribe to the `Input` observable in `OnActivated()`. Use `DisposeWith(Subscriptions)` for automatic cleanup.
-
-**Partial Class**
-
-The class must be `partial` for the source generator to work:
-
-```csharp
-public partial class CounterViewModel : ReactiveViewModel
-```
+Subscribe to the `Input` observable in `OnActivated()`. Use `DisposeWith(Subscriptions)` for automatic cleanup. Note: R3's `OfType` requires both source and target type parameters.
 
 ## Step 2: Create the Page
 
@@ -77,12 +69,12 @@ The Page builds the layout from ViewModel state.
 **Reactive Bindings**
 
 ```csharp
-ViewModel.CountChanged
-    .Select(count => new TextNode($"Count: {count}"))
+ViewModel.Count
+    .Select<int, ILayoutNode>(count => new TextNode($"Count: {count}"))
     .AsLayout()
 ```
 
-The `AsLayout()` extension creates a `ReactiveLayoutNode` that automatically updates when the observable emits.
+`ReactiveProperty<T>` is an `Observable<T>`, so you subscribe directly to it. The `AsLayout()` extension creates a `ReactiveLayoutNode` that automatically updates when the value changes.
 
 **Layout Composition**
 

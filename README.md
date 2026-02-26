@@ -4,7 +4,7 @@
 
 [![NuGet Downloads](https://img.shields.io/nuget/dt/Termina)](https://www.nuget.org/packages/Termina) ![GitHub License](https://img.shields.io/github/license/Aaronontheweb/termina) ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/Aaronontheweb/termina/pr_validation.yml) ![GitHub Release](https://img.shields.io/github/v/release/Aaronontheweb/termina)
 
-**Termina** is a reactive terminal UI (TUI) framework for .NET with declarative layouts and surgical region-based rendering. It provides an MVVM architecture with source-generated reactive properties, ASP.NET Core-style routing, and seamless integration with Microsoft.Extensions.Hosting.
+**Termina** is a reactive terminal UI (TUI) framework for .NET with declarative layouts and surgical region-based rendering. It provides an MVVM architecture with reactive properties, ASP.NET Core-style routing, and seamless integration with Microsoft.Extensions.Hosting.
 
 ## Documentation
 
@@ -17,11 +17,11 @@
 
 ## Features
 
-- **Reactive MVVM Architecture** - ViewModels with `[Reactive]` attribute for source-generated observable properties
+- **Reactive MVVM Architecture** - ViewModels with `ReactiveProperty<T>` for observable state management
 - **Declarative Layouts** - Tree-based layout system with size constraints (Fixed, Fill, Auto, Percent)
 - **Surgical Rendering** - Only changed regions re-render, enabling smooth streaming updates
 - **ASP.NET Core-Style Routing** - Route templates with parameters (`/tasks/{id:int}`) and type constraints
-- **Source Generators** - AOT-compatible code generation for reactive properties and route parameters
+- **Source Generators** - AOT-compatible code generation for route parameters
 - **Streaming Support** - Native `StreamingTextNode` for real-time content like LLM output
 - **Dependency Injection** - Full integration with `Microsoft.Extensions.DependencyInjection`
 - **Hosting Integration** - Works with `Microsoft.Extensions.Hosting` for clean lifecycle management
@@ -38,18 +38,18 @@ dotnet add package Microsoft.Extensions.Hosting
 ### 1. Define a ViewModel
 
 ```csharp
-using System.Reactive.Linq;
+using R3;
 using Termina.Input;
 using Termina.Reactive;
 
-public partial class CounterViewModel : ReactiveViewModel
+public class CounterViewModel : ReactiveViewModel
 {
-    [Reactive] private int _count;
-    [Reactive] private string _message = "Press Up/Down to change count";
+    public ReactiveProperty<int> Count { get; } = new(0);
+    public ReactiveProperty<string> Message { get; } = new("Press Up/Down to change count");
 
     public override void OnActivated()
     {
-        Input.OfType<KeyPressed>()
+        Input.OfType<IInputEvent, KeyPressed>()
             .Subscribe(HandleKey)
             .DisposeWith(Subscriptions);
     }
@@ -59,30 +59,34 @@ public partial class CounterViewModel : ReactiveViewModel
         switch (key.KeyInfo.Key)
         {
             case ConsoleKey.UpArrow:
-                Count++;
-                Message = $"Count: {Count}";
+                Count.Value++;
+                Message.Value = $"Count: {Count.Value}";
                 break;
             case ConsoleKey.DownArrow:
-                Count--;
-                Message = $"Count: {Count}";
+                Count.Value--;
+                Message.Value = $"Count: {Count.Value}";
                 break;
             case ConsoleKey.Escape:
                 Shutdown();
                 break;
         }
     }
+
+    public override void Dispose()
+    {
+        Count.Dispose();
+        Message.Dispose();
+        base.Dispose();
+    }
 }
 ```
 
-The `[Reactive]` attribute generates:
-- A `BehaviorSubject<T>` backing field
-- A public property `Count` with get/set
-- An `IObservable<T>` property `CountChanged` for subscriptions
+`ReactiveProperty<T>` is both a value holder and an `Observable<T>` — subscribe directly in your Page for reactive UI bindings.
 
 ### 2. Define a Page
 
 ```csharp
-using System.Reactive.Linq;
+using R3;
 using Termina.Extensions;
 using Termina.Layout;
 using Termina.Reactive;
@@ -100,14 +104,14 @@ public class CounterPage : ReactivePage<CounterViewModel>
                     .WithBorder(BorderStyle.Rounded)
                     .WithBorderColor(Color.Cyan)
                     .WithContent(
-                        ViewModel.CountChanged
-                            .Select(count => new TextNode($"Count: {count}")
+                        ViewModel.Count
+                            .Select<int, ILayoutNode>(count => new TextNode($"Count: {count}")
                                 .WithForeground(Color.BrightCyan))
                             .AsLayout())
                     .Height(5))
             .WithChild(
-                ViewModel.MessageChanged
-                    .Select(msg => new TextNode(msg))
+                ViewModel.Message
+                    .Select<string, ILayoutNode>(msg => new TextNode(msg))
                     .AsLayout()
                     .Height(1));
     }
@@ -198,7 +202,7 @@ protected override void OnBound()
 }
 
 // In ViewModel
-public IObservable<string> StreamOutput => _streamOutput.AsObservable();
+public Observable<string> StreamOutput => _streamOutput;
 private readonly Subject<string> _streamOutput = new();
 
 private async Task StreamResponse()

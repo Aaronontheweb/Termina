@@ -1,14 +1,14 @@
-# Observables & Rx
+# Observables & R3
 
-Termina uses [System.Reactive (Rx.NET)](https://github.com/dotnet/reactive) for reactive programming. This page covers the basics needed to use Termina effectively.
+Termina uses [R3](https://github.com/Cysharp/R3) for reactive programming. R3 is a modern reimplementation of Reactive Extensions optimized for .NET, with better performance and AOT compatibility. This page covers the basics needed to use Termina effectively.
 
-## What is IObservable?
+## What is Observable?
 
-`IObservable<T>` represents a stream of values over time. Unlike `IEnumerable<T>` (pull-based), observables push values to subscribers.
+`Observable<T>` represents a stream of values over time. Unlike `IEnumerable<T>` (pull-based), observables push values to subscribers.
 
 ```csharp
 // Observable emits values over time
-IObservable<int> countChanges = ViewModel.CountChanged;
+Observable<int> countChanges = ViewModel.Count; // ReactiveProperty IS Observable<T>
 
 // Subscribe to receive values
 countChanges.Subscribe(count => Console.WriteLine($"Count is now: {count}"));
@@ -21,17 +21,21 @@ countChanges.Subscribe(count => Console.WriteLine($"Count is now: {count}"));
 Transform each value:
 
 ```csharp
-ViewModel.CountChanged
-    .Select(count => new TextNode($"Count: {count}"))
+ViewModel.Count
+    .Select<int, ILayoutNode>(count => new TextNode($"Count: {count}"))
     .AsLayout()
 ```
 
+::: tip
+R3 sometimes requires explicit type parameters on operators like `Select`. Use `Select<TIn, TOut>(...)` when the compiler can't infer the types.
+:::
+
 ### OfType (Filter by Type)
 
-Filter to specific event types:
+Filter to specific event types. R3 requires both source and target type parameters:
 
 ```csharp
-Input.OfType<KeyPressed>()
+Input.OfType<IInputEvent, KeyPressed>()
     .Subscribe(key => HandleKey(key));
 ```
 
@@ -40,7 +44,7 @@ Input.OfType<KeyPressed>()
 Filter values by condition:
 
 ```csharp
-ViewModel.CountChanged
+ViewModel.Count
     .Where(count => count > 0)
     .Subscribe(count => UpdatePositiveDisplay(count));
 ```
@@ -51,21 +55,10 @@ Combine multiple streams:
 
 ```csharp
 Observable.CombineLatest(
-    ViewModel.UserNameChanged,
-    ViewModel.IsLoggedInChanged,
+    ViewModel.UserName,
+    ViewModel.IsLoggedIn,
     (name, loggedIn) => loggedIn ? $"Welcome, {name}!" : "Please log in")
-    .Select(msg => new TextNode(msg))
-    .AsLayout()
-```
-
-### StartWith (Initial Value)
-
-Provide an initial value:
-
-```csharp
-ViewModel.StatusChanged
-    .StartWith("Ready")
-    .Select(s => new TextNode(s))
+    .Select<string, ILayoutNode>(msg => new TextNode(msg))
     .AsLayout()
 ```
 
@@ -78,7 +71,7 @@ The `DisposeWith` extension method adds subscriptions to a `CompositeDisposable`
 ```csharp
 public override void OnActivated()
 {
-    Input.OfType<KeyPressed>()
+    Input.OfType<IInputEvent, KeyPressed>()
         .Subscribe(HandleKey)
         .DisposeWith(Subscriptions);  // Auto-disposed on deactivation
 }
@@ -103,34 +96,34 @@ public override void Dispose()
 }
 ```
 
-## BehaviorSubject
+## ReactiveProperty
 
-`[Reactive]` properties use `BehaviorSubject<T>`, which:
+`ReactiveProperty<T>` is the primary state holder in Termina ViewModels. It combines:
 
-1. **Holds current value** - Can be read synchronously
-2. **Emits on subscribe** - New subscribers immediately get current value
-3. **Emits on change** - Existing subscribers get updates
+1. **Holds current value** — read/write via `.Value`
+2. **Is an Observable** — subscribers receive updates automatically
+3. **DistinctUntilChanged** — only emits when the value actually changes
 
 ```csharp
-// Generated from [Reactive] private int _count;
-private BehaviorSubject<int> _countSubject = new(default);
+public ReactiveProperty<int> Count { get; } = new(0);
 
-public int Count
-{
-    get => _countSubject.Value;           // Read current value
-    set => _countSubject.OnNext(value);   // Emit new value
-}
+// Read/write
+Count.Value = 42;
+var current = Count.Value;
 
-public IObservable<int> CountChanged => _countSubject.AsObservable();
+// Subscribe (ReactiveProperty IS Observable<T>)
+Count.Subscribe(value => Console.WriteLine(value));
 ```
+
+See [Reactive Properties](/concepts/reactive-properties) for full details.
 
 ## Hot vs Cold Observables
 
 ### Hot (Termina uses these)
 
 - Values are shared among all subscribers
-- New subscribers get future values (plus current for BehaviorSubject)
-- Examples: `CountChanged`, `Input`
+- New subscribers get future values (plus current for `ReactiveProperty`)
+- Examples: `Count`, `Input`
 
 ### Cold
 
@@ -143,8 +136,8 @@ public IObservable<int> CountChanged => _countSubject.AsObservable();
 ### Reactive UI Binding
 
 ```csharp
-ViewModel.ItemsChanged
-    .Select(items => Layouts.Vertical(
+ViewModel.Items
+    .Select<List<Item>, ILayoutNode>(items => Layouts.Vertical(
         items.Select(i => new TextNode(i.Name)).ToArray()))
     .AsLayout()
 ```
@@ -152,9 +145,9 @@ ViewModel.ItemsChanged
 ### Conditional Display
 
 ```csharp
-ViewModel.IsLoadingChanged
-    .Select(loading => loading
-        ? (ILayoutNode)new SpinnerNode()
+ViewModel.IsLoading
+    .Select<bool, ILayoutNode>(loading => loading
+        ? new SpinnerNode()
         : new TextNode("Ready"))
     .AsLayout()
 ```
@@ -162,14 +155,13 @@ ViewModel.IsLoadingChanged
 ### Debounce Input
 
 ```csharp
-ViewModel.SearchTermChanged
-    .Throttle(TimeSpan.FromMilliseconds(300))
+ViewModel.SearchTerm
+    .Debounce(TimeSpan.FromMilliseconds(300))
     .Subscribe(term => PerformSearch(term));
 ```
 
 ## Learning Resources
 
-- [ReactiveX Introduction](https://reactivex.io/intro.html) - Concepts and patterns
+- [R3 GitHub](https://github.com/Cysharp/R3) - R3 documentation and API reference
+- [ReactiveX Introduction](https://reactivex.io/intro.html) - Concepts and patterns (applicable to R3)
 - [Rx Marbles](https://rxmarbles.com/) - Interactive operator diagrams
-- [System.Reactive GitHub](https://github.com/dotnet/reactive) - Official documentation
-- [Introduction to Rx](http://introtorx.com/) - Free online book
