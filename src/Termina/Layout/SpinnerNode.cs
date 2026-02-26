@@ -171,33 +171,36 @@ public sealed class SpinnerNode : LayoutNode, IAnimatedNode, IInvalidatingNode
         if (!bounds.HasArea)
             return;
 
+        // Create a sub-context so coordinates are relative to this node's bounds
+        var spinnerContext = context.CreateSubContext(bounds);
+
         var frame = _frames[_currentFrame];
         var x = 0;
 
         // Draw spinner
         if (SpinnerColor.HasValue)
-            context.SetForeground(SpinnerColor.Value);
-        context.WriteAt(x, 0, frame);
+            spinnerContext.SetForeground(SpinnerColor.Value);
+        spinnerContext.WriteAt(x, 0, frame);
         x += frame.Length;
 
         // Draw label
         if (!string.IsNullOrEmpty(Label))
         {
             if (LabelColor.HasValue)
-                context.SetForeground(LabelColor.Value);
+                spinnerContext.SetForeground(LabelColor.Value);
             else if (SpinnerColor.HasValue)
-                context.ResetColors();
+                spinnerContext.ResetColors();
 
-            context.WriteAt(x, 0, " ");
+            spinnerContext.WriteAt(x, 0, " ");
             x++;
 
             var maxLabelLen = bounds.Width - x;
             var displayLabel = Label.Length > maxLabelLen ? Label[..maxLabelLen] : Label;
-            context.WriteAt(x, 0, displayLabel);
+            spinnerContext.WriteAt(x, 0, displayLabel);
         }
 
         if (SpinnerColor.HasValue || LabelColor.HasValue)
-            context.ResetColors();
+            spinnerContext.ResetColors();
     }
 
     /// <inheritdoc />

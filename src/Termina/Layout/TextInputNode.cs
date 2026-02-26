@@ -781,6 +781,9 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
         if (!bounds.HasArea)
             return;
 
+        // Create a sub-context so coordinates are relative to this node's bounds
+        var inputContext = context.CreateSubContext(bounds);
+
         var displayText = _text;
         var displayCursor = _cursorPosition;
 
@@ -793,19 +796,19 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
         // Show placeholder if empty
         if (string.IsNullOrEmpty(displayText) && !string.IsNullOrEmpty(Placeholder))
         {
-            context.SetForeground(PlaceholderColor);
+            inputContext.SetForeground(PlaceholderColor);
             var placeholder = Placeholder.Length > bounds.Width
                 ? Placeholder[..bounds.Width]
                 : Placeholder;
-            context.WriteAt(0, 0, placeholder);
-            context.ResetColors();
+            inputContext.WriteAt(0, 0, placeholder);
+            inputContext.ResetColors();
 
             // Still show cursor at position 0
             if (_cursorVisible)
             {
-                context.SetBackground(CursorColor);
-                context.WriteAt(0, 0, ' ');
-                context.ResetColors();
+                inputContext.SetBackground(CursorColor);
+                inputContext.WriteAt(0, 0, ' ');
+                inputContext.ResetColors();
             }
             return;
         }
@@ -822,9 +825,9 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
 
         // Set colors
         if (Foreground.HasValue)
-            context.SetForeground(Foreground.Value);
+            inputContext.SetForeground(Foreground.Value);
         if (Background.HasValue)
-            context.SetBackground(Background.Value);
+            inputContext.SetBackground(Background.Value);
 
         // Get visible portion
         var visibleText = displayText.Length > _scrollOffset
@@ -843,39 +846,39 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
 
             if (visSelEnd > visSelStart)
             {
-                context.SetBackground(SelectionColor);
+                inputContext.SetBackground(SelectionColor);
                 for (var x = visSelStart; x < visSelEnd && x < visibleText.Length; x++)
                 {
-                    context.WriteAt(x, 0, visibleText[x]);
+                    inputContext.WriteAt(x, 0, visibleText[x]);
                 }
 
                 // Draw non-selected portions
-                context.ResetColors();
+                inputContext.ResetColors();
                 if (Foreground.HasValue)
-                    context.SetForeground(Foreground.Value);
+                    inputContext.SetForeground(Foreground.Value);
                 if (Background.HasValue)
-                    context.SetBackground(Background.Value);
+                    inputContext.SetBackground(Background.Value);
 
                 if (visSelStart > 0)
                 {
-                    context.WriteAt(0, 0, visibleText[..visSelStart]);
+                    inputContext.WriteAt(0, 0, visibleText[..visSelStart]);
                 }
                 if (visSelEnd < visibleText.Length)
                 {
-                    context.WriteAt(visSelEnd, 0, visibleText[visSelEnd..]);
+                    inputContext.WriteAt(visSelEnd, 0, visibleText[visSelEnd..]);
                 }
             }
             else
             {
-                context.WriteAt(0, 0, visibleText);
+                inputContext.WriteAt(0, 0, visibleText);
             }
         }
         else
         {
-            context.WriteAt(0, 0, visibleText);
+            inputContext.WriteAt(0, 0, visibleText);
         }
 
-        context.ResetColors();
+        inputContext.ResetColors();
 
         // Draw cursor
         if (_cursorVisible)
@@ -883,11 +886,11 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
             var cursorX = displayCursor - _scrollOffset;
             if (cursorX >= 0 && cursorX < bounds.Width)
             {
-                context.SetBackground(CursorColor);
-                context.SetForeground(Background ?? Color.Black);
+                inputContext.SetBackground(CursorColor);
+                inputContext.SetForeground(Background ?? Color.Black);
                 var cursorChar = cursorX < visibleText.Length ? visibleText[cursorX] : ' ';
-                context.WriteAt(cursorX, 0, cursorChar);
-                context.ResetColors();
+                inputContext.WriteAt(cursorX, 0, cursorChar);
+                inputContext.ResetColors();
             }
         }
     }
