@@ -33,6 +33,8 @@ dotnet add package Termina
 dotnet add package Microsoft.Extensions.Hosting
 ```
 
+> **Upgrading to 0.7.0?** This release migrates from System.Reactive to R3 with breaking API changes. See the [Migration Guide](https://aaronstannard.com/termina/guide/migration-0.7.html) for details.
+
 ## Quick Start
 
 ### 1. Define a ViewModel
