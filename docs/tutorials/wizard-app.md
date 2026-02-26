@@ -64,8 +64,8 @@ public class SetupWizardPage : ReactivePage<SetupWizardViewModel>
     public override void OnNavigatedTo()
     {
         base.OnNavigatedTo();
-        KeyBindings.Register(ConsoleKey.Tab, CycleFocusForward);
-        KeyBindings.Register(ConsoleKey.Tab, ConsoleModifiers.Shift, CycleFocusBackward);
+        // WizardNode handles Tab/Shift+Tab for step navigation automatically
+        Focus.PushFocus(wizard);
     }
 
     private ILayoutNode BuildProviderStep()
@@ -122,17 +122,37 @@ public class SetupWizardPage : ReactivePage<SetupWizardViewModel>
 1. **`WizardNode<SetupStep>`** manages step navigation, progress display, and completion
 2. **`DynamicLayoutNode`** (used internally by WizardNode) switches step content without observable pipelines
 3. **`FocusPolicy.FirstFocusable`** auto-focuses the first interactive control on each page visit
-4. **Tab cycling** via `CycleFocusForward` / `CycleFocusBackward` for keyboard navigation between inputs
-5. **`BeforeAdvance`** can be subscribed to for step validation (set `args.Cancel = true` to prevent navigation)
+4. **`BeforeAdvance`** can be subscribed to for step validation (set `args.Cancel = true` to prevent navigation)
 
 ## Wizard Navigation
 
 | Key | Action |
 |-----|--------|
 | Enter | Advance to next step (or complete on last step) |
+| Tab | Advance to next step |
 | Escape | Go back to previous step |
-| Tab | Cycle focus forward |
-| Shift+Tab | Cycle focus backward |
+| Shift+Tab | Go back to previous step |
+
+## Step Validation
+
+Use `BeforeAdvance` to prevent advancement when required data is missing:
+
+```csharp
+wizard.BeforeAdvance.Subscribe(args =>
+{
+    switch (args.CurrentStep)
+    {
+        case SetupStep.Provider when string.IsNullOrEmpty(ViewModel.SelectedProvider.Value):
+            args.Cancel = true;
+            ViewModel.StatusMessage.Value = "Please select a provider first";
+            break;
+        case SetupStep.Auth when string.IsNullOrEmpty(ViewModel.Username.Value):
+            args.Cancel = true;
+            ViewModel.StatusMessage.Value = "Please enter a username first";
+            break;
+    }
+});
+```
 
 ## Progress Styles
 
