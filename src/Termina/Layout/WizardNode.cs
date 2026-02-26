@@ -21,6 +21,7 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
     private readonly Subject<Unit> _completed = new();
     private readonly Subject<Unit> _invalidated = new();
 
+    private readonly Dictionary<int, ILayoutNode> _stepContentCache = new();
     private int _currentStepIndex;
     private int _currentSubStep;
     private bool _hasFocus;
@@ -388,11 +389,24 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
         {
             if (_steps.Count == 0)
                 return new EmptyNode();
-            return _steps[_currentStepIndex].ContentFactory();
+            return GetOrCreateStepContent(_currentStepIndex);
         });
 
         if (_isActive)
             _contentNode.OnActivate();
+    }
+
+    /// <summary>
+    /// Get cached step content or create it once from the factory.
+    /// </summary>
+    private ILayoutNode GetOrCreateStepContent(int stepIndex)
+    {
+        if (!_stepContentCache.TryGetValue(stepIndex, out var content))
+        {
+            content = _steps[stepIndex].ContentFactory();
+            _stepContentCache[stepIndex] = content;
+        }
+        return content;
     }
 
     private void RenderProgress(IRenderContext context, Rect bounds)
@@ -542,6 +556,16 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
         _completed.Dispose();
         _invalidated.OnCompleted();
         _invalidated.Dispose();
+
+        // Dispose cached step content that isn't the DynamicLayoutNode's current child
+        // (DynamicLayoutNode will dispose its own current child)
+        ILayoutNode? currentContent = _steps.Count > 0 && _stepContentCache.TryGetValue(_currentStepIndex, out var c) ? c : null;
+        foreach (var content in _stepContentCache.Values)
+        {
+            if (!ReferenceEquals(content, currentContent))
+                content.Dispose();
+        }
+        _stepContentCache.Clear();
         _contentNode?.Dispose();
         base.Dispose();
     }
