@@ -10,66 +10,27 @@
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <VersionPrefix>0.7.0</VersionPrefix>
-    <PackageReleaseNotes>**Breaking Changes**:
-- **Migrate from System.Reactive to R3** ([#140](https://github.com/Aaronontheweb/Termina/pull/140))
-  - Replaced System.Reactive (Rx.NET) with [R3](https://github.com/Cysharp/R3) throughout the framework
-  - `IObservable&lt;T&gt;` → `Observable&lt;T&gt;` in all public APIs
-  - `OfType&lt;T&gt;()` → `OfType&lt;TSrc, TDest&gt;()` (R3 requires both type parameters)
-  - `Select(...)` may require explicit type parameters: `Select&lt;TIn, TOut&gt;(...)`
-  - `Subscribe` callbacks: `onError` → `onErrorResume`, `onCompleted` takes `Result` parameter
-  - `BehaviorSubject&lt;T&gt;` removed — use `ReactiveProperty&lt;T&gt;` instead
-  - `Subject&lt;T&gt;` now from R3 namespace
-  - See [Migration Guide](https://aaronstannard.com/termina/guide/migration-0.7.html) for details
+    <VersionPrefix>0.7.1</VersionPrefix>
+    <PackageReleaseNotes>**Bug Fixes**:
+- **DynamicLayoutNode is now invalidation-driven** ([#155](https://github.com/Aaronontheweb/Termina/issues/155))
+  - Factory no longer runs on every Measure/Render cycle — runs once, then only on `Invalidate()`
+  - Fixes silent state destruction (highlights, typed text, focus) when factory creates new instances
+  - `Invalidate()` now eagerly evaluates the factory for immediate child swap
+  - `OnActivate()` marks the node dirty so factory re-evaluates after navigation round-trip
 
-- **Replace `[Reactive]` source generator with `ReactiveProperty&lt;T&gt;`** ([#149](https://github.com/Aaronontheweb/Termina/pull/149))
-  - Removed `[Reactive]` attribute and its source generator
-  - Use `ReactiveProperty&lt;T&gt;` for all ViewModel state: `public ReactiveProperty&lt;int&gt; Count { get; } = new(0);`
-  - Property access via `.Value`: `Count.Value++` instead of `Count++`
-  - Page bindings subscribe directly to property: `ViewModel.Count.Select(...)` instead of `ViewModel.CountChanged.Select(...)`
-  - ViewModels no longer need `partial` keyword (unless using `[FromRoute]`)
-  - Manual `Dispose()` override required to dispose all `ReactiveProperty&lt;T&gt;` instances
-  - Built-in `DistinctUntilChanged` — only emits when value actually changes
-
-- **Replace timers with `Observable.Interval` + `TimeProvider`** ([#140](https://github.com/Aaronontheweb/Termina/pull/140))
-  - All timer-based components now accept optional `TimeProvider` parameter
-  - Enables deterministic testing with `FakeTimeProvider`
-  - `System.Timers.Timer` and `System.Threading.Timer` no longer used
+- **WizardNode sub-step focus propagation** ([#156](https://github.com/Aaronontheweb/Termina/issues/156))
+  - `PropagateFocusToContent()` now called on sub-step changes, not just step changes
+  - Fixes stale focus when navigating between sub-steps with different focusable content
 
 **New Features**:
-- **DynamicLayoutNode** ([#147](https://github.com/Aaronontheweb/Termina/issues/147))
-  - New `Layouts.Dynamic(Func&lt;ILayoutNode&gt; factory)` for imperative, page-local state
-  - Re-evaluates factory on each Render/Measure cycle with reference equality to avoid lifecycle churn
-  - `Invalidate()` method for programmatic trigger; `AsDynamicLayout(Observable&lt;Unit&gt;)` extension
-  - Implements `IInvalidatingNode` for proper invalidation propagation
+- **KeyedDynamicLayoutNode&lt;TKey&gt;** — pit-of-success API for key-based content switching
+  - `Layouts.KeyedDynamic&lt;TKey&gt;(keySelector, contentFactory)` factory method
+  - Caches content by key — navigating back reuses cached instances, preserving child state
+  - WizardNode now uses this internally (replaces manual step content cache)
 
-- **FocusManager auto-focus and Tab cycling** ([#146](https://github.com/Aaronontheweb/Termina/issues/146))
-  - `FocusPolicy` enum: `Manual`, `FirstFocusable`, `ByPriority` — set on `ReactivePage` for automatic focus on navigation
-  - `CollectFocusables(ILayoutNode root)` — depth-first tree walk collecting focusable nodes
-  - `CycleFocus(focusables, reverse)` — next/previous with wrap-around
-  - `CycleFocusForward()` / `CycleFocusBackward()` helpers on `ReactivePage`
-  - `FocusManager` migrated from `BehaviorSubject&lt;IFocusable?&gt;` to `ReactiveProperty&lt;IFocusable?&gt;`
-
-- **WizardNode** ([#148](https://github.com/Aaronontheweb/Termina/issues/148))
-  - Multi-step wizard component: `Layouts.Wizard&lt;TStep&gt;()` where `TStep : struct, Enum`
-  - Fluent builder: `.WithStep()`, `.WithProgressStyle()`, `.WithTitle()`, `.WithBorder()`
-  - Navigation: `TryAdvance()`, `TryGoBack()`, `GoToStep()`, `AdvanceSubStep()`
-  - Cancellable `BeforeAdvance` observable for step validation
-  - `StepChanged` and `Completed` observables
-  - Progress styles: `BlockBar`, `Arrow`, `Dots`, `None`
-  - Sub-step support within each step
-  - Implements `IFocusable` and `IInvalidatingNode`
-  - Uses `DynamicLayoutNode` internally for step content switching
-
-**Bug Fixes**:
-- **Fix invalidation subscription lost after navigation round-trip** ([#150](https://github.com/Aaronontheweb/Termina/pull/150))
-  - Fixed rendering bug where leaf nodes lost their invalidation subscriptions after navigating away and back
-  - Custom `LayoutNode` subclasses should use `CreateSubContext(bounds)` in Render methods
-
-**Cleanup**:
-- Removed dead `HasReactiveAttribute` helper from `LayoutNodeInViewModelAnalyzer` (references removed `[Reactive]` attribute)
-
----</PackageReleaseNotes>
+**Upgrade Advisory**:
+- `DynamicLayoutNode` no longer evaluates its factory per-frame. If you relied on per-frame evaluation, add `Invalidate()` calls when state changes. The `AsDynamicLayout(trigger)` extension already calls `Invalidate()` on each trigger emission and works unchanged.
+- For content that switches based on a key (enum, step index, tab), prefer `Layouts.KeyedDynamic&lt;TKey&gt;()` over `Layouts.Dynamic()` for automatic caching and state preservation.</PackageReleaseNotes>
   </PropertyGroup>
   <PropertyGroup>
     <!-- Target framework versions -->
