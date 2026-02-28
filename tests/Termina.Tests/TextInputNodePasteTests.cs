@@ -18,7 +18,8 @@ public class TextInputNodePasteTests
         var node = new TextInputNode();
         var result = node.HandlePaste(new PasteEvent("hello world"));
         Assert.True(result);
-        Assert.Equal("[Pasted 11 chars]", node.Text);
+        // Single-line paste inserts inline (no summary)
+        Assert.Equal("hello world", node.Text);
     }
 
     [Fact]
@@ -26,7 +27,7 @@ public class TextInputNodePasteTests
     {
         var node = new TextInputNode();
         node.HandlePaste(new PasteEvent("hello\nworld\nthird"));
-        Assert.Equal("[Pasted 3 lines, 17 chars]", node.Text);
+        Assert.Equal("[Pasted 3 lines, 17 chars] ", node.Text);
     }
 
     [Fact]
@@ -72,46 +73,48 @@ public class TextInputNodePasteTests
     }
 
     [Fact]
-    public void HandlePaste_TypingClearsPaste_ReturnsToNormalEditing()
+    public void HandlePaste_TypingAfterPaste_AccumulatesContent()
     {
         var node = new TextInputNode();
         node.HandlePaste(new PasteEvent("pasted content\nwith newlines"));
 
-        // Type a character — should clear paste and start fresh
+        // Type a character — appends to active text after paste segment
         node.HandleInput(new ConsoleKeyInfo('a', ConsoleKey.A, false, false, false));
 
-        Assert.Equal("a", node.Text);
+        // Display shows paste summary + typed char
+        Assert.Equal("[Pasted 2 lines, 28 chars] a", node.Text);
 
-        // Now Enter submits "a", not the paste content
+        // Enter submits the full paste content + typed text
         string? submitted = null;
         node.Submitted.Subscribe(t => submitted = t);
         node.HandleInput(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false));
 
-        Assert.Equal("a", submitted);
+        Assert.Equal("pasted content\nwith newlinesa", submitted);
     }
 
     [Fact]
-    public void HandlePaste_BackspaceClearsPaste()
+    public void HandlePaste_BackspaceSingleLine_DeletesCharacter()
     {
         var node = new TextInputNode();
         node.HandlePaste(new PasteEvent("pasted stuff"));
 
-        // Backspace should clear paste and return to empty
+        // Single-line paste inserted inline — backspace deletes last char
         node.HandleInput(new ConsoleKeyInfo('\b', ConsoleKey.Backspace, false, false, false));
 
-        Assert.Equal("", node.Text);
+        Assert.Equal("pasted stuf", node.Text);
     }
 
     [Fact]
-    public void HandlePaste_DeleteClearsPaste()
+    public void HandlePaste_DeleteSingleLine_NoOpAtEnd()
     {
         var node = new TextInputNode();
         node.HandlePaste(new PasteEvent("pasted stuff"));
 
-        // Delete should clear paste and return to empty
-        node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.Delete, false, false, false));
+        // Single-line paste inserted inline — cursor at end, delete is no-op
+        var result = node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.Delete, false, false, false));
 
-        Assert.Equal("", node.Text);
+        Assert.False(result);
+        Assert.Equal("pasted stuff", node.Text);
     }
 
     [Fact]
@@ -120,7 +123,7 @@ public class TextInputNodePasteTests
         var node = new TextInputNode();
         node.HandlePaste(new PasteEvent("pasted stuff"));
 
-        // Escape should clear paste and return to empty
+        // Escape should clear everything
         node.HandleInput(new ConsoleKeyInfo('\x1b', ConsoleKey.Escape, false, false, false));
 
         Assert.Equal("", node.Text);
@@ -151,10 +154,10 @@ public class TextInputNodePasteTests
         string? lastText = null;
         node.TextChanged.Subscribe(t => lastText = t);
 
+        // Single-line paste emits the raw text (inserted inline)
         node.HandlePaste(new PasteEvent("test"));
 
-        // TextChanged gets the summary, not the raw content
-        Assert.Equal("[Pasted 4 chars]", lastText);
+        Assert.Equal("test", lastText);
     }
 
     [Fact]
@@ -167,30 +170,31 @@ public class TextInputNodePasteTests
     }
 
     [Fact]
-    public void HandlePaste_ReplacesExistingText()
+    public void HandlePaste_SingleLine_InsertsAtCursorPosition()
     {
         var node = new TextInputNode();
         node.Text = "existing text";
 
-        node.HandlePaste(new PasteEvent("new paste"));
+        // Move cursor to position 8 ("existing|text" -> "existing| text")
+        // We need to simulate pressing Home then Right 8 times, or just set directly
+        // Instead, let's type some text, then paste in the middle
+        node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.Home, false, false, false));
+        // Now cursor is at 0. Move right 8 times to after "existing"
+        for (var i = 0; i < 8; i++)
+            node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, false, false, false));
 
-        Assert.Equal("[Pasted 9 chars]", node.Text);
+        node.HandlePaste(new PasteEvent(" new"));
 
-        // Enter submits the paste content
-        string? submitted = null;
-        node.Submitted.Subscribe(t => submitted = t);
-        node.HandleInput(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false));
-
-        Assert.Equal("new paste", submitted);
+        Assert.Equal("existing new text", node.Text);
     }
 
     [Fact]
     public void HandlePaste_TextPropertySetterClearsPaste()
     {
         var node = new TextInputNode();
-        node.HandlePaste(new PasteEvent("pasted stuff"));
+        node.HandlePaste(new PasteEvent("pasted\nstuff"));
 
-        // Setting Text property programmatically should clear paste
+        // Setting Text property programmatically should clear committed segments
         node.Text = "manual text";
 
         Assert.Equal("manual text", node.Text);
@@ -211,7 +215,7 @@ public class TextInputNodePasteTests
         // Simulate history recall of previously-pasted multi-line content
         node.Text = "line 1\nline 2\nline 3";
 
-        Assert.Equal("[Pasted 3 lines, 20 chars]", node.Text);
+        Assert.Equal("[Pasted 3 lines, 20 chars] ", node.Text);
     }
 
     [Fact]
@@ -234,5 +238,209 @@ public class TextInputNodePasteTests
     {
         var node = new TextInputNode();
         Assert.IsAssignableFrom<IPasteReceiver>(node);
+    }
+
+    // === New tests for committed segments model ===
+
+    [Fact]
+    public void MultiLinePaste_ThenType_ThenSubmit_CombinesAllContent()
+    {
+        var node = new TextInputNode();
+
+        // Paste multi-line content
+        node.HandlePaste(new PasteEvent("line1\nline2"));
+        // Type some text after
+        node.HandleInput(new ConsoleKeyInfo('x', ConsoleKey.X, false, false, false));
+        node.HandleInput(new ConsoleKeyInfo('y', ConsoleKey.Y, false, false, false));
+
+        // Submit should combine paste + typed
+        string? submitted = null;
+        node.Submitted.Subscribe(t => submitted = t);
+        node.HandleInput(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false));
+
+        Assert.Equal("line1\nline2xy", submitted);
+    }
+
+    [Fact]
+    public void MultiSegment_Paste_Type_Paste_Type_Submit()
+    {
+        var node = new TextInputNode();
+
+        // Paste multi-line
+        node.HandlePaste(new PasteEvent("a\nb"));
+        // Type some
+        node.HandleInput(new ConsoleKeyInfo('X', ConsoleKey.X, false, false, false));
+        // Paste multi-line again — commits "X" as typed segment first
+        node.HandlePaste(new PasteEvent("c\nd"));
+        // Type more
+        node.HandleInput(new ConsoleKeyInfo('Y', ConsoleKey.Y, false, false, false));
+
+        // Submit should be all concatenated
+        string? submitted = null;
+        node.Submitted.Subscribe(t => submitted = t);
+        node.HandleInput(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false));
+
+        Assert.Equal("a\nbXc\ndY", submitted);
+    }
+
+    [Fact]
+    public void BackspaceAtPos0_PopsPasteSegment()
+    {
+        var node = new TextInputNode();
+
+        // Paste multi-line (creates paste committed segment)
+        node.HandlePaste(new PasteEvent("hello\nworld"));
+
+        // Cursor is at 0, no active text. Backspace should pop the paste segment.
+        node.HandleInput(new ConsoleKeyInfo('\b', ConsoleKey.Backspace, false, false, false));
+
+        Assert.Equal("", node.Text);
+
+        // Submit should yield nothing
+        string? submitted = null;
+        node.Submitted.Subscribe(t => submitted = t);
+        node.HandleInput(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false));
+
+        Assert.Equal("", submitted);
+    }
+
+    [Fact]
+    public void BackspaceAtPos0_MergesTypedSegmentBack()
+    {
+        var node = new TextInputNode();
+
+        // Type text, then paste multi-line (which commits typed text as a segment)
+        node.HandleInput(new ConsoleKeyInfo('a', ConsoleKey.A, false, false, false));
+        node.HandleInput(new ConsoleKeyInfo('b', ConsoleKey.B, false, false, false));
+        node.HandlePaste(new PasteEvent("x\ny"));
+
+        // Now we have: committed["ab" typed], committed[paste], _text=""
+        // Backspace should pop the paste segment
+        node.HandleInput(new ConsoleKeyInfo('\b', ConsoleKey.Backspace, false, false, false));
+
+        // Now: committed["ab" typed], _text=""
+        // Backspace again at pos 0 should merge "ab" back into _text
+        node.HandleInput(new ConsoleKeyInfo('\b', ConsoleKey.Backspace, false, false, false));
+
+        Assert.Equal("ab", node.Text);
+
+        // Submit should yield "ab"
+        string? submitted = null;
+        node.Submitted.Subscribe(t => submitted = t);
+        node.HandleInput(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false));
+
+        Assert.Equal("ab", submitted);
+    }
+
+    [Fact]
+    public void EscapeClearsAllCommittedSegments()
+    {
+        var node = new TextInputNode();
+
+        // Build up segments
+        node.HandlePaste(new PasteEvent("a\nb"));
+        node.HandleInput(new ConsoleKeyInfo('X', ConsoleKey.X, false, false, false));
+        node.HandlePaste(new PasteEvent("c\nd"));
+        node.HandleInput(new ConsoleKeyInfo('Y', ConsoleKey.Y, false, false, false));
+
+        // Escape should clear everything
+        node.HandleInput(new ConsoleKeyInfo('\x1b', ConsoleKey.Escape, false, false, false));
+
+        Assert.Equal("", node.Text);
+
+        string? submitted = null;
+        node.Submitted.Subscribe(t => submitted = t);
+        node.HandleInput(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false));
+
+        Assert.Equal("", submitted);
+    }
+
+    [Fact]
+    public void History_SavesFullCombinedContent()
+    {
+        var node = new TextInputNode().WithHistory();
+
+        // Build up multi-segment input
+        node.HandlePaste(new PasteEvent("hello\nworld"));
+        node.HandleInput(new ConsoleKeyInfo('!', ConsoleKey.D1, false, false, false));
+
+        // Submit (should record "hello\nworld!" to history)
+        node.HandleInput(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false));
+        node.Clear();
+
+        // Navigate up in history
+        node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.UpArrow, false, false, false));
+
+        // The recalled content should be the multi-line + "!" — displayed as summary
+        // When recalled via Text setter, multi-line shows as summary
+        Assert.Contains("[Pasted", node.Text);
+
+        // Submit should give back the original content
+        string? submitted = null;
+        node.Submitted.Subscribe(t => submitted = t);
+        node.HandleInput(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false));
+
+        Assert.Equal("hello\nworld!", submitted);
+    }
+
+    [Fact]
+    public void MultiLinePaste_WithExistingText_CommitsExistingFirst()
+    {
+        var node = new TextInputNode();
+
+        // Type some text first
+        node.HandleInput(new ConsoleKeyInfo('h', ConsoleKey.H, false, false, false));
+        node.HandleInput(new ConsoleKeyInfo('i', ConsoleKey.I, false, false, false));
+
+        // Paste multi-line — should commit "hi" as typed segment first
+        node.HandlePaste(new PasteEvent("foo\nbar"));
+
+        // Display should show typed prefix + paste summary
+        Assert.Equal("hi[Pasted 2 lines, 7 chars] ", node.Text);
+
+        // Submit should yield "hi" + "foo\nbar"
+        string? submitted = null;
+        node.Submitted.Subscribe(t => submitted = t);
+        node.HandleInput(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false));
+
+        Assert.Equal("hifoo\nbar", submitted);
+    }
+
+    [Fact]
+    public void MultiLinePaste_CursorInMiddle_SplitsText()
+    {
+        var node = new TextInputNode();
+
+        // Type "abcd"
+        node.HandleInput(new ConsoleKeyInfo('a', ConsoleKey.A, false, false, false));
+        node.HandleInput(new ConsoleKeyInfo('b', ConsoleKey.B, false, false, false));
+        node.HandleInput(new ConsoleKeyInfo('c', ConsoleKey.C, false, false, false));
+        node.HandleInput(new ConsoleKeyInfo('d', ConsoleKey.D, false, false, false));
+
+        // Move cursor left 2 — cursor at position 2 (between b and c)
+        node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.LeftArrow, false, false, false));
+        node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.LeftArrow, false, false, false));
+
+        // Paste multi-line — should commit "ab" as typed, paste segment, _text = "cd"
+        node.HandlePaste(new PasteEvent("x\ny"));
+
+        // Submit should yield "ab" + "x\ny" + "cd"
+        string? submitted = null;
+        node.Submitted.Subscribe(t => submitted = t);
+        node.HandleInput(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false));
+
+        Assert.Equal("abx\nycd", submitted);
+    }
+
+    [Fact]
+    public void HandlePaste_EscapeAfterMultiLinePaste_ClearsAll()
+    {
+        var node = new TextInputNode();
+        node.HandlePaste(new PasteEvent("hello\nworld"));
+
+        // Escape clears all committed segments + text
+        node.HandleInput(new ConsoleKeyInfo('\x1b', ConsoleKey.Escape, false, false, false));
+
+        Assert.Equal("", node.Text);
     }
 }

@@ -22,7 +22,7 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     private readonly Subject<string> _textChanged = new();
     private readonly Subject<string> _submitted = new();
     private string _text = "";
-    private string? _pasteContent;  // full paste content (with newlines preserved)
+    private readonly List<CommittedSegment> _committedSegments = new();
     private int _cursorPosition;
     private int _selectionStart = -1;
     private int _scrollOffset;
@@ -87,37 +87,32 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     /// </summary>
     public string Text
     {
-        get => _text;
+        get => CommittedDisplayPrefix + _text;
         set
         {
             var newValue = value ?? "";
-            if (_text != newValue || _pasteContent != null)
+            _committedSegments.Clear();
+            if (newValue.Contains('\n'))
             {
-                // Multi-line content should display condensed, same as HandlePaste
-                if (newValue.Contains('\n'))
+                var lineCount = 1;
+                foreach (var c in newValue)
                 {
-                    _pasteContent = newValue;
-                    var lineCount = 1;
-                    foreach (var c in newValue)
-                    {
-                        if (c == '\n') lineCount++;
-                    }
-
-                    _text = lineCount > 1
-                        ? $"[Pasted {lineCount} lines, {newValue.Length} chars]"
-                        : $"[Pasted {newValue.Length} chars]";
-                }
-                else
-                {
-                    _pasteContent = null;
-                    _text = newValue;
+                    if (c == '\n') lineCount++;
                 }
 
-                _cursorPosition = Math.Min(_cursorPosition, _text.Length);
-                _selectionStart = -1;
-                _textChanged.OnNext(_text);
-                _invalidated.OnNext(Unit.Default);
+                var summary = $"[Pasted {lineCount} lines, {newValue.Length} chars] ";
+                _committedSegments.Add(new CommittedSegment(summary, newValue, SegmentKind.Pasted));
+                _text = "";
             }
+            else
+            {
+                _text = newValue;
+            }
+
+            _cursorPosition = Math.Min(_cursorPosition, _text.Length);
+            _selectionStart = -1;
+            _textChanged.OnNext(Text);
+            _invalidated.OnNext(Unit.Default);
         }
     }
 
@@ -372,9 +367,6 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
             return true;
         }
 
-        // Any character input clears paste mode — return to normal editing
-        ClearPasteContent();
-
         // Check max length
         var addLength = HasSelection ? 1 - SelectedText.Length : 1;
         if (MaxLength > 0 && _text.Length + addLength > MaxLength)
@@ -389,28 +381,36 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
         // Insert character
         _text = _text.Insert(_cursorPosition, c.ToString());
         _cursorPosition++;
-        _textChanged.OnNext(_text);
+        _textChanged.OnNext(Text);
         return true;
     }
 
     private bool HandleBackspace(ConsoleModifiers modifiers)
     {
-        // Backspace clears paste mode — return to normal editing with empty input
-        if (_pasteContent != null)
-        {
-            ClearPasteContent();
-            return true;
-        }
-
         if (HasSelection)
         {
             DeleteSelection();
-            _textChanged.OnNext(_text);
+            _textChanged.OnNext(Text);
             return true;
         }
 
         if (_cursorPosition == 0)
+        {
+            if (_committedSegments.Count > 0)
+            {
+                var last = _committedSegments[^1];
+                _committedSegments.RemoveAt(_committedSegments.Count - 1);
+                if (last.Kind == SegmentKind.Typed)
+                {
+                    _text = last.DisplayText + _text;
+                    _cursorPosition = last.DisplayText.Length;
+                }
+                // Pasted segments are just removed (cursor stays at 0)
+                _textChanged.OnNext(Text);
+                return true;
+            }
             return false;
+        }
 
         if (modifiers.HasFlag(ConsoleModifiers.Control))
         {
@@ -426,23 +426,16 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
             _cursorPosition--;
         }
 
-        _textChanged.OnNext(_text);
+        _textChanged.OnNext(Text);
         return true;
     }
 
     private bool HandleDelete(ConsoleModifiers modifiers)
     {
-        // Delete clears paste mode — return to normal editing with empty input
-        if (_pasteContent != null)
-        {
-            ClearPasteContent();
-            return true;
-        }
-
         if (HasSelection)
         {
             DeleteSelection();
-            _textChanged.OnNext(_text);
+            _textChanged.OnNext(Text);
             return true;
         }
 
@@ -461,7 +454,7 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
             _text = _text.Remove(_cursorPosition, 1);
         }
 
-        _textChanged.OnNext(_text);
+        _textChanged.OnNext(Text);
         return true;
     }
 
@@ -548,7 +541,7 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
         if (_historyIndex < 0)
         {
             // First press: save current input and jump to most recent
-            _savedInput = _pasteContent ?? _text;
+            _savedInput = SubmitContent;
             _historyIndex = _history.Count - 1;
         }
         else if (_historyIndex > 0)
@@ -594,11 +587,10 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
 
     private bool HandleEnter()
     {
-        // When paste content is stored, submit the full paste (with newlines) instead of the summary
-        var content = _pasteContent ?? _text;
-        TerminaTrace.Input.Debug(this, "HandleEnter: submitting text length={0} (paste={1})",
-            content.Length, _pasteContent != null);
-        _pasteContent = null;
+        var content = SubmitContent;
+        TerminaTrace.Input.Debug(this, "HandleEnter: submitting text length={0} (segments={1})",
+            content.Length, _committedSegments.Count);
+        _committedSegments.Clear();
 
         // Auto-record to history when enabled
         if (_history is not null && !string.IsNullOrWhiteSpace(content))
@@ -621,35 +613,31 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     /// </summary>
     public void Clear()
     {
-        _pasteContent = null;
+        _committedSegments.Clear();
         _text = "";
         _cursorPosition = 0;
         _selectionStart = -1;
         _scrollOffset = 0;
-        _textChanged.OnNext(_text);
+        _textChanged.OnNext(Text);
         _invalidated.OnNext(Unit.Default);
     }
 
     private bool HandleEscape()
     {
-        // Escape clears paste mode
-        if (_pasteContent != null)
-        {
-            ClearPasteContent();
-            return true;
-        }
-
         if (HasSelection)
         {
             _selectionStart = -1;
             return true;
         }
 
-        if (!string.IsNullOrEmpty(_text))
+        if (_committedSegments.Count > 0 || !string.IsNullOrEmpty(_text))
         {
+            _committedSegments.Clear();
             _text = "";
             _cursorPosition = 0;
-            _textChanged.OnNext(_text);
+            _selectionStart = -1;
+            _scrollOffset = 0;
+            _textChanged.OnNext(Text);
             return true;
         }
 
@@ -661,14 +649,14 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The full paste content (including newlines) is preserved and will be submitted
-    /// verbatim when the user presses Enter. The input displays a summary placeholder
-    /// (e.g., <c>[Pasted 500 lines, 12345 chars]</c>) instead of the raw content.
+    /// Single-line pastes are inserted inline at the cursor position, just like typing.
+    /// Multi-line pastes commit the current text and display a summary placeholder
+    /// (e.g., <c>[Pasted 3 lines, 50 chars] </c>). The full paste content is preserved
+    /// and will be included verbatim when the user presses Enter.
     /// </para>
     /// <para>
-    /// Any subsequent character input, backspace, or delete clears the paste and returns
-    /// the input to normal editing mode. This matches the behavior of CLI tools like
-    /// Claude Code and OpenCode.
+    /// After pasting, the user can continue typing or paste again — content accumulates
+    /// as committed segments that are all concatenated on submission.
     /// </para>
     /// </remarks>
     /// <param name="paste">The paste event containing the text to insert.</param>
@@ -678,8 +666,41 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
         if (string.IsNullOrEmpty(paste.Content))
             return false;
 
-        // Store the full paste content (newlines preserved) for submission
-        _pasteContent = paste.Content;
+        // Single-line paste: insert inline at cursor like typing
+        if (!paste.Content.Contains('\n'))
+        {
+            if (HasSelection)
+                DeleteSelection();
+
+            _text = _text.Insert(_cursorPosition, paste.Content);
+            _cursorPosition += paste.Content.Length;
+            _selectionStart = -1;
+            _textChanged.OnNext(Text);
+            _invalidated.OnNext(Unit.Default);
+            return true;
+        }
+
+        // Multi-line paste: commit current text and add paste segment
+        if (_cursorPosition >= _text.Length)
+        {
+            // Cursor at end — commit all of _text
+            if (_text.Length > 0)
+            {
+                _committedSegments.Add(new CommittedSegment(_text, _text, SegmentKind.Typed));
+            }
+            _text = "";
+        }
+        else
+        {
+            // Cursor in middle — commit prefix, keep suffix as new _text
+            var prefix = _text[.._cursorPosition];
+            var suffix = _text[_cursorPosition..];
+            if (prefix.Length > 0)
+            {
+                _committedSegments.Add(new CommittedSegment(prefix, prefix, SegmentKind.Typed));
+            }
+            _text = suffix;
+        }
 
         // Count lines for the summary display
         var lineCount = 1;
@@ -688,34 +709,14 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
             if (c == '\n') lineCount++;
         }
 
-        // Show a summary in the input instead of the raw content
-        var summary = lineCount > 1
-            ? $"[Pasted {lineCount} lines, {paste.Content.Length} chars]"
-            : $"[Pasted {paste.Content.Length} chars]";
-
-        _text = summary;
-        _cursorPosition = _text.Length;
-        _selectionStart = -1;
-        _scrollOffset = 0;
-
-        _textChanged.OnNext(_text);
-        _invalidated.OnNext(Unit.Default);
-        return true;
-    }
-
-    /// <summary>
-    /// Clears paste content and resets the input to an empty state.
-    /// Called when the user starts editing (typing, backspace, delete, escape) after a paste.
-    /// </summary>
-    private void ClearPasteContent()
-    {
-        if (_pasteContent == null) return;
-        _pasteContent = null;
-        _text = "";
+        var summary = $"[Pasted {lineCount} lines, {paste.Content.Length} chars] ";
+        _committedSegments.Add(new CommittedSegment(summary, paste.Content, SegmentKind.Pasted));
         _cursorPosition = 0;
         _selectionStart = -1;
-        _scrollOffset = 0;
-        _textChanged.OnNext(_text);
+
+        _textChanged.OnNext(Text);
+        _invalidated.OnNext(Unit.Default);
+        return true;
     }
 
     private void SelectAll()
@@ -771,7 +772,8 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     /// <inheritdoc />
     public override Size Measure(Size available)
     {
-        var width = WidthConstraint.Compute(available.Width, _text.Length + 1, available.Width);
+        var prefixWidth = CommittedDisplayPrefix.Length;
+        var width = WidthConstraint.Compute(available.Width, prefixWidth + _text.Length + 1, available.Width);
         return new Size(width, 1);
     }
 
@@ -784,17 +786,23 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
         // Create a sub-context so coordinates are relative to this node's bounds
         var inputContext = context.CreateSubContext(bounds);
 
-        var displayText = _text;
-        var displayCursor = _cursorPosition;
+        var prefix = CommittedDisplayPrefix;
+        var prefixWidth = prefix.Length;
+        var activeText = _text;
 
-        // Apply password masking
-        if (IsPassword && displayText.Length > 0)
+        // Apply password masking to active text only
+        if (IsPassword && activeText.Length > 0)
         {
-            displayText = new string(PasswordChar, displayText.Length);
+            activeText = new string(PasswordChar, activeText.Length);
         }
 
-        // Show placeholder if empty
-        if (string.IsNullOrEmpty(displayText) && !string.IsNullOrEmpty(Placeholder))
+        // The full display text combines prefix and active text
+        var fullDisplayText = prefix + activeText;
+        // Cursor position in the full display coordinate space
+        var displayCursor = prefixWidth + _cursorPosition;
+
+        // Show placeholder if both prefix and text are empty
+        if (fullDisplayText.Length == 0 && !string.IsNullOrEmpty(Placeholder))
         {
             inputContext.SetForeground(PlaceholderColor);
             var placeholder = Placeholder.Length > bounds.Width
@@ -823,59 +831,88 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
             _scrollOffset = displayCursor - bounds.Width + 1;
         }
 
-        // Set colors
-        if (Foreground.HasValue)
-            inputContext.SetForeground(Foreground.Value);
-        if (Background.HasValue)
-            inputContext.SetBackground(Background.Value);
+        // Render segments with appropriate colors
+        // Build per-character rendering info for the visible portion
+        var visStart = _scrollOffset;
+        var visEnd = Math.Min(fullDisplayText.Length, _scrollOffset + bounds.Width);
 
-        // Get visible portion
-        var visibleText = displayText.Length > _scrollOffset
-            ? displayText[_scrollOffset..]
-            : "";
-        if (visibleText.Length > bounds.Width)
-            visibleText = visibleText[..bounds.Width];
-
-        // Draw selection background
-        if (HasSelection)
+        // Determine segment boundaries for coloring
+        // Walk through committed segments to find which chars are paste vs typed
+        var segOffset = 0;
+        var x = 0;
+        foreach (var seg in _committedSegments)
         {
-            var selStart = Math.Min(_selectionStart, _cursorPosition);
-            var selEnd = Math.Max(_selectionStart, _cursorPosition);
-            var visSelStart = Math.Max(0, selStart - _scrollOffset);
-            var visSelEnd = Math.Min(bounds.Width, selEnd - _scrollOffset);
+            var segStart = segOffset;
+            var segEnd = segOffset + seg.DisplayText.Length;
 
-            if (visSelEnd > visSelStart)
+            // Determine visible overlap
+            var drawStart = Math.Max(segStart, visStart);
+            var drawEnd = Math.Min(segEnd, visEnd);
+
+            if (drawStart < drawEnd)
             {
-                inputContext.SetBackground(SelectionColor);
-                for (var x = visSelStart; x < visSelEnd && x < visibleText.Length; x++)
-                {
-                    inputContext.WriteAt(x, 0, visibleText[x]);
-                }
-
-                // Draw non-selected portions
-                inputContext.ResetColors();
-                if (Foreground.HasValue)
+                if (seg.Kind == SegmentKind.Pasted)
+                    inputContext.SetForeground(Color.BrightBlack);
+                else if (Foreground.HasValue)
                     inputContext.SetForeground(Foreground.Value);
+                else
+                    inputContext.ResetColors();
+
                 if (Background.HasValue)
                     inputContext.SetBackground(Background.Value);
 
-                if (visSelStart > 0)
+                var text = seg.DisplayText[(drawStart - segStart)..(drawEnd - segStart)];
+                inputContext.WriteAt(drawStart - _scrollOffset, 0, text);
+                x = drawEnd - _scrollOffset;
+            }
+
+            segOffset = segEnd;
+        }
+
+        // Render active _text portion
+        var activeStart = prefixWidth;
+        var activeEnd = prefixWidth + activeText.Length;
+        var activeDrawStart = Math.Max(activeStart, visStart);
+        var activeDrawEnd = Math.Min(activeEnd, visEnd);
+
+        if (activeDrawStart < activeDrawEnd)
+        {
+            inputContext.ResetColors();
+            if (Foreground.HasValue)
+                inputContext.SetForeground(Foreground.Value);
+            if (Background.HasValue)
+                inputContext.SetBackground(Background.Value);
+
+            // Handle selection within active text
+            if (HasSelection)
+            {
+                var selStart = Math.Min(_selectionStart, _cursorPosition) + prefixWidth;
+                var selEnd = Math.Max(_selectionStart, _cursorPosition) + prefixWidth;
+
+                for (var i = activeDrawStart; i < activeDrawEnd; i++)
                 {
-                    inputContext.WriteAt(0, 0, visibleText[..visSelStart]);
-                }
-                if (visSelEnd < visibleText.Length)
-                {
-                    inputContext.WriteAt(visSelEnd, 0, visibleText[visSelEnd..]);
+                    if (i >= selStart && i < selEnd)
+                    {
+                        inputContext.SetBackground(SelectionColor);
+                    }
+                    else
+                    {
+                        if (Background.HasValue)
+                            inputContext.SetBackground(Background.Value);
+                        else
+                            inputContext.ResetColors();
+                        if (Foreground.HasValue)
+                            inputContext.SetForeground(Foreground.Value);
+                    }
+
+                    inputContext.WriteAt(i - _scrollOffset, 0, fullDisplayText[i]);
                 }
             }
             else
             {
-                inputContext.WriteAt(0, 0, visibleText);
+                var text = activeText[(activeDrawStart - activeStart)..(activeDrawEnd - activeStart)];
+                inputContext.WriteAt(activeDrawStart - _scrollOffset, 0, text);
             }
-        }
-        else
-        {
-            inputContext.WriteAt(0, 0, visibleText);
         }
 
         inputContext.ResetColors();
@@ -888,7 +925,9 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
             {
                 inputContext.SetBackground(CursorColor);
                 inputContext.SetForeground(Background ?? Color.Black);
-                var cursorChar = cursorX < visibleText.Length ? visibleText[cursorX] : ' ';
+                var cursorChar = cursorX < fullDisplayText.Length - _scrollOffset
+                    ? fullDisplayText[cursorX + _scrollOffset]
+                    : ' ';
                 inputContext.WriteAt(cursorX, 0, cursorChar);
                 inputContext.ResetColors();
             }
@@ -932,4 +971,13 @@ public sealed class TextInputNode : LayoutNode, IAnimatedNode, IInvalidatingNode
 
         base.Dispose();
     }
+
+    private enum SegmentKind { Typed, Pasted }
+    private sealed record CommittedSegment(string DisplayText, string SubmitText, SegmentKind Kind);
+
+    private string CommittedDisplayPrefix =>
+        _committedSegments.Count == 0 ? "" : string.Concat(_committedSegments.Select(s => s.DisplayText));
+
+    private string SubmitContent =>
+        string.Concat(_committedSegments.Select(s => s.SubmitText)) + _text;
 }
