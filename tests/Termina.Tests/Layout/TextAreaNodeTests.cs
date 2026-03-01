@@ -592,7 +592,7 @@ public class TextAreaNodeTests : IDisposable
 
         TypeText(node, "only line");
         // Ctrl+Enter inserts newline — but at max lines, should be consumed without inserting
-        var handled = node.HandleInput(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, true));
+        var handled = node.HandleInput(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, control: true));
 
         Assert.True(handled);
         Assert.Equal("only line", node.Text);
@@ -706,7 +706,7 @@ public class TextAreaNodeTests : IDisposable
 
     private static void PressCtrlEnter(TextAreaNode node)
     {
-        node.HandleInput(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, true));
+        node.HandleInput(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, control: true));
     }
 
     /// <summary>Semantic alias: inserts a newline (Ctrl+Enter).</summary>

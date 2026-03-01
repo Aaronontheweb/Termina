@@ -93,8 +93,8 @@ public sealed class TextAreaNode : TextInputBaseNode
     /// <summary>
     /// Set the modifier key required for inserting a newline (default: Control).
     /// Bare Enter submits; modifier+Enter inserts a newline.
-    /// Use <see cref="ConsoleModifiers.Control"/> for Ctrl+Enter,
-    /// <see cref="ConsoleModifiers.Shift"/> for Shift+Enter, etc.
+    /// Use <see cref="ConsoleModifiers.Control"/> for Ctrl+Enter (default),
+    /// <see cref="ConsoleModifiers.Alt"/> for Alt+Enter, etc.
     /// </summary>
     public TextAreaNode WithNewlineModifier(ConsoleModifiers mod)
     {

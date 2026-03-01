@@ -10,7 +10,7 @@ A multi-line text input with word wrap, vertical scrolling, and newline insertio
 var textArea = new TextAreaNode()
     .WithPlaceholder("Enter your message...");
 
-// Submit with Ctrl+Enter
+// Enter submits, Ctrl+Enter inserts newlines
 textArea.Submitted.Subscribe(text => Console.WriteLine($"Submitted:\n{text}"));
 ```
 
@@ -100,7 +100,7 @@ new TextAreaNode()
     .WithMaxLines(10);
 ```
 
-When at the limit, Enter is consumed but no newline is inserted.
+When at the limit, Ctrl+Enter is consumed but no newline is inserted.
 
 ## Input History
 

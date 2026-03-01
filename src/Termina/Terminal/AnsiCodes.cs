@@ -222,6 +222,22 @@ public static class AnsiCodes
     /// </summary>
     public const string DisableBracketedPaste = $"{Csi}?2004l";
 
+    // Kitty keyboard protocol (progressive enhancement)
+
+    /// <summary>
+    /// Push kitty keyboard protocol flags onto the terminal's flag stack.
+    /// Format: CSI &gt; flags u
+    /// Flag 1 = "disambiguate escape codes" — makes Ctrl+Enter, Shift+Enter, etc.
+    /// send distinct CSI u sequences (e.g. <c>ESC[13;5u</c> for Ctrl+Enter).
+    /// </summary>
+    public const string EnableKittyKeyboard = $"{Csi}>1u";
+
+    /// <summary>
+    /// Pop the kitty keyboard protocol flag stack, restoring the terminal's
+    /// previous keyboard mode. Format: CSI &lt; u
+    /// </summary>
+    public const string DisableKittyKeyboard = $"{Csi}<u";
+
     /// <summary>
     /// Wraps an ANSI escape sequence in a tmux DCS passthrough, allowing it to reach the
     /// outer terminal when the application runs inside a tmux session.

@@ -229,6 +229,38 @@ public class EscapeSequenceParserTests
         Assert.Equal('x', ((KeyPressed)events[1]).KeyInfo.KeyChar);
     }
 
+    // --- Alt+Enter (ESC + Enter) ---
+
+    [Fact]
+    public void EscThenEnter_EmitsAltEnter()
+    {
+        var parser = new EscapeSequenceParser();
+        var events = new List<IInputEvent>();
+        events.AddRange(parser.Process(EscKey()));
+        events.AddRange(parser.Process(Key('\r', ConsoleKey.Enter)));
+
+        var kp = Assert.Single(events);
+        var pressed = Assert.IsType<KeyPressed>(kp);
+        Assert.Equal(ConsoleKey.Enter, pressed.KeyInfo.Key);
+        Assert.True(pressed.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Alt),
+            "ESC + Enter should be interpreted as Alt+Enter");
+        Assert.False(parser.IsBufferingEscape);
+    }
+
+    [Fact]
+    public void EscThenLinefeed_EmitsAltEnter()
+    {
+        var parser = new EscapeSequenceParser();
+        var events = new List<IInputEvent>();
+        events.AddRange(parser.Process(EscKey()));
+        events.AddRange(parser.Process(Key('\n', ConsoleKey.Enter)));
+
+        var kp = Assert.Single(events);
+        var pressed = Assert.IsType<KeyPressed>(kp);
+        Assert.Equal(ConsoleKey.Enter, pressed.KeyInfo.Key);
+        Assert.True(pressed.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Alt));
+    }
+
     // --- Bracketed paste ---
 
     [Fact]
