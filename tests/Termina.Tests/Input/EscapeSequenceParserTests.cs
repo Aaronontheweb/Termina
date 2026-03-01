@@ -229,6 +229,106 @@ public class EscapeSequenceParserTests
         Assert.Equal('x', ((KeyPressed)events[1]).KeyInfo.KeyChar);
     }
 
+    // --- CSI u (kitty keyboard protocol) ---
+
+    [Fact]
+    public void CsiU_CtrlEnter_EmitsKeyPressedWithCtrlModifier()
+    {
+        // ESC[13;5u = Enter (keycode 13) with Ctrl modifier (5 = 1 + 4)
+        var parser = new EscapeSequenceParser();
+        var events = new List<IInputEvent>();
+        events.AddRange(parser.Process(EscKey()));
+        foreach (var c in "[13;5u")
+            events.AddRange(parser.Process(Key(c)));
+
+        var kp = Assert.Single(events);
+        var pressed = Assert.IsType<KeyPressed>(kp);
+        Assert.Equal(ConsoleKey.Enter, pressed.KeyInfo.Key);
+        Assert.Equal('\r', pressed.KeyInfo.KeyChar);
+        Assert.True((pressed.KeyInfo.Modifiers & ConsoleModifiers.Control) != 0,
+            "CSI u sequence ESC[13;5u should produce Ctrl modifier");
+    }
+
+    [Fact]
+    public void CsiU_ShiftEnter_EmitsKeyPressedWithShiftModifier()
+    {
+        // ESC[13;2u = Enter (keycode 13) with Shift modifier (2 = 1 + 1)
+        var parser = new EscapeSequenceParser();
+        var events = new List<IInputEvent>();
+        events.AddRange(parser.Process(EscKey()));
+        foreach (var c in "[13;2u")
+            events.AddRange(parser.Process(Key(c)));
+
+        var kp = Assert.Single(events);
+        var pressed = Assert.IsType<KeyPressed>(kp);
+        Assert.Equal(ConsoleKey.Enter, pressed.KeyInfo.Key);
+        Assert.True((pressed.KeyInfo.Modifiers & ConsoleModifiers.Shift) != 0);
+    }
+
+    [Fact]
+    public void CsiU_CtrlShiftEnter_EmitsKeyPressedWithBothModifiers()
+    {
+        // ESC[13;6u = Enter with Ctrl+Shift (6 = 1 + 1 + 4)
+        var parser = new EscapeSequenceParser();
+        var events = new List<IInputEvent>();
+        events.AddRange(parser.Process(EscKey()));
+        foreach (var c in "[13;6u")
+            events.AddRange(parser.Process(Key(c)));
+
+        var kp = Assert.Single(events);
+        var pressed = Assert.IsType<KeyPressed>(kp);
+        Assert.Equal(ConsoleKey.Enter, pressed.KeyInfo.Key);
+        Assert.True((pressed.KeyInfo.Modifiers & ConsoleModifiers.Control) != 0);
+        Assert.True((pressed.KeyInfo.Modifiers & ConsoleModifiers.Shift) != 0);
+    }
+
+    [Fact]
+    public void CsiU_PlainEnter_EmitsUnmodifiedEnter()
+    {
+        // ESC[13u = Enter with no modifiers (modifier field absent = 1)
+        var parser = new EscapeSequenceParser();
+        var events = new List<IInputEvent>();
+        events.AddRange(parser.Process(EscKey()));
+        foreach (var c in "[13u")
+            events.AddRange(parser.Process(Key(c)));
+
+        var kp = Assert.Single(events);
+        var pressed = Assert.IsType<KeyPressed>(kp);
+        Assert.Equal(ConsoleKey.Enter, pressed.KeyInfo.Key);
+        Assert.Equal(default(ConsoleModifiers), pressed.KeyInfo.Modifiers);
+    }
+
+    [Fact]
+    public void CsiU_CtrlEnter_InsertsNewlineInTextAreaNode()
+    {
+        // End-to-end: CSI u Ctrl+Enter should insert a newline in a TextAreaNode
+        var parser = new EscapeSequenceParser();
+        using var node = new Termina.Layout.TextAreaNode();
+
+        // Type "hello"
+        foreach (var c in "hello")
+            node.HandleInput(new ConsoleKeyInfo(c, (ConsoleKey)0, false, false, false));
+
+        // Simulate Ctrl+Enter via CSI u sequence
+        var events = new List<IInputEvent>();
+        events.AddRange(parser.Process(EscKey()));
+        foreach (var c in "[13;5u")
+            events.AddRange(parser.Process(Key(c)));
+
+        // Feed the parsed event into the node
+        foreach (var evt in events)
+        {
+            if (evt is KeyPressed kp)
+                node.HandleInput(kp.KeyInfo);
+        }
+
+        // Type "world"
+        foreach (var c in "world")
+            node.HandleInput(new ConsoleKeyInfo(c, (ConsoleKey)0, false, false, false));
+
+        Assert.Equal("hello\nworld", node.Text);
+    }
+
     // --- Alt+Enter (ESC + Enter) ---
 
     [Fact]

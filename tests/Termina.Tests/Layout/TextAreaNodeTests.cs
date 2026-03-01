@@ -90,7 +90,7 @@ public class TextAreaNodeTests : IDisposable
 
     #endregion
 
-    #region Newline Insertion (Ctrl+Enter)
+    #region Newline Insertion (Ctrl+Enter and Alt+Enter)
 
     [Fact]
     public void CtrlEnter_InsertsNewline()
@@ -140,6 +140,104 @@ public class TextAreaNodeTests : IDisposable
         TypeText("c");
 
         Assert.Equal("a\nb\nc", _node.Text);
+    }
+
+    [Fact]
+    public void AltEnter_InsertsNewline()
+    {
+        TypeText("hello");
+        PressAltEnter();
+        TypeText("world");
+
+        Assert.Equal("hello\nworld", _node.Text);
+    }
+
+    [Fact]
+    public void AltEnter_DoesNotSubmit()
+    {
+        var submittedCount = 0;
+        _node.Submitted.Subscribe(_ => submittedCount++);
+
+        TypeText("hello");
+        PressAltEnter();
+
+        Assert.Equal(0, submittedCount);
+        Assert.Equal("hello\n", _node.Text);
+    }
+
+    [Fact]
+    public void AltEnter_ViaEscapeSequenceParser_InsertsNewline()
+    {
+        // End-to-end test: ESC + Enter through EscapeSequenceParser → TextAreaNode
+        // This simulates what actually happens on a real terminal.
+        var parser = new EscapeSequenceParser();
+        using var node = new TextAreaNode();
+
+        // Type "hello"
+        foreach (var c in "hello")
+            node.HandleInput(new ConsoleKeyInfo(c, (ConsoleKey)0, false, false, false));
+
+        // Simulate Alt+Enter via ESC prefix (how real terminals send it)
+        var events = new List<IInputEvent>();
+        events.AddRange(parser.Process(new ConsoleKeyInfo('\x1b', ConsoleKey.Escape, false, false, false)));
+        events.AddRange(parser.Process(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false)));
+
+        // Feed parsed events into the node
+        foreach (var evt in events)
+        {
+            if (evt is KeyPressed kp)
+                node.HandleInput(kp.KeyInfo);
+        }
+
+        // Type "world"
+        foreach (var c in "world")
+            node.HandleInput(new ConsoleKeyInfo(c, (ConsoleKey)0, false, false, false));
+
+        Assert.Equal("hello\nworld", node.Text);
+    }
+
+    [Fact]
+    public void CsiU_CtrlEnter_ViaEscapeSequenceParser_InsertsNewline()
+    {
+        // End-to-end test: CSI u Ctrl+Enter (ESC[13;5u) through parser → TextAreaNode
+        // This simulates kitty keyboard protocol on terminals that support it.
+        var parser = new EscapeSequenceParser();
+        using var node = new TextAreaNode();
+
+        // Type "hello"
+        foreach (var c in "hello")
+            node.HandleInput(new ConsoleKeyInfo(c, (ConsoleKey)0, false, false, false));
+
+        // Simulate CSI u Ctrl+Enter: ESC [ 1 3 ; 5 u
+        var events = new List<IInputEvent>();
+        events.AddRange(parser.Process(new ConsoleKeyInfo('\x1b', ConsoleKey.Escape, false, false, false)));
+        foreach (var c in "[13;5u")
+            events.AddRange(parser.Process(new ConsoleKeyInfo(c, ConsoleKey.None, false, false, false)));
+
+        // Feed parsed events into the node
+        foreach (var evt in events)
+        {
+            if (evt is KeyPressed kp)
+                node.HandleInput(kp.KeyInfo);
+        }
+
+        // Type "world"
+        foreach (var c in "world")
+            node.HandleInput(new ConsoleKeyInfo(c, (ConsoleKey)0, false, false, false));
+
+        Assert.Equal("hello\nworld", node.Text);
+    }
+
+    [Fact]
+    public void BareEnter_Submits_DoesNotInsertNewline()
+    {
+        string? submitted = null;
+        _node.Submitted.Subscribe(t => submitted = t);
+
+        TypeText("hello");
+        Submit(); // bare Enter
+
+        Assert.Equal("hello", submitted);
     }
 
     #endregion
@@ -707,6 +805,16 @@ public class TextAreaNodeTests : IDisposable
     private static void PressCtrlEnter(TextAreaNode node)
     {
         node.HandleInput(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, control: true));
+    }
+
+    /// <summary>
+    /// Alt+Enter — also inserts a newline (universal fallback for terminals without kitty protocol).
+    /// </summary>
+    private void PressAltEnter() => PressAltEnter(_node);
+
+    private static void PressAltEnter(TextAreaNode node)
+    {
+        node.HandleInput(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, alt: true, false));
     }
 
     /// <summary>Semantic alias: inserts a newline (Ctrl+Enter).</summary>

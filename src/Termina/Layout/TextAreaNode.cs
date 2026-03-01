@@ -8,7 +8,9 @@ namespace Termina.Layout;
 
 /// <summary>
 /// A multi-line text input node with word wrap and vertical scrolling.
-/// Enter submits; Ctrl+Enter (configurable) inserts a newline.
+/// Enter submits; Ctrl+Enter (configurable) or Alt+Enter inserts a newline.
+/// Alt+Enter is a universal fallback that works on all terminals including tmux,
+/// since terminals encode Alt as an ESC prefix.
 /// Paste behavior matches <see cref="TextInputNode"/>: multi-line pastes show
 /// a summary placeholder, and the full content is submitted on Enter.
 /// </summary>
@@ -128,8 +130,12 @@ public sealed class TextAreaNode : TextInputBaseNode
     /// <inheritdoc />
     protected override bool HandleEnter(ConsoleModifiers modifiers)
     {
-        // Modifier+Enter inserts a newline; bare Enter submits
-        if (modifiers.HasFlag(_newlineModifier))
+        // Modifier+Enter inserts a newline; bare Enter submits.
+        //   Primary:  the configured _newlineModifier (default Ctrl+Enter) —
+        //             requires kitty keyboard protocol support in the terminal.
+        //   Fallback: Alt+Enter always works because terminals universally
+        //             encode Alt as an ESC prefix, which EscapeSequenceParser detects.
+        if (modifiers.HasFlag(_newlineModifier) || modifiers.HasFlag(ConsoleModifiers.Alt))
         {
             return InsertNewline();
         }

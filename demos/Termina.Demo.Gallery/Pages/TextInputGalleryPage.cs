@@ -102,7 +102,7 @@ public class TextInputGalleryPage : ReactivePage<TextInputGalleryViewModel>
                                     .Height(1))
                             .WithChild(new TextNode("").Height(1))
                             .WithChild(
-                                new TextNode("  TextArea (multi-line, Ctrl+Enter = newline, Enter = submit):")
+                                new TextNode("  TextArea (multi-line, Ctrl+Enter or Alt+Enter = newline, Enter = submit):")
                                     .WithForeground(Color.BrightCyan)
                                     .Height(1))
                             .WithChild(
@@ -111,7 +111,7 @@ public class TextInputGalleryPage : ReactivePage<TextInputGalleryViewModel>
                                     .WithChild(_textArea)))
                     .Fill())
             .WithChild(
-                new TextNode("[Tab] Switch field  [Enter] Submit  [Ctrl+Enter] New line (TextArea)  [Esc] Menu")
+                new TextNode("[Tab] Switch field  [Enter] Submit  [Ctrl+Enter / Alt+Enter] New line  [Esc] Menu")
                     .WithForeground(Color.BrightBlack)
                     .Height(1))
             .WithChild(

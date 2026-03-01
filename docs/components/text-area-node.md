@@ -28,6 +28,7 @@ textArea.Submitted.Subscribe(text => Console.WriteLine($"Submitted:\n{text}"));
 |-----|--------|
 | `Enter` | Submit |
 | `Ctrl+Enter` | Insert newline (configurable modifier) |
+| `Alt+Enter` | Insert newline (universal fallback) |
 | `←/→` | Move cursor |
 | `Ctrl+←/→` | Move by word |
 | `Shift+←/→` | Select text |
@@ -44,7 +45,7 @@ textArea.Submitted.Subscribe(text => Console.WriteLine($"Submitted:\n{text}"));
 
 ## Multi-Line Input
 
-Enter submits (same as `TextInputNode`). Use Ctrl+Enter to insert newlines:
+Enter submits (same as `TextInputNode`). Use Ctrl+Enter (or Alt+Enter) to insert newlines:
 
 ```csharp
 var textArea = new TextAreaNode()
@@ -78,7 +79,9 @@ at startup, which causes modern terminals to send distinct [CSI u escape sequenc
 (e.g. `ESC[13;5u` for Ctrl+Enter). This is supported by kitty, WezTerm, Ghostty, Alacritty, foot, and others.
 
 Terminals that do not support the kitty protocol will silently ignore the enable sequence and
-Ctrl+Enter will behave the same as Enter (submit).
+Ctrl+Enter will behave the same as Enter (submit). **Alt+Enter always works** as a universal
+fallback because terminals encode the Alt modifier as an ESC prefix (`ESC` + `CR`), which is
+reliably detected even inside tmux.
 
 ## Word Wrap
 
@@ -159,7 +162,7 @@ new TextAreaNode()
 |--------|--------------|-------------|
 | **Lines** | Single-line | Multi-line |
 | **Enter** | Submit | Submit |
-| **Newline** | N/A | `Ctrl+Enter` (configurable) |
+| **Newline** | N/A | `Ctrl+Enter` or `Alt+Enter` (configurable) |
 | **Up/Down** | History only | Visual lines (history when empty) |
 | **Home/End** | Start/end of text | Start/end of visual line |
 | **Multi-line paste** | Summary placeholder | Summary placeholder |
