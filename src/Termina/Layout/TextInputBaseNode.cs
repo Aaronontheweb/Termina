@@ -713,8 +713,8 @@ public abstract class TextInputBaseNode : LayoutNode, IAnimatedNode, IInvalidati
         var content = SubmitContent;
         TerminaTrace.Input.Debug(this, "PerformSubmit: submitting text length={0} (segments={1})",
             content.Length, _committedSegments.Count);
-        _committedSegments.Clear();
 
+        // Record to history before clearing
         if (_history is not null && !string.IsNullOrWhiteSpace(content))
         {
             _history.Add(content);
@@ -725,7 +725,17 @@ public abstract class TextInputBaseNode : LayoutNode, IAnimatedNode, IInvalidati
         _historyIndex = -1;
         _savedInput = null;
 
+        // Clear the entire input — segments, typed text, cursor, selection.
+        // Without this, committed segments (paste summaries) would vanish while
+        // manually typed text stayed, which is inconsistent.
+        _committedSegments.Clear();
+        _text = "";
+        _cursorPosition = 0;
+        _selectionStart = -1;
+        OnTextBufferChanged();
+
         _submitted.OnNext(content);
+        _textChanged.OnNext(Text);
     }
 
     #endregion

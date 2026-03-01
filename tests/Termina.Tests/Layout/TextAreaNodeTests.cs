@@ -143,6 +143,27 @@ public class TextAreaNodeTests : IDisposable
     }
 
     [Fact]
+    public void DoubleNewline_ThenType_CursorStaysOnCorrectLine()
+    {
+        // Regression: inserting two consecutive newlines followed by typing should
+        // place all typed characters on the third line — the cursor must not jump up.
+        TypeText("hello");
+        InsertNewline();
+        InsertNewline();
+
+        // At this point text is "hello\n\n" with cursor on the 3rd visual line.
+        // Measure to trigger line computation.
+        _node.Measure(new Size(80, 10));
+
+        TypeText("world");
+        Assert.Equal("hello\n\nworld", _node.Text);
+
+        // Measure again — should be exactly 3 visual lines
+        var size = _node.Measure(new Size(80, 10));
+        Assert.Equal(3, size.Height);
+    }
+
+    [Fact]
     public void AltEnter_InsertsNewline()
     {
         TypeText("hello");
@@ -257,6 +278,26 @@ public class TextAreaNodeTests : IDisposable
         Submit();
 
         Assert.Equal("line1\nline2", submitted);
+    }
+
+    [Fact]
+    public void Enter_ClearsInputAfterSubmit()
+    {
+        TypeText("hello world");
+        Submit();
+
+        Assert.Equal("", _node.Text);
+    }
+
+    [Fact]
+    public void Enter_ClearsPasteAndTextAfterSubmit()
+    {
+        // Paste + type + submit should clear everything
+        _node.HandlePaste(new PasteEvent("pasted\ncontent"));
+        TypeText("typed");
+        Submit();
+
+        Assert.Equal("", _node.Text);
     }
 
     [Fact]
@@ -619,6 +660,29 @@ public class TextAreaNodeTests : IDisposable
         TypeText("line2");
         InsertNewline();
         TypeText("line3");
+
+        var size = _node.Measure(new Size(80, 10));
+        Assert.Equal(3, size.Height);
+    }
+
+    [Fact]
+    public void Measure_TrailingNewline_CorrectLineCount()
+    {
+        // "hello\n" should be 2 lines (text line + empty line after newline)
+        TypeText("hello");
+        InsertNewline();
+
+        var size = _node.Measure(new Size(80, 10));
+        Assert.Equal(2, size.Height);
+    }
+
+    [Fact]
+    public void Measure_TwoTrailingNewlines_CorrectLineCount()
+    {
+        // "hello\n\n" should be 3 lines, not 4
+        TypeText("hello");
+        InsertNewline();
+        InsertNewline();
 
         var size = _node.Measure(new Size(80, 10));
         Assert.Equal(3, size.Height);

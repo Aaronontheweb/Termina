@@ -143,6 +143,19 @@ public void AnimationChangesFrame()
 }
 ```
 
+## Git Workflow
+
+### NEVER Commit Directly to Protected Branches
+
+**Do NOT commit directly to `dev`, `main`, or `master`.** All changes must go through a feature branch and pull request — no exceptions, even for single-line fixes.
+
+1. **Before committing**, check which branch you're on with `git branch --show-current`
+2. If on `dev`, `main`, or `master`, **create a feature branch first**: `git checkout -b fix/descriptive-name` or `git checkout -b feature/descriptive-name`
+3. Commit on the feature branch, push, and open a PR to `dev`
+4. Never force-push to `dev`, `main`, or `master` unless explicitly correcting a prior mistake
+
+**This applies to ALL changes** — bug fixes, refactors, docs, tests, everything.
+
 ## Release Process
 
 ### Tag Naming Convention
