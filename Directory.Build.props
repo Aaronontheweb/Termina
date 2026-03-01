@@ -10,27 +10,29 @@
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <VersionPrefix>0.7.1</VersionPrefix>
-    <PackageReleaseNotes>**Bug Fixes**:
-- **DynamicLayoutNode is now invalidation-driven** ([#155](https://github.com/Aaronontheweb/Termina/issues/155))
-  - Factory no longer runs on every Measure/Render cycle — runs once, then only on `Invalidate()`
-  - Fixes silent state destruction (highlights, typed text, focus) when factory creates new instances
-  - `Invalidate()` now eagerly evaluates the factory for immediate child swap
-  - `OnActivate()` marks the node dirty so factory re-evaluates after navigation round-trip
+    <VersionPrefix>0.7.2</VersionPrefix>
+    <PackageReleaseNotes>**New Features**:
+- **TextAreaNode multi-line text input** ([#161](https://github.com/Aaronontheweb/Termina/issues/161), [#163](https://github.com/Aaronontheweb/Termina/pull/163))
+  - New `TextAreaNode` component for multi-line text input with line-by-line editing
+  - Extracted common base class `TextInputBaseNode` shared with single-line `TextInputNode`
+  - Alt+Enter for universal newline insertion (works on all terminals, unlike Ctrl+Enter)
+  - Kitty keyboard protocol support for Ctrl+Enter detection when available ([#165](https://github.com/Aaronontheweb/Termina/pull/165))
+  - Proper cursor positioning after multiple consecutive newlines
+  - Full input clearing on submit with committed segments model
 
-- **WizardNode sub-step focus propagation** ([#156](https://github.com/Aaronontheweb/Termina/issues/156))
-  - `PropagateFocusToContent()` now called on sub-step changes, not just step changes
-  - Fixes stale focus when navigating between sub-steps with different focusable content
+**Bug Fixes**:
+- **Improved TextInputNode paste behavior** ([#162](https://github.com/Aaronontheweb/Termina/pull/162))
+  - Enhanced multi-line paste handling with committed segments model
+  - Paste summaries display character count and line count for better UX
+  - Full pasted content preserved and submitted as single unit
 
-**New Features**:
-- **KeyedDynamicLayoutNode&lt;TKey&gt;** — pit-of-success API for key-based content switching
-  - `Layouts.KeyedDynamic&lt;TKey&gt;(keySelector, contentFactory)` factory method
-  - Caches content by key — navigating back reuses cached instances, preserving child state
-  - WizardNode now uses this internally (replaces manual step content cache)
+- **TextAreaNode hardening** ([#165](https://github.com/Aaronontheweb/Termina/pull/165))
+  - Fixed cursor jump after consecutive newlines in TextAreaNode
+  - Corrected input clearing on submit to clear entire buffer, not just committed segments
+  - Improved stability and consistency of multi-line input behavior
 
-**Upgrade Advisory**:
-- `DynamicLayoutNode` no longer evaluates its factory per-frame. If you relied on per-frame evaluation, add `Invalidate()` calls when state changes. The `AsDynamicLayout(trigger)` extension already calls `Invalidate()` on each trigger emission and works unchanged.
-- For content that switches based on a key (enum, step index, tab), prefer `Layouts.KeyedDynamic&lt;TKey&gt;()` over `Layouts.Dynamic()` for automatic caching and state preservation.</PackageReleaseNotes>
+**Dependencies**:
+- Bumped Akka.Hosting from 1.5.60 to 1.5.61 ([#160](https://github.com/Aaronontheweb/Termina/pull/160))</PackageReleaseNotes>
   </PropertyGroup>
   <PropertyGroup>
     <!-- Target framework versions -->
