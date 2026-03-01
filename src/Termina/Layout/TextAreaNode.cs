@@ -533,11 +533,11 @@ public sealed class TextAreaNode : TextInputBaseNode
             }
         }
 
-        // If text ends with \n, add an empty line
-        if (fullText.Length > 0 && fullText[^1] == '\n')
-        {
-            result.Add(new WrappedLine(fullText.Length, 0));
-        }
+        // NOTE: No separate trailing-newline check is needed here. When the text
+        // ends with '\n', the main loop's i == fullText.Length iteration already
+        // creates an empty WrappedLine for the content after the last newline.
+        // Adding another would create a duplicate, causing the cursor to appear
+        // one row too low and then "jump up" when the user starts typing.
 
         return result;
     }
