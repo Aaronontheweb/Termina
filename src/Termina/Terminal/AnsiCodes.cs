@@ -223,12 +223,18 @@ public static class AnsiCodes
     public const string DisableBracketedPaste = $"{Csi}?2004l";
 
     // Kitty keyboard protocol (progressive enhancement)
+    // Standard terminals cannot distinguish Ctrl+Enter from Enter (both send 0x0D).
+    // The kitty keyboard protocol solves this by sending structured CSI u escape sequences.
+    // Spec: https://sw.kovidgoyal.net/kitty/keyboard-protocol/
+    // Background: https://blog.fsck.com/releases/2026/02/26/terminal-keyboard-protocol/
+    // Supported by: kitty, WezTerm, Ghostty, Alacritty, foot, and others.
 
     /// <summary>
     /// Push kitty keyboard protocol flags onto the terminal's flag stack.
     /// Format: CSI &gt; flags u
     /// Flag 1 = "disambiguate escape codes" — makes Ctrl+Enter, Shift+Enter, etc.
     /// send distinct CSI u sequences (e.g. <c>ESC[13;5u</c> for Ctrl+Enter).
+    /// See <see href="https://sw.kovidgoyal.net/kitty/keyboard-protocol/"/> for the full specification.
     /// </summary>
     public const string EnableKittyKeyboard = $"{Csi}>1u";
 

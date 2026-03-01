@@ -70,6 +70,16 @@ new TextAreaNode()
     .WithNewlineModifier(ConsoleModifiers.Shift);
 ```
 
+### Terminal Compatibility
+
+Standard Linux terminals send the same byte (`0x0D`) for both Enter and Ctrl+Enter, making them
+indistinguishable. Termina enables the [kitty keyboard protocol](https://sw.kovidgoyal.net/kitty/keyboard-protocol/)
+at startup, which causes modern terminals to send distinct [CSI u escape sequences](https://blog.fsck.com/releases/2026/02/26/terminal-keyboard-protocol/)
+(e.g. `ESC[13;5u` for Ctrl+Enter). This is supported by kitty, WezTerm, Ghostty, Alacritty, foot, and others.
+
+Terminals that do not support the kitty protocol will silently ignore the enable sequence and
+Ctrl+Enter will behave the same as Enter (submit).
+
 ## Word Wrap
 
 Word wrap is enabled by default. Text wraps at word boundaries when it exceeds the available width:

@@ -386,6 +386,11 @@ public sealed class TerminaApplication
             // Use ?1000h (normal mode) + ?1006h (SGR encoding) - sufficient for scroll events
             // without the noisy button/drag events that ?1002h generates in tmux.
             Console.Write(AnsiCodes.EnableBracketedPaste);
+
+            // Enable kitty keyboard protocol (flag 1 = disambiguate escape codes) so that
+            // Ctrl+Enter, Shift+Enter, etc. produce distinct CSI u escape sequences.
+            // Without this, Ctrl+Enter is indistinguishable from bare Enter on Linux terminals.
+            // See: https://sw.kovidgoyal.net/kitty/keyboard-protocol/
             Console.Write(AnsiCodes.EnableKittyKeyboard);
 
             // When running inside tmux, the inner-pane ESC[?2004h above is intercepted by tmux
