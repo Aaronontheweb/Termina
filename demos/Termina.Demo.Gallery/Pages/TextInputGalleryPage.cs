@@ -11,14 +11,16 @@ using Termina.Terminal;
 namespace Termina.Demo.Gallery.Pages;
 
 /// <summary>
-/// Gallery page showcasing TextInputNode capabilities.
+/// Gallery page showcasing TextInputNode and TextAreaNode capabilities.
 /// </summary>
 public class TextInputGalleryPage : ReactivePage<TextInputGalleryViewModel>
 {
     private TextInputNode _basicInput = null!;
     private TextInputNode _placeholderInput = null!;
+    private TextAreaNode _textArea = null!;
 
     private int _focusedInputIndex;
+    private const int InputCount = 3;
 
     public override void OnNavigatedTo()
     {
@@ -36,15 +38,25 @@ public class TextInputGalleryPage : ReactivePage<TextInputGalleryViewModel>
             .Subscribe(text => ViewModel.OnPlaceholderInputSubmitted(text))
             .DisposeWith(Subscriptions);
 
+        _textArea.Submitted
+            .Subscribe(text => ViewModel.OnTextAreaSubmitted(text))
+            .DisposeWith(Subscriptions);
+
         _focusedInputIndex = 0;
         Focus.PushFocus(_basicInput);
     }
 
     private void CycleFocus()
     {
-        _focusedInputIndex = (_focusedInputIndex + 1) % 2;
-        var targetInput = _focusedInputIndex == 0 ? _basicInput : _placeholderInput;
-        Focus.SetFocus(targetInput);
+        _focusedInputIndex = (_focusedInputIndex + 1) % InputCount;
+        IFocusable target = _focusedInputIndex switch
+        {
+            0 => _basicInput,
+            1 => _placeholderInput,
+            2 => _textArea,
+            _ => _basicInput
+        };
+        Focus.SetFocus(target);
     }
 
     public override ILayoutNode BuildLayout()
@@ -54,10 +66,14 @@ public class TextInputGalleryPage : ReactivePage<TextInputGalleryViewModel>
         _placeholderInput = new TextInputNode()
             .WithPlaceholder("Type something here...");
 
+        _textArea = new TextAreaNode()
+            .WithPlaceholder("Enter multi-line text...")
+            .WithMaxHeight(6);
+
         return Layouts.Vertical()
             .WithChild(
                 new PanelNode()
-                    .WithTitle("TextInputNode Gallery")
+                    .WithTitle("Text Input Gallery")
                     .WithBorder(BorderStyle.Double)
                     .WithBorderColor(Color.Blue)
                     .WithContent(
@@ -66,7 +82,7 @@ public class TextInputGalleryPage : ReactivePage<TextInputGalleryViewModel>
                                 new TextNode("\n  Text input components for user data entry.\n")
                                     .WithForeground(Color.Gray))
                             .WithChild(
-                                new TextNode("  Basic Input:")
+                                new TextNode("  Basic Input (single-line):")
                                     .WithForeground(Color.BrightCyan)
                                     .Height(1))
                             .WithChild(
@@ -76,17 +92,26 @@ public class TextInputGalleryPage : ReactivePage<TextInputGalleryViewModel>
                                     .Height(1))
                             .WithChild(new TextNode("").Height(1))
                             .WithChild(
-                                new TextNode("  Input with Placeholder:")
+                                new TextNode("  Input with Placeholder (single-line):")
                                     .WithForeground(Color.BrightCyan)
                                     .Height(1))
                             .WithChild(
                                 Layouts.Horizontal()
                                     .WithChild(new TextNode("  ").Width(2))
                                     .WithChild(_placeholderInput.Fill())
-                                    .Height(1)))
+                                    .Height(1))
+                            .WithChild(new TextNode("").Height(1))
+                            .WithChild(
+                                new TextNode("  TextArea (multi-line, Ctrl+Enter or Alt+Enter = newline, Enter = submit):")
+                                    .WithForeground(Color.BrightCyan)
+                                    .Height(1))
+                            .WithChild(
+                                Layouts.Horizontal()
+                                    .WithChild(new TextNode("  ").Width(2))
+                                    .WithChild(_textArea)))
                     .Fill())
             .WithChild(
-                new TextNode("[Tab] Switch field  [Enter] Submit  [Esc] Menu")
+                new TextNode("[Tab] Switch field  [Enter] Submit  [Ctrl+Enter / Alt+Enter] New line  [Esc] Menu")
                     .WithForeground(Color.BrightBlack)
                     .Height(1))
             .WithChild(

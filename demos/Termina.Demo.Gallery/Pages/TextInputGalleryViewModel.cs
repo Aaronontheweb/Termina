@@ -23,6 +23,12 @@ public class TextInputGalleryViewModel : ReactiveViewModel
         StatusMessage.Value = $"Placeholder input submitted: \"{text}\"";
     }
 
+    public void OnTextAreaSubmitted(string text)
+    {
+        var lineCount = text.Split('\n').Length;
+        StatusMessage.Value = $"TextArea submitted: {lineCount} line(s), {text.Length} chars";
+    }
+
     public override void Dispose()
     {
         StatusMessage.Dispose();
