@@ -40,16 +40,19 @@ public class TextInputNodeTests : IDisposable
     }
 
     [Fact]
-    public void HandleInput_Enter_DoesNotClearText()
+    public void HandleInput_Enter_ClearsTextAfterSubmit()
     {
         // Type some text
         TypeText("test text");
 
-        // Press Enter
+        string? submitted = null;
+        _node.Submitted.Subscribe(t => submitted = t);
+
+        // Press Enter — submits and clears
         _node.HandleInput(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false));
 
-        // Text should NOT be cleared - ViewModel decides when to clear
-        Assert.Equal("test text", _node.Text);
+        Assert.Equal("test text", submitted);
+        Assert.Equal("", _node.Text);
     }
 
     [Fact]
