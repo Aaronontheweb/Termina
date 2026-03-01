@@ -281,6 +281,26 @@ public class TextAreaNodeTests : IDisposable
     }
 
     [Fact]
+    public void Enter_ClearsInputAfterSubmit()
+    {
+        TypeText("hello world");
+        Submit();
+
+        Assert.Equal("", _node.Text);
+    }
+
+    [Fact]
+    public void Enter_ClearsPasteAndTextAfterSubmit()
+    {
+        // Paste + type + submit should clear everything
+        _node.HandlePaste(new PasteEvent("pasted\ncontent"));
+        TypeText("typed");
+        Submit();
+
+        Assert.Equal("", _node.Text);
+    }
+
+    [Fact]
     public void Enter_SubmitsFullMultiLineContent()
     {
         string? submitted = null;
