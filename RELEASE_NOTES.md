@@ -1,3 +1,30 @@
+#### 0.7.2 March 1st 2026 ####
+
+**New Features**:
+- **TextAreaNode multi-line text input** ([#161](https://github.com/Aaronontheweb/Termina/issues/161), [#163](https://github.com/Aaronontheweb/Termina/pull/163))
+  - New `TextAreaNode` component for multi-line text input with line-by-line editing
+  - Extracted common base class `TextInputBaseNode` shared with single-line `TextInputNode`
+  - Alt+Enter for universal newline insertion (works on all terminals, unlike Ctrl+Enter)
+  - Kitty keyboard protocol support for Ctrl+Enter detection when available ([#165](https://github.com/Aaronontheweb/Termina/pull/165))
+  - Proper cursor positioning after multiple consecutive newlines
+  - Full input clearing on submit with committed segments model
+
+**Bug Fixes**:
+- **Improved TextInputNode paste behavior** ([#162](https://github.com/Aaronontheweb/Termina/pull/162))
+  - Enhanced multi-line paste handling with committed segments model
+  - Paste summaries display character count and line count for better UX
+  - Full pasted content preserved and submitted as single unit
+
+- **TextAreaNode hardening** ([#165](https://github.com/Aaronontheweb/Termina/pull/165))
+  - Fixed cursor jump after consecutive newlines in TextAreaNode
+  - Corrected input clearing on submit to clear entire buffer, not just committed segments
+  - Improved stability and consistency of multi-line input behavior
+
+**Dependencies**:
+- Bumped Akka.Hosting from 1.5.60 to 1.5.61 ([#160](https://github.com/Aaronontheweb/Termina/pull/160))
+
+---
+
 #### 0.7.1 February 26th 2026 ####
 
 **Bug Fixes**:
