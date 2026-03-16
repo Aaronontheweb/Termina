@@ -402,6 +402,12 @@ public sealed class DiffingTerminal : IAnsiTerminal, IDisposable
     }
 
     /// <inheritdoc />
+    public void CopyToClipboard(string text)
+    {
+        _inner.CopyToClipboard(text);
+    }
+
+    /// <inheritdoc />
     public void Dispose()
     {
         if (_inner is IDisposable disposable)

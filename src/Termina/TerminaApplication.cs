@@ -9,6 +9,7 @@ using Termina.Hosting;
 using Termina.Input;
 using Termina.Layout;
 using Termina.Navigation;
+using Termina.Notifications;
 using Termina.Pages;
 using Termina.Platform;
 using Termina.Reactive;
@@ -49,6 +50,9 @@ public sealed class TerminaApplication
     private readonly Stack<(string Path, IReadOnlyDictionary<string, object>? Parameters)> _history = new();
     private readonly List<IInputSource> _inputSources = new();
     private readonly FocusManager _focusManager = new();
+    private readonly IToastService? _toastService;
+    private readonly ToastOverlayNode? _toastOverlay;
+    private readonly IDisposable? _toastInvalidationSubscription;
 
     private string? _currentPath;
     private IReadOnlyDictionary<string, object>? _currentParameters;
@@ -90,6 +94,9 @@ public sealed class TerminaApplication
 
         _serviceProvider = serviceProvider;
         _eventChannel = Channel.CreateUnbounded<object>();
+        _toastService = serviceProvider?.GetService<IToastService>();
+        _toastOverlay = _toastService != null ? new ToastOverlayNode(_toastService) : null;
+        _toastInvalidationSubscription = _toastOverlay?.Invalidated.Subscribe(_ => RequestRedraw());
 
         // If using DI, check for registered input sources
         if (serviceProvider != null)
@@ -504,11 +511,17 @@ public sealed class TerminaApplication
             case PasteEvent pasteEvent:
                 if (_focusManager.CurrentFocus is IPasteReceiver focused)
                 {
-                    focused.HandlePaste(pasteEvent);
+                    if (focused.HandlePaste(pasteEvent))
+                    {
+                        ShowPasteToast(pasteEvent.Content);
+                    }
                 }
                 else if (FindPasteReceiver(GetCurrentLayoutRoot()) is { } fallback)
                 {
-                    fallback.HandlePaste(pasteEvent);
+                    if (fallback.HandlePaste(pasteEvent))
+                    {
+                        ShowPasteToast(pasteEvent.Content);
+                    }
                 }
                 else
                 {
@@ -595,6 +608,10 @@ public sealed class TerminaApplication
     private void RenderCurrentPage()
     {
         var layoutRoot = GetCurrentLayoutRoot() ?? new TextNode("No page active");
+        if (_toastOverlay != null)
+        {
+            layoutRoot = new StackLayout([layoutRoot, new DeferredNode(() => _toastOverlay)]);
+        }
 
         // Clear the pending buffer (DiffingTerminal) or screen (other terminals)
         _terminal.ClearScreen();
@@ -631,6 +648,19 @@ public sealed class TerminaApplication
 
         // Fall back to building the layout fresh
         return _currentPage.BuildLayout();
+    }
+
+    private void ShowPasteToast(string content)
+    {
+        if (_toastService is null)
+            return;
+
+        var lineCount = content.Count(c => c == '\n') + 1;
+        var message = lineCount > 1
+            ? $"Pasted {lineCount} lines"
+            : $"Pasted {content.Length} characters";
+
+        _toastService.Show(message);
     }
 
     /// <summary>
@@ -670,6 +700,9 @@ public sealed class TerminaApplication
             if (source is IDisposable disposable)
                 disposable.Dispose();
         }
+
+        _toastInvalidationSubscription?.Dispose();
+        _toastOverlay?.Dispose();
     }
 }
 

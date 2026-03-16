@@ -233,6 +233,18 @@ public sealed class AnsiTerminal : IAnsiTerminal, IDisposable
         }
     }
 
+    /// <inheritdoc />
+    public void CopyToClipboard(string text)
+    {
+        var sequence = AnsiCodes.Osc52Clipboard(text);
+        if (Environment.GetEnvironmentVariable("TMUX") is not null)
+        {
+            sequence = AnsiCodes.TmuxPassthrough(sequence);
+        }
+
+        _buffer.Append(sequence);
+    }
+
     /// <summary>
     /// Dispose the terminal, restoring original state.
     /// </summary>

@@ -228,6 +228,12 @@ public sealed class VirtualTerminal : IAnsiTerminal
         MouseEnabled = false;
     }
 
+    /// <inheritdoc />
+    public void CopyToClipboard(string text)
+    {
+        _rawOutput.Add(AnsiCodes.Osc52Clipboard(text));
+    }
+
     /// <summary>
     /// Clear the entire buffer.
     /// </summary>

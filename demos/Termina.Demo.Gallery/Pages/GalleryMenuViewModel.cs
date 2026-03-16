@@ -14,6 +14,7 @@ public partial class GalleryMenuViewModel : ReactiveViewModel
     {
         new("Selection Lists", "Single/multi-select, numbered, Other option, rich content", "/selection"),
         new("Text Input", "Text fields, placeholder text, submission handling", "/textinput"),
+        new("Clipboard", "OSC 52 copy, toasts, and paste validation", "/clipboard"),
         new("Layouts", "Vertical, horizontal, grid, panels, borders", "/layouts"),
         new("Animations", "Spinners, streaming text, progress indicators", "/animations")
     };

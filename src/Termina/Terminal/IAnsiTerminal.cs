@@ -98,4 +98,9 @@ public interface IAnsiTerminal
     /// Disable mouse tracking.
     /// </summary>
     void DisableMouse();
+
+    /// <summary>
+    /// Request that the terminal copy text to the user's clipboard.
+    /// </summary>
+    void CopyToClipboard(string text);
 }

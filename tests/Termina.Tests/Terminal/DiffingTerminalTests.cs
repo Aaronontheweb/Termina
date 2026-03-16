@@ -324,6 +324,26 @@ public class DiffingTerminalTests
     }
 
     [Fact]
+    public void CopyToClipboard_PassesThroughWithoutChangingFrame()
+    {
+        var inner = new VirtualTerminal(80, 24);
+        var diffing = new DiffingTerminal(inner);
+
+        diffing.MoveTo(0, 0);
+        diffing.Write("Hello");
+        diffing.Flush();
+
+        var screenBeforeCopy = inner.ToString();
+        var rawCountBeforeCopy = inner.RawOutput.Count;
+
+        diffing.CopyToClipboard("https://example.com/oauth");
+
+        Assert.Equal(screenBeforeCopy, inner.ToString());
+        Assert.Equal(rawCountBeforeCopy + 1, inner.RawOutput.Count);
+        Assert.Contains("]52;c;", inner.RawOutput[^1]);
+    }
+
+    [Fact]
     public void Write_HandlesNewlines()
     {
         var inner = new VirtualTerminal(80, 24);

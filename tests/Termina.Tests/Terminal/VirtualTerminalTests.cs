@@ -418,6 +418,17 @@ public class VirtualTerminalTests
     }
 
     [Fact]
+    public void CopyToClipboard_CapturesOsc52SequenceInRawOutput()
+    {
+        var terminal = new VirtualTerminal();
+
+        terminal.CopyToClipboard("Hello");
+
+        Assert.Single(terminal.RawOutput);
+        Assert.Equal("\x1b]52;c;SGVsbG8=\x07", terminal.RawOutput[0]);
+    }
+
+    [Fact]
     public void Flush_IsNoOp()
     {
         var terminal = new VirtualTerminal();

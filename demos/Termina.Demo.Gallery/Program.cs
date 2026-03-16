@@ -23,6 +23,7 @@ builder.Services.AddTermina("/menu", termina =>
     termina.RegisterRoute<GalleryMenuPage, GalleryMenuViewModel>("/menu", NavigationBehavior.PreserveState);
     termina.RegisterRoute<SelectionListGalleryPage, SelectionListGalleryViewModel>("/selection", NavigationBehavior.PreserveState);
     termina.RegisterRoute<TextInputGalleryPage, TextInputGalleryViewModel>("/textinput", NavigationBehavior.PreserveState);
+    termina.RegisterRoute<ClipboardGalleryPage, ClipboardGalleryViewModel>("/clipboard", NavigationBehavior.PreserveState);
     termina.RegisterRoute<LayoutGalleryPage, LayoutGalleryViewModel>("/layouts", NavigationBehavior.PreserveState);
     termina.RegisterRoute<AnimationsGalleryPage, AnimationsGalleryViewModel>("/animations", NavigationBehavior.PreserveState);
 });
