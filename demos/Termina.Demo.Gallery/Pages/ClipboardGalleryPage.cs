@@ -47,13 +47,13 @@ public sealed class ClipboardGalleryPage : ReactivePage<ClipboardGalleryViewMode
                 _clipboardService,
                 "https://auth.openai.com/oauth/authorize?client_id=demo-client&redirect_uri=http://localhost:5199/callback&scope=api.model.read%20model.request")
             .WithForeground(Color.White)
-            .WithHint("Press Enter to copy this URL");
+            .WithHint("Use Shift+Arrows to select, Enter or Ctrl+C to copy");
 
         _accessToken = new CopyableTextNode(
                 _clipboardService,
                 "sk-demo-4a0f8ea7f0b34d1e9a6cde8f4ab0f1c2")
             .WithForeground(Color.White)
-            .WithHint("Press Enter to copy this token");
+            .WithHint("Use Ctrl+A to select all, Enter or Ctrl+C to copy");
 
         _pasteInput = new TextInputNode()
             .WithPlaceholder("Paste text here with Ctrl+Shift+V or your terminal paste shortcut...");
@@ -79,10 +79,12 @@ public sealed class ClipboardGalleryPage : ReactivePage<ClipboardGalleryViewMode
                             .WithChild(Layouts.Horizontal().WithChild(new TextNode("  ").Width(2)).WithChild(_accessToken))
                             .WithChild(new EmptyNode().Height(1))
                             .WithChild(new TextNode("  Paste Validation Input").WithForeground(Color.BrightCyan).Height(1))
-                            .WithChild(Layouts.Horizontal().WithChild(new TextNode("  ").Width(2)).WithChild(_pasteInput).Height(1)))
+                            .WithChild(Layouts.Horizontal().WithChild(new TextNode("  ").Width(2)).WithChild(_pasteInput).Height(1))
+                            .WithChild(new EmptyNode().Height(1))
+                            .WithChild(new TextNode($"  Trace Log: {ViewModel.TraceFilePath}").WithForeground(Color.BrightBlack)))
                     .Fill())
             .WithChild(
-                new TextNode("[Tab/Shift+Tab] Switch focus  [Enter] Copy focused value  [Ctrl+Shift+V] Paste  [Esc] Menu")
+                new TextNode("[Tab/Shift+Tab] Focus  [Shift+Arrows] Select  [Ctrl+A] All  [Enter/Ctrl+C] Copy  [Ctrl+Shift+V] Paste  [Esc] Menu")
                     .WithForeground(Color.BrightBlack)
                     .NoWrap()
                     .Height(1))

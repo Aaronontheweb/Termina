@@ -236,13 +236,25 @@ public sealed class AnsiTerminal : IAnsiTerminal, IDisposable
     /// <inheritdoc />
     public void CopyToClipboard(string text)
     {
-        var sequence = AnsiCodes.Osc52Clipboard(text);
+        var belSequence = AnsiCodes.Osc52Clipboard(text);
+        var stSequence = AnsiCodes.Osc52Clipboard(text, useStringTerminator: true);
+        TerminaTrace.Platform.Info(this, "AnsiTerminal.CopyToClipboard: textLength={0}, tmux={1}", text.Length, Environment.GetEnvironmentVariable("TMUX") is not null);
+        TerminaTrace.Platform.Debug(this, "OSC52 lengths: bel={0}, st={1}", belSequence.Length, stSequence.Length);
         if (Environment.GetEnvironmentVariable("TMUX") is not null)
         {
-            sequence = AnsiCodes.TmuxPassthrough(sequence);
+            // Emit both OSC terminators and both tmux delivery modes to maximize
+            // compatibility across tmux versions and terminal emulators.
+            _buffer.Append(belSequence);
+            _buffer.Append(stSequence);
+            _buffer.Append(AnsiCodes.TmuxPassthrough(belSequence));
+            _buffer.Append(AnsiCodes.TmuxPassthrough(stSequence));
+            TerminaTrace.Platform.Debug(this, "Queued OSC52 BEL/ST plain + tmux passthrough sequences");
+            return;
         }
 
-        _buffer.Append(sequence);
+        _buffer.Append(belSequence);
+        _buffer.Append(stSequence);
+        TerminaTrace.Platform.Debug(this, "Queued OSC52 BEL/ST plain sequences");
     }
 
     /// <summary>

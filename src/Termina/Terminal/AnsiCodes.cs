@@ -277,8 +277,19 @@ public static class AnsiCodes
     /// </summary>
     public static string Osc52Clipboard(string text)
     {
+        return Osc52Clipboard(text, useStringTerminator: false);
+    }
+
+    /// <summary>
+    /// Build an OSC 52 clipboard write sequence for the provided text.
+    /// Format: ESC ] 52 ; c ; {base64(utf8 text)} (BEL or ST)
+    /// </summary>
+    public static string Osc52Clipboard(string text, bool useStringTerminator)
+    {
         var base64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(text));
-        return $"\x1b]52;c;{base64}\x07";
+        return useStringTerminator
+            ? $"\x1b]52;c;{base64}\x1b\\"
+            : $"\x1b]52;c;{base64}\x07";
     }
 
     // Mouse tracking

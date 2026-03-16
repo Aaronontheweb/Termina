@@ -11,7 +11,16 @@ namespace Termina.Demo.Gallery.Pages;
 /// </summary>
 public sealed class ClipboardGalleryViewModel : ReactiveViewModel
 {
+    private readonly TraceFileInfo _traceFileInfo;
+
+    public ClipboardGalleryViewModel(TraceFileInfo traceFileInfo)
+    {
+        _traceFileInfo = traceFileInfo;
+    }
+
     public ReactiveProperty<string> StatusMessage { get; } = new("Try copying one of the values or paste into the input field.");
+
+    public string TraceFilePath => _traceFileInfo.FilePath;
 
     public void SetStatus(string status)
     {

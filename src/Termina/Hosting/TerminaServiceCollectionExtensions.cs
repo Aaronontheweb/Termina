@@ -55,6 +55,8 @@ public static class TerminaServiceCollectionExtensions
         // Register IAnsiTerminal if not already registered
         services.TryAddSingleton<IAnsiTerminal, AnsiTerminal>();
         services.TryAddSingleton<IToastService, ToastService>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IClipboardTransport, Osc52ClipboardTransport>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IClipboardTransport, TmuxClipboardTransport>());
         services.TryAddSingleton<IClipboardService, TerminalClipboardService>();
 
         // Register TerminaApplication

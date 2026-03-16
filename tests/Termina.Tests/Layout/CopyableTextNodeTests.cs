@@ -36,6 +36,49 @@ public class CopyableTextNodeTests
     }
 
     [Fact]
+    public void ShiftArrow_SelectsText_AndEnterCopiesSelection()
+    {
+        var clipboard = new TestClipboardService();
+        var node = new CopyableTextNode(clipboard, "abcd");
+
+        node.OnFocused();
+        node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, true, false, false));
+        node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, true, false, false));
+        node.HandleInput(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false));
+
+        Assert.Equal("ab", clipboard.LastCopiedText);
+    }
+
+    [Fact]
+    public void CtrlA_SelectsAll_AndCtrlCCopiesSelection()
+    {
+        var clipboard = new TestClipboardService();
+        var node = new CopyableTextNode(clipboard, "select all");
+
+        node.OnFocused();
+        node.HandleInput(new ConsoleKeyInfo('a', ConsoleKey.A, false, false, true));
+        node.HandleInput(new ConsoleKeyInfo('\u0003', ConsoleKey.C, false, false, true));
+
+        Assert.Equal("select all", clipboard.LastCopiedText);
+    }
+
+    [Fact]
+    public void Escape_ClearsSelection()
+    {
+        var clipboard = new TestClipboardService();
+        var node = new CopyableTextNode(clipboard, "abcd");
+
+        node.OnFocused();
+        node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, true, false, false));
+        node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, true, false, false));
+
+        var handled = node.HandleInput(new ConsoleKeyInfo('\u001b', ConsoleKey.Escape, false, false, false));
+
+        Assert.True(handled);
+        Assert.False(node.HasSelection);
+    }
+
+    [Fact]
     public void FocusChanges_RaiseInvalidation()
     {
         var clipboard = new TestClipboardService();
@@ -62,6 +105,24 @@ public class CopyableTextNodeTests
 
         Assert.Contains("copy me", terminal.ToString());
         Assert.Contains("Press Enter to copy", terminal.ToString());
+    }
+
+    [Fact]
+    public void Render_WithSelection_HighlightsSelectedCharacters()
+    {
+        var clipboard = new TestClipboardService();
+        var node = new CopyableTextNode(clipboard, "abcd");
+        var terminal = new VirtualTerminal(10, 3);
+        var context = new RegionRenderContext(terminal, 0, 0, 10, 3);
+
+        node.OnFocused();
+        node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, true, false, false));
+        node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, true, false, false));
+        node.Render(context, new Rect(0, 0, 10, 3));
+
+        Assert.Equal(Color.BrightYellow, terminal.GetBackground(0, 0));
+        Assert.Equal(Color.BrightYellow, terminal.GetBackground(1, 0));
+        Assert.NotEqual(Color.BrightYellow, terminal.GetBackground(2, 0));
     }
 
     private sealed class TestClipboardService : IClipboardService

@@ -336,6 +336,12 @@ public class AnsiCodesTests
     }
 
     [Fact]
+    public void Osc52Clipboard_WithStringTerminator_EncodesUtf8Text()
+    {
+        Assert.Equal("\x1b]52;c;SGVsbG8=\x1b\\", AnsiCodes.Osc52Clipboard("Hello", useStringTerminator: true));
+    }
+
+    [Fact]
     public void TmuxPassthrough_WrapsOsc52Sequence()
     {
         var wrapped = AnsiCodes.TmuxPassthrough(AnsiCodes.Osc52Clipboard("Hello"));
