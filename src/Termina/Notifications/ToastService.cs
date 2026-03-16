@@ -16,16 +16,17 @@ public sealed class ToastService : IToastService, IDisposable
 
     public Observable<ToastMessage?> CurrentToast => _currentToast;
 
-    public void Show(string message, TimeSpan? duration = null)
+    public void Show(string message, ToastOptions? options = null)
     {
         if (_disposed)
             return;
 
-        _currentToast.Value = new ToastMessage(message);
+        var resolvedOptions = options ?? new ToastOptions();
+        _currentToast.Value = new ToastMessage(message, resolvedOptions.Position);
 
         _dismissSubscription?.Dispose();
         _dismissSubscription = Observable
-            .Interval(duration ?? TimeSpan.FromSeconds(2), _timeProvider)
+            .Interval(resolvedOptions.Duration ?? TimeSpan.FromSeconds(2), _timeProvider)
             .Take(1)
             .Subscribe(_ => _currentToast.Value = null);
     }

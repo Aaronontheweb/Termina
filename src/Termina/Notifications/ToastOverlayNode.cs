@@ -41,8 +41,7 @@ internal sealed class ToastOverlayNode : LayoutNode, IInvalidatingNode
         if (width <= 0 || bounds.Height < height)
             return;
 
-        var x = Math.Max(0, bounds.Width - width - 1);
-        var y = Math.Max(0, bounds.Height - height - 1);
+        var (x, y) = CalculatePosition(bounds, width, height, _currentToast.Position);
         var panelBounds = new Rect(x, y, width, height);
         var panelContext = context.CreateSubContext(panelBounds);
 
@@ -63,6 +62,24 @@ internal sealed class ToastOverlayNode : LayoutNode, IInvalidatingNode
         panelContext.WriteAt(1, 2, new string('─', Math.Max(0, width - 2)));
         panelContext.WriteAt(width - 1, 2, '╯');
         panelContext.ResetColors();
+    }
+
+    private static (int X, int Y) CalculatePosition(Rect bounds, int width, int height, ToastPosition position)
+    {
+        var x = position switch
+        {
+            ToastPosition.BottomLeft or ToastPosition.TopLeft => 1,
+            ToastPosition.BottomCenter or ToastPosition.TopCenter => Math.Max(0, (bounds.Width - width) / 2),
+            _ => Math.Max(0, bounds.Width - width - 1)
+        };
+
+        var y = position switch
+        {
+            ToastPosition.TopLeft or ToastPosition.TopCenter or ToastPosition.TopRight => 1,
+            _ => Math.Max(0, bounds.Height - height - 1)
+        };
+
+        return (x, y);
     }
 
     public override void Dispose()

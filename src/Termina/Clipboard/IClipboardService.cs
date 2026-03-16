@@ -8,5 +8,6 @@ public interface IClipboardService
     /// <summary>
     /// Copy the provided text to the clipboard.
     /// </summary>
-    void Copy(string text);
+    /// <returns>True when at least one transport reported success.</returns>
+    bool Copy(string text);
 }

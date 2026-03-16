@@ -15,5 +15,5 @@ public interface IToastService
     /// <summary>
     /// Show a toast for the configured duration.
     /// </summary>
-    void Show(string message, TimeSpan? duration = null);
+    void Show(string message, ToastOptions? options = null);
 }

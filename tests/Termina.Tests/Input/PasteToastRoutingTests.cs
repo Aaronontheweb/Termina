@@ -45,10 +45,10 @@ public class PasteToastRoutingTests
 
         public Observable<ToastMessage?> CurrentToast => _current;
 
-        public void Show(string message, TimeSpan? duration = null)
+        public void Show(string message, ToastOptions? options = null)
         {
             LastMessage = message;
-            _current.OnNext(new ToastMessage(message));
+            _current.OnNext(new ToastMessage(message, options?.Position ?? ToastPosition.BottomRight));
         }
     }
 

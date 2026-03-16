@@ -1,20 +1,17 @@
 using Termina.Diagnostics;
-using Termina.Notifications;
 
 namespace Termina.Clipboard;
 
 internal sealed class TerminalClipboardService : IClipboardService
 {
     private readonly IReadOnlyList<IClipboardTransport> _transports;
-    private readonly IToastService _toastService;
 
-    public TerminalClipboardService(IEnumerable<IClipboardTransport> transports, IToastService toastService)
+    public TerminalClipboardService(IEnumerable<IClipboardTransport> transports)
     {
         _transports = transports.ToList();
-        _toastService = toastService;
     }
 
-    public void Copy(string text)
+    public bool Copy(string text)
     {
         TerminaTrace.Platform.Info(this, "Clipboard copy requested: textLength={0}", text.Length);
 
@@ -41,6 +38,6 @@ internal sealed class TerminalClipboardService : IClipboardService
             TerminaTrace.Platform.Info(this, "Clipboard transports completed: success={0}", successful);
         }
 
-        _toastService.Show("Copied to clipboard");
+        return successful;
     }
 }

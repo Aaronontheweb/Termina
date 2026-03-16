@@ -14,14 +14,13 @@ public class TerminalClipboardServiceTests
     {
         var first = new TestTransport("first", canHandle: true, result: true);
         var second = new TestTransport("second", canHandle: true, result: true);
-        var toast = new TestToastService();
-        var service = new TerminalClipboardService([first, second], toast);
+        var service = new TerminalClipboardService([first, second]);
 
-        service.Copy("hello");
+        var copied = service.Copy("hello");
 
+        Assert.True(copied);
         Assert.Equal(["hello"], first.CopiedTexts);
         Assert.Equal(["hello"], second.CopiedTexts);
-        Assert.Equal("Copied to clipboard", toast.LastMessage);
     }
 
     [Fact]
@@ -29,12 +28,24 @@ public class TerminalClipboardServiceTests
     {
         var skipped = new TestTransport("skip", canHandle: false, result: true);
         var used = new TestTransport("use", canHandle: true, result: true);
-        var service = new TerminalClipboardService([skipped, used], new TestToastService());
+        var service = new TerminalClipboardService([skipped, used]);
 
-        service.Copy("hello");
+        var copied = service.Copy("hello");
 
+        Assert.True(copied);
         Assert.Empty(skipped.CopiedTexts);
         Assert.Equal(["hello"], used.CopiedTexts);
+    }
+
+    [Fact]
+    public void Copy_ReturnsFalse_WhenNoTransportSucceeds()
+    {
+        var transport = new TestTransport("fail", canHandle: true, result: false);
+        var service = new TerminalClipboardService([transport]);
+
+        var copied = service.Copy("hello");
+
+        Assert.False(copied);
     }
 
     private sealed class TestTransport : IClipboardTransport
@@ -59,21 +70,6 @@ public class TerminalClipboardServiceTests
         {
             CopiedTexts.Add(text);
             return _result;
-        }
-    }
-
-    private sealed class TestToastService : IToastService
-    {
-        private readonly Subject<ToastMessage?> _subject = new();
-
-        public string? LastMessage { get; private set; }
-
-        public Observable<ToastMessage?> CurrentToast => _subject;
-
-        public void Show(string message, TimeSpan? duration = null)
-        {
-            LastMessage = message;
-            _subject.OnNext(new ToastMessage(message));
         }
     }
 }

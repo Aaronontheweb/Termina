@@ -23,6 +23,19 @@ public class ToastServiceTests
     }
 
     [Fact]
+    public void Show_AppliesConfiguredPosition()
+    {
+        var timeProvider = new FakeTimeProvider();
+        using var service = new ToastService(timeProvider);
+        ToastMessage? current = null;
+        using var subscription = service.CurrentToast.Subscribe(toast => current = toast);
+
+        service.Show("Copied to clipboard", new ToastOptions(Position: ToastPosition.TopLeft));
+
+        Assert.Equal(ToastPosition.TopLeft, current?.Position);
+    }
+
+    [Fact]
     public void Show_ClearsToastAfterDuration()
     {
         var timeProvider = new FakeTimeProvider();
@@ -30,7 +43,7 @@ public class ToastServiceTests
         ToastMessage? current = null;
         using var subscription = service.CurrentToast.Subscribe(toast => current = toast);
 
-        service.Show("Copied to clipboard", TimeSpan.FromSeconds(2));
+        service.Show("Copied to clipboard", new ToastOptions(Duration: TimeSpan.FromSeconds(2)));
         timeProvider.Advance(TimeSpan.FromSeconds(2));
 
         Assert.Null(current);

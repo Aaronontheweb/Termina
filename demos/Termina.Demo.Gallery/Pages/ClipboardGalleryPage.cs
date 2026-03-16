@@ -5,6 +5,7 @@ using R3;
 using Termina.Clipboard;
 using Termina.Extensions;
 using Termina.Layout;
+using Termina.Notifications;
 using Termina.Reactive;
 using Termina.Rendering;
 using Termina.Terminal;
@@ -17,13 +18,15 @@ namespace Termina.Demo.Gallery.Pages;
 public sealed class ClipboardGalleryPage : ReactivePage<ClipboardGalleryViewModel>
 {
     private readonly IClipboardService _clipboardService;
+    private readonly IToastService _toastService;
     private CopyableTextNode _oauthUrl = null!;
     private CopyableTextNode _accessToken = null!;
     private TextInputNode _pasteInput = null!;
 
-    public ClipboardGalleryPage(IClipboardService clipboardService)
+    public ClipboardGalleryPage(IClipboardService clipboardService, IToastService toastService)
     {
         _clipboardService = clipboardService;
+        _toastService = toastService;
     }
 
     public override void OnNavigatedTo()
@@ -45,14 +48,21 @@ public sealed class ClipboardGalleryPage : ReactivePage<ClipboardGalleryViewMode
     {
         _oauthUrl = new CopyableTextNode(
                 _clipboardService,
-                "https://auth.openai.com/oauth/authorize?client_id=demo-client&redirect_uri=http://localhost:5199/callback&scope=api.model.read%20model.request")
+                "https://auth.openai.com/oauth/authorize?client_id=demo-client&redirect_uri=http://localhost:5199/callback&scope=api.model.read%20model.request",
+                _toastService)
             .WithForeground(Color.White)
+            .WithFeedbackMode(CopyFeedbackMode.Toast)
+            .WithToastPosition(ToastPosition.TopRight)
             .WithHint("Use Shift+Arrows to select, Enter or Ctrl+C to copy");
 
         _accessToken = new CopyableTextNode(
                 _clipboardService,
-                "sk-demo-4a0f8ea7f0b34d1e9a6cde8f4ab0f1c2")
+                "sk-demo-4a0f8ea7f0b34d1e9a6cde8f4ab0f1c2",
+                _toastService)
             .WithForeground(Color.White)
+            .WithFeedbackMode(CopyFeedbackMode.InlineIndicator)
+            .WithInlineIndicator("✓ Copied", Color.BrightGreen)
+            .WithCopyBindings(new CopyKeyBinding(ConsoleKey.Enter), new CopyKeyBinding(ConsoleKey.C, ConsoleModifiers.Control))
             .WithHint("Use Ctrl+A to select all, Enter or Ctrl+C to copy");
 
         _pasteInput = new TextInputNode()
@@ -75,8 +85,12 @@ public sealed class ClipboardGalleryPage : ReactivePage<ClipboardGalleryViewMode
                             .WithChild(new TextNode("  OAuth URL").WithForeground(Color.BrightCyan).Height(1))
                             .WithChild(Layouts.Horizontal().WithChild(new TextNode("  ").Width(2)).WithChild(_oauthUrl))
                             .WithChild(new EmptyNode().Height(1))
+                            .WithChild(new TextNode("    Toast feedback at top-right").WithForeground(Color.BrightBlack).Height(1))
+                            .WithChild(new EmptyNode().Height(1))
                             .WithChild(new TextNode("  Access Token").WithForeground(Color.BrightCyan).Height(1))
                             .WithChild(Layouts.Horizontal().WithChild(new TextNode("  ").Width(2)).WithChild(_accessToken))
+                            .WithChild(new EmptyNode().Height(1))
+                            .WithChild(new TextNode("    Inline green check after copy").WithForeground(Color.BrightBlack).Height(1))
                             .WithChild(new EmptyNode().Height(1))
                             .WithChild(new TextNode("  Paste Validation Input").WithForeground(Color.BrightCyan).Height(1))
                             .WithChild(Layouts.Horizontal().WithChild(new TextNode("  ").Width(2)).WithChild(_pasteInput).Height(1))

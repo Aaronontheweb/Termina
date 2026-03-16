@@ -1,6 +1,7 @@
 using R3;
 using Termina.Clipboard;
 using Termina.Diagnostics;
+using Termina.Notifications;
 using Termina.Rendering;
 using Termina.Terminal;
 
@@ -12,15 +13,26 @@ namespace Termina.Layout;
 public sealed class CopyableTextNode : LayoutNode, IFocusable, IInvalidatingNode
 {
     private readonly IClipboardService _clipboardService;
+    private readonly IToastService? _toastService;
     private readonly Subject<Unit> _invalidated = new();
+    private readonly TimeProvider _timeProvider;
+    private IDisposable? _inlineIndicatorSubscription;
+    private IReadOnlyList<CopyKeyBinding> _copyBindings =
+    [
+        new(ConsoleKey.Enter),
+        new(ConsoleKey.C, ConsoleModifiers.Control)
+    ];
     private int _cursorPosition;
     private int _selectionStart = -1;
+    private bool _showInlineIndicator;
     private bool _hasFocus;
     private bool _disposed;
 
-    public CopyableTextNode(IClipboardService clipboardService, string content)
+    public CopyableTextNode(IClipboardService clipboardService, string content, IToastService? toastService = null, TimeProvider? timeProvider = null)
     {
         _clipboardService = clipboardService;
+        _toastService = toastService;
+        _timeProvider = timeProvider ?? TimeProvider.System;
         Content = content ?? string.Empty;
         WidthConstraint = new SizeConstraint.Fill();
         HeightConstraint = SizeConstraint.AutoSize();
@@ -39,6 +51,16 @@ public sealed class CopyableTextNode : LayoutNode, IFocusable, IInvalidatingNode
     public Color SelectionForeground { get; private set; } = Color.Black;
 
     public Color SelectionBackground { get; private set; } = Color.BrightYellow;
+
+    public Color InlineIndicatorForeground { get; private set; } = Color.BrightGreen;
+
+    public string InlineIndicatorText { get; private set; } = "✓";
+
+    public CopyFeedbackMode FeedbackMode { get; private set; } = CopyFeedbackMode.Toast;
+
+    public ToastPosition ToastPosition { get; private set; } = ToastPosition.BottomRight;
+
+    public TimeSpan FeedbackDuration { get; private set; } = TimeSpan.FromSeconds(2);
 
     public bool CanFocus => true;
 
@@ -100,6 +122,40 @@ public sealed class CopyableTextNode : LayoutNode, IFocusable, IInvalidatingNode
         return this;
     }
 
+    public CopyableTextNode WithCopyBindings(params CopyKeyBinding[] bindings)
+    {
+        _copyBindings = bindings is { Length: > 0 }
+            ? bindings.ToList()
+            : [new(ConsoleKey.Enter), new(ConsoleKey.C, ConsoleModifiers.Control)];
+        return this;
+    }
+
+    public CopyableTextNode WithFeedbackMode(CopyFeedbackMode mode)
+    {
+        FeedbackMode = mode;
+        return this;
+    }
+
+    public CopyableTextNode WithToastPosition(ToastPosition position)
+    {
+        ToastPosition = position;
+        return this;
+    }
+
+    public CopyableTextNode WithFeedbackDuration(TimeSpan duration)
+    {
+        FeedbackDuration = duration;
+        return this;
+    }
+
+    public CopyableTextNode WithInlineIndicator(string text, Color? foreground = null)
+    {
+        InlineIndicatorText = text;
+        if (foreground.HasValue)
+            InlineIndicatorForeground = foreground.Value;
+        return this;
+    }
+
     public void OnFocused()
     {
         _hasFocus = true;
@@ -126,7 +182,7 @@ public sealed class CopyableTextNode : LayoutNode, IFocusable, IInvalidatingNode
             SelectAll();
             handled = true;
         }
-        else if (key.Modifiers.HasFlag(ConsoleModifiers.Control) && key.Key == ConsoleKey.C)
+        else if (IsCopyBinding(key))
         {
             CopySelectionOrContent();
             handled = true;
@@ -135,7 +191,6 @@ public sealed class CopyableTextNode : LayoutNode, IFocusable, IInvalidatingNode
         {
             handled = key.Key switch
             {
-                ConsoleKey.Enter => CopySelectionOrContent(),
                 ConsoleKey.LeftArrow => MoveCursor(-1, key.Modifiers),
                 ConsoleKey.RightArrow => MoveCursor(1, key.Modifiers),
                 ConsoleKey.Home => MoveToBoundary(0, key.Modifiers),
@@ -182,6 +237,15 @@ public sealed class CopyableTextNode : LayoutNode, IFocusable, IInvalidatingNode
 
         nodeContext.ResetColors();
 
+        if (_showInlineIndicator && bounds.Width > 0 && lineCount > 0)
+        {
+            var inlineText = InlineIndicatorText.Length > bounds.Width ? InlineIndicatorText[..bounds.Width] : InlineIndicatorText;
+            var indicatorX = Math.Max(0, bounds.Width - inlineText.Length);
+            nodeContext.SetForeground(InlineIndicatorForeground);
+            nodeContext.WriteAt(indicatorX, 0, inlineText);
+            nodeContext.ResetColors();
+        }
+
         if (hasHint && bounds.Height > lineCount)
         {
             nodeContext.SetForeground(_hasFocus ? Color.BrightBlack : Color.Gray);
@@ -196,6 +260,7 @@ public sealed class CopyableTextNode : LayoutNode, IFocusable, IInvalidatingNode
             return;
 
         _disposed = true;
+        _inlineIndicatorSubscription?.Dispose();
         _invalidated.OnCompleted();
         _invalidated.Dispose();
         base.Dispose();
@@ -205,8 +270,40 @@ public sealed class CopyableTextNode : LayoutNode, IFocusable, IInvalidatingNode
     {
         var textToCopy = HasSelection ? SelectedText : Content;
         TerminaTrace.Input.Info(this, "CopyableTextNode copy requested: contentLength={0}, selectionLength={1}", Content.Length, textToCopy.Length);
-        _clipboardService.Copy(textToCopy);
+        var success = _clipboardService.Copy(textToCopy);
+        ShowFeedback(success);
         return true;
+    }
+
+    private bool IsCopyBinding(ConsoleKeyInfo key)
+    {
+        return _copyBindings.Any(binding => binding.Key == key.Key && binding.Modifiers == key.Modifiers);
+    }
+
+    private void ShowFeedback(bool success)
+    {
+        if (!success)
+            return;
+
+        if (FeedbackMode is CopyFeedbackMode.Toast or CopyFeedbackMode.ToastAndInline)
+        {
+            _toastService?.Show("Copied to clipboard", new ToastOptions(FeedbackDuration, ToastPosition));
+        }
+
+        if (FeedbackMode is CopyFeedbackMode.InlineIndicator or CopyFeedbackMode.ToastAndInline)
+        {
+            _showInlineIndicator = true;
+            _inlineIndicatorSubscription?.Dispose();
+            _inlineIndicatorSubscription = Observable
+                .Interval(FeedbackDuration, _timeProvider)
+                .Take(1)
+                .Subscribe(_ =>
+                {
+                    _showInlineIndicator = false;
+                    Invalidate();
+                });
+            Invalidate();
+        }
     }
 
     private bool MoveCursor(int delta, ConsoleModifiers modifiers)
