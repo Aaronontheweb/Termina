@@ -369,6 +369,25 @@ Input.OfType<PasteEvent>()
 If the focused component implements `IPasteReceiver` (like `TextInputNode`), paste events are routed directly to it. `TextInputNode` shows a summary placeholder and submits the full content on Enter. The event only reaches `ViewModel.Input` if no `IPasteReceiver` component has focus.
 :::
 
+## Clipboard Copy
+
+Termina also supports terminal-native clipboard copy for read-only values through `IClipboardService` and components such as `CopyableTextNode`.
+
+```csharp
+var node = new CopyableTextNode(clipboardService, ViewModel.AuthUrl, toastService)
+    .WithFeedbackMode(CopyFeedbackMode.Toast)
+    .WithToastPosition(ToastPosition.TopRight);
+```
+
+`CopyableTextNode` handles its own keyboard interactions when focused:
+
+- caret movement with `Left/Right`
+- selection with `Shift+Left/Right`
+- copy with configurable bindings such as `Enter` and `Ctrl+C`
+- optional success feedback via toast, inline indicator, or both
+
+Clipboard transport details live behind `IClipboardService`, so pages do not need to branch on `tmux`, `ssh`, or terminal type.
+
 ## Input Filtering with Rx
 
 ### Filter by Type

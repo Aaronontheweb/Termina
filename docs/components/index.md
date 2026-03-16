@@ -17,6 +17,7 @@ Termina provides a set of built-in layout nodes (components) for building termin
 |-----------|-------------|
 | [TextInputNode](/components/text-input-node) | Single-line text input with cursor |
 | [TextAreaNode](/components/text-area-node) | Multi-line text input with word wrap and vertical scrolling |
+| [CopyableTextNode](/components/copyable-text-node) | Read-only text with keyboard selection and clipboard support |
 | [SelectionListNode](/components/selection-list-node) | Interactive list selection with keyboard navigation |
 
 ## Container Components
