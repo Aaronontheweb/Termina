@@ -328,4 +328,25 @@ public class AnsiCodesTests
     {
         Assert.Equal($"{Csi}18t", AnsiCodes.QueryTerminalSize);
     }
+
+    [Fact]
+    public void Osc52Clipboard_EncodesUtf8Text()
+    {
+        Assert.Equal("\x1b]52;c;SGVsbG8=\x07", AnsiCodes.Osc52Clipboard("Hello"));
+    }
+
+    [Fact]
+    public void Osc52Clipboard_WithStringTerminator_EncodesUtf8Text()
+    {
+        Assert.Equal("\x1b]52;c;SGVsbG8=\x1b\\", AnsiCodes.Osc52Clipboard("Hello", useStringTerminator: true));
+    }
+
+    [Fact]
+    public void TmuxPassthrough_WrapsOsc52Sequence()
+    {
+        var wrapped = AnsiCodes.TmuxPassthrough(AnsiCodes.Osc52Clipboard("Hello"));
+        Assert.StartsWith("\x1bPtmux;\x1b", wrapped);
+        Assert.EndsWith("\x1b\\", wrapped);
+        Assert.Contains("]52;c;SGVsbG8=\x07", wrapped.Replace("\x1b\x1b", "\x1b"));
+    }
 }

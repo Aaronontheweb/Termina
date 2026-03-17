@@ -16,6 +16,10 @@ Learn to write automated tests for your Termina applications using `VirtualInput
 
 Build reusable custom layout nodes that integrate with Termina's rendering and measurement systems.
 
+### [Clipboard And Feedback](/advanced/clipboard-and-feedback)
+
+Understand Termina's terminal-native clipboard transports, toast notifications, and inline copy feedback patterns.
+
 ### [AOT Compilation](/advanced/aot)
 
 Configure your Termina application for Native AOT publishing, enabling single-file executables with fast startup.

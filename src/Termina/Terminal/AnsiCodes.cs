@@ -1,6 +1,8 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Text;
+
 namespace Termina.Terminal;
 
 /// <summary>
@@ -267,6 +269,27 @@ public static class AnsiCodes
         // DCS passthrough syntax: ESC P tmux; ESC <seq-with-doubled-ESCs> ESC \
         var doubled = seq.Replace("\x1b", "\x1b\x1b");
         return $"\x1bPtmux;\x1b{doubled}\x1b\\";
+    }
+
+    /// <summary>
+    /// Build an OSC 52 clipboard write sequence for the provided text.
+    /// Format: ESC ] 52 ; c ; {base64(utf8 text)} BEL
+    /// </summary>
+    public static string Osc52Clipboard(string text)
+    {
+        return Osc52Clipboard(text, useStringTerminator: false);
+    }
+
+    /// <summary>
+    /// Build an OSC 52 clipboard write sequence for the provided text.
+    /// Format: ESC ] 52 ; c ; {base64(utf8 text)} (BEL or ST)
+    /// </summary>
+    public static string Osc52Clipboard(string text, bool useStringTerminator)
+    {
+        var base64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(text));
+        return useStringTerminator
+            ? $"\x1b]52;c;{base64}\x1b\\"
+            : $"\x1b]52;c;{base64}\x07";
     }
 
     // Mouse tracking

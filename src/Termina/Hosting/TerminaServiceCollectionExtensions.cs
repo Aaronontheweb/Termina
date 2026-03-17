@@ -3,7 +3,9 @@
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Termina.Clipboard;
 using Termina.Input;
+using Termina.Notifications;
 using Termina.Terminal;
 
 namespace Termina.Hosting;
@@ -52,6 +54,10 @@ public static class TerminaServiceCollectionExtensions
 
         // Register IAnsiTerminal if not already registered
         services.TryAddSingleton<IAnsiTerminal, AnsiTerminal>();
+        services.TryAddSingleton<IToastService, ToastService>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IClipboardTransport, Osc52ClipboardTransport>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IClipboardTransport, TmuxClipboardTransport>());
+        services.TryAddSingleton<IClipboardService, TerminalClipboardService>();
 
         // Register TerminaApplication
         services.AddSingleton<TerminaApplication>(sp =>
