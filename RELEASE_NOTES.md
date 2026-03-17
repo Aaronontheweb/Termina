@@ -1,3 +1,21 @@
+#### 0.8.0 March 17th 2026 ####
+
+**New Features**:
+- **CopyableTextNode with terminal clipboard support** ([#179](https://github.com/Aaronontheweb/termina/pull/179))
+  - New `CopyableTextNode` component for selectable, copyable text with keyboard-driven selection
+  - Configurable copy key bindings via `CopyKeyBinding`
+  - Terminal clipboard integration using OSC 52 escape sequences with automatic tmux transport fallback
+  - `IClipboardService` / `IClipboardTransport` interfaces for extensible clipboard backends
+  - `TerminalClipboardService` registered automatically via `AddTermina()` in DI
+
+- **Toast notification system** ([#179](https://github.com/Aaronontheweb/termina/pull/179))
+  - New `ToastOverlayNode` for non-blocking in-app notifications
+  - `IToastService` / `ToastService` for programmatic toast dispatch
+  - Configurable `ToastPosition` (TopRight, TopLeft, BottomRight, BottomLeft) and `ToastOptions`
+  - `CopyFeedbackMode` controls copy success feedback: toast overlay or inline indicator
+
+---
+
 #### 0.7.2 March 1st 2026 ####
 
 **New Features**:

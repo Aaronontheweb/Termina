@@ -10,29 +10,22 @@
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <VersionPrefix>0.7.2</VersionPrefix>
+    <VersionPrefix>0.8.0</VersionPrefix>
     <PackageReleaseNotes>**New Features**:
-- **TextAreaNode multi-line text input** ([#161](https://github.com/Aaronontheweb/Termina/issues/161), [#163](https://github.com/Aaronontheweb/Termina/pull/163))
-  - New `TextAreaNode` component for multi-line text input with line-by-line editing
-  - Extracted common base class `TextInputBaseNode` shared with single-line `TextInputNode`
-  - Alt+Enter for universal newline insertion (works on all terminals, unlike Ctrl+Enter)
-  - Kitty keyboard protocol support for Ctrl+Enter detection when available ([#165](https://github.com/Aaronontheweb/Termina/pull/165))
-  - Proper cursor positioning after multiple consecutive newlines
-  - Full input clearing on submit with committed segments model
+- **CopyableTextNode with terminal clipboard support** ([#179](https://github.com/Aaronontheweb/termina/pull/179))
+  - New `CopyableTextNode` component for selectable, copyable text with keyboard-driven selection
+  - Configurable copy key bindings via `CopyKeyBinding`
+  - Terminal clipboard integration using OSC 52 escape sequences with automatic tmux transport fallback
+  - `IClipboardService` / `IClipboardTransport` interfaces for extensible clipboard backends
+  - `TerminalClipboardService` registered automatically via `AddTermina()` in DI
 
-**Bug Fixes**:
-- **Improved TextInputNode paste behavior** ([#162](https://github.com/Aaronontheweb/Termina/pull/162))
-  - Enhanced multi-line paste handling with committed segments model
-  - Paste summaries display character count and line count for better UX
-  - Full pasted content preserved and submitted as single unit
+- **Toast notification system** ([#179](https://github.com/Aaronontheweb/termina/pull/179))
+  - New `ToastOverlayNode` for non-blocking in-app notifications
+  - `IToastService` / `ToastService` for programmatic toast dispatch
+  - Configurable `ToastPosition` (TopRight, TopLeft, BottomRight, BottomLeft) and `ToastOptions`
+  - `CopyFeedbackMode` controls copy success feedback: toast overlay or inline indicator
 
-- **TextAreaNode hardening** ([#165](https://github.com/Aaronontheweb/Termina/pull/165))
-  - Fixed cursor jump after consecutive newlines in TextAreaNode
-  - Corrected input clearing on submit to clear entire buffer, not just committed segments
-  - Improved stability and consistency of multi-line input behavior
-
-**Dependencies**:
-- Bumped Akka.Hosting from 1.5.60 to 1.5.61 ([#160](https://github.com/Aaronontheweb/Termina/pull/160))</PackageReleaseNotes>
+---</PackageReleaseNotes>
   </PropertyGroup>
   <PropertyGroup>
     <!-- Target framework versions -->
