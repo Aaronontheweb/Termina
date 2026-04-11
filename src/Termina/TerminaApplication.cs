@@ -53,6 +53,9 @@ public sealed class TerminaApplication
     private readonly IToastService? _toastService;
     private readonly ToastOverlayNode? _toastOverlay;
     private readonly IDisposable? _toastInvalidationSubscription;
+    private readonly ReactiveProperty<bool> _selectionModeActive = new(false);
+    private readonly SelectionModeIndicatorNode _selectionModeIndicator;
+    private readonly IDisposable _selectionModeIndicatorSubscription;
 
     private string? _currentPath;
     private IReadOnlyDictionary<string, object>? _currentParameters;
@@ -97,6 +100,8 @@ public sealed class TerminaApplication
         _toastService = serviceProvider?.GetService<IToastService>();
         _toastOverlay = _toastService != null ? new ToastOverlayNode(_toastService) : null;
         _toastInvalidationSubscription = _toastOverlay?.Invalidated.Subscribe(_ => RequestRedraw());
+        _selectionModeIndicator = new SelectionModeIndicatorNode(_selectionModeActive);
+        _selectionModeIndicatorSubscription = _selectionModeIndicator.Invalidated.Subscribe(_ => RequestRedraw());
 
         // If using DI, check for registered input sources
         if (serviceProvider != null)
@@ -113,6 +118,55 @@ public sealed class TerminaApplication
     /// Observable stream of input events. ViewModels subscribe to this.
     /// </summary>
     public Observable<IInputEvent> Input => _inputSubject.AsObservable();
+
+    /// <summary>
+    /// Observable that emits whenever selection mode is toggled on or off.
+    /// Emits the new state (<c>true</c> = active, <c>false</c> = inactive).
+    /// </summary>
+    /// <remarks>
+    /// When selection mode is active, Termina temporarily hands mouse input back to the
+    /// terminal emulator by disabling its own mouse tracking. This lets the user use the
+    /// terminal's native click-and-drag selection and copy, at the cost of losing mouse
+    /// scroll-wheel support while the mode is active. Press <c>F6</c> or <c>Escape</c> to
+    /// exit — or call <see cref="ExitSelectionMode"/> programmatically.
+    /// </remarks>
+    public Observable<bool> SelectionModeActive => _selectionModeActive;
+
+    /// <summary>
+    /// Whether selection mode is currently active.
+    /// </summary>
+    public bool IsSelectionModeActive => _selectionModeActive.Value;
+
+    /// <summary>
+    /// Enters selection mode if not already active. Disables app-level mouse tracking so
+    /// the user's terminal emulator can handle click-and-drag selection natively, with
+    /// native visual feedback and OS clipboard integration.
+    /// </summary>
+    public void EnterSelectionMode()
+    {
+        if (_selectionModeActive.Value)
+            return;
+
+        TerminaTrace.Input.Info(this, "Entering selection mode — disabling mouse tracking");
+        _terminal.DisableMouse();
+        _terminal.Flush();
+        _selectionModeActive.Value = true;
+    }
+
+    /// <summary>
+    /// Exits selection mode if active. Re-enables app-level mouse tracking so mouse
+    /// scroll-wheel events resume being delivered to the app.
+    /// </summary>
+    public void ExitSelectionMode()
+    {
+        if (!_selectionModeActive.Value)
+            return;
+
+        TerminaTrace.Input.Info(this, "Exiting selection mode — re-enabling mouse tracking");
+        _terminal.EnableMouse();
+        _terminal.Flush();
+        _selectionModeActive.Value = false;
+    }
 
     /// <summary>
     /// Gets the focus manager for routing input to focused components.
@@ -550,6 +604,14 @@ public sealed class TerminaApplication
             {
                 TerminaTrace.Input.Trace(this, "KeyPressed: key={0}, mods={1}", keyPressed.KeyInfo.Key, keyPressed.KeyInfo.Modifiers);
 
+                // FRAMEWORK CAPTURE: selection-mode toggle runs before any page handler
+                // so it can never be shadowed by page-level key bindings.
+                if (HandleSelectionModeKey(keyPressed.KeyInfo))
+                {
+                    TerminaTrace.Input.Trace(this, "Key consumed by selection-mode handler");
+                    return;
+                }
+
                 // CAPTURE PHASE: Page-level key bindings get first chance
                 // This allows pages to intercept keys (like Escape) before focused components consume them
                 if (_currentPage is IBindablePage bindablePage)
@@ -573,6 +635,35 @@ public sealed class TerminaApplication
             TerminaTrace.Input.Trace(this, "Routing input to ViewModel");
             _inputSubject.OnNext(inputEvent);
         }
+    }
+
+    /// <summary>
+    /// Framework-level handler that intercepts selection-mode toggles before any page
+    /// or focused-component handler sees the key. Returns <c>true</c> if the key was
+    /// consumed and should not propagate further.
+    /// </summary>
+    private bool HandleSelectionModeKey(ConsoleKeyInfo keyInfo)
+    {
+        // F6 toggles selection mode from any state. Picked for universal compatibility:
+        // works without the kitty keyboard protocol and bypasses tmux escape-passthrough.
+        if (keyInfo.Key == ConsoleKey.F6 && keyInfo.Modifiers == 0)
+        {
+            if (_selectionModeActive.Value)
+                ExitSelectionMode();
+            else
+                EnterSelectionMode();
+            return true;
+        }
+
+        // Escape while in selection mode always exits it — do not let pages see the key,
+        // otherwise a page-level Escape binding could navigate away unexpectedly.
+        if (keyInfo.Key == ConsoleKey.Escape && _selectionModeActive.Value)
+        {
+            ExitSelectionMode();
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -608,10 +699,15 @@ public sealed class TerminaApplication
     private void RenderCurrentPage()
     {
         var layoutRoot = GetCurrentLayoutRoot() ?? new TextNode("No page active");
+
+        // Compose overlays on top of the page, in paint order: toast below, selection-mode
+        // indicator above. The indicator always participates so transitions flip state
+        // cleanly; it renders nothing when selection mode is inactive.
+        var children = new List<ILayoutNode> { layoutRoot };
         if (_toastOverlay != null)
-        {
-            layoutRoot = new StackLayout([layoutRoot, new DeferredNode(() => _toastOverlay)]);
-        }
+            children.Add(new DeferredNode(() => _toastOverlay));
+        children.Add(_selectionModeIndicator);
+        layoutRoot = new StackLayout(children);
 
         // Clear the pending buffer (DiffingTerminal) or screen (other terminals)
         _terminal.ClearScreen();
@@ -703,6 +799,9 @@ public sealed class TerminaApplication
 
         _toastInvalidationSubscription?.Dispose();
         _toastOverlay?.Dispose();
+        _selectionModeIndicatorSubscription.Dispose();
+        _selectionModeIndicator.Dispose();
+        _selectionModeActive.Dispose();
     }
 }
 
