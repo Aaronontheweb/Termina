@@ -1,8 +1,12 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
+using System.Text;
 using R3;
+using Termina.Clipboard;
 using Termina.Components.Streaming;
+using Termina.Input;
+using Termina.Notifications;
 using Termina.Rendering;
 using Termina.Terminal;
 
@@ -15,7 +19,7 @@ namespace Termina.Layout;
 /// StreamingTextNode wraps an IStreamingTextBuffer (either PersistedStreamBuffer or WindowedStreamBuffer)
 /// and renders the content with automatic word wrapping and optional scrolling.
 /// </remarks>
-public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode, IScrollable
+public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode, IScrollable, IMouseHandler
 {
     private readonly IStreamingTextBuffer _buffer;
     private readonly Subject<Unit> _invalidated = new();
@@ -32,6 +36,13 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode, IScrollab
     private readonly Dictionary<SegmentId, int> _segmentIndices = new();  // ID -> index in _content
     private readonly Dictionary<SegmentId, IDisposable> _subscriptions = new();  // Animation subscriptions
     private readonly object _contentLock = new();  // Thread safety for content mutations
+
+    // Text selection support
+    private TextSelectionState _selectionState = TextSelectionState.None;
+    private bool _selectionEnabled = false;
+    private IClipboardService? _clipboardService;
+    private IToastService? _toastService;
+    private bool _mouseTrackingEnabled = false;
 
     // Content element types for tracking
     private abstract record ContentElement;
@@ -97,6 +108,103 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode, IScrollab
         _buffer = buffer;
         WidthConstraint = new SizeConstraint.Fill();
         HeightConstraint = new SizeConstraint.Fill();
+    }
+
+    /// <summary>
+    /// Enables text selection with copy support. Requires mouse tracking to be enabled in the terminal.
+    /// </summary>
+    /// <param name="clipboardService">The clipboard service for copying text.</param>
+    /// <param name="toastService">Optional toast service for copy confirmation notifications.</param>
+    /// <param name="terminal">Optional terminal instance to enable mouse tracking. If null, mouse tracking must be enabled manually.</param>
+    public void EnableSelection(IClipboardService clipboardService, IToastService? toastService = null, IAnsiTerminal? terminal = null)
+    {
+        _selectionEnabled = true;
+        _clipboardService = clipboardService;
+        _toastService = toastService;
+
+        // Enable mouse tracking in the terminal if terminal is provided
+        if (terminal != null && !_mouseTrackingEnabled)
+        {
+            terminal.SendRaw("\x1b[?1006h"); // Enable SGR mouse tracking
+            _mouseTrackingEnabled = true;
+        }
+    }
+
+    /// <summary>
+    /// Disables text selection and clears any active selection.
+    /// </summary>
+    public void DisableSelection()
+    {
+        _selectionEnabled = false;
+        _selectionState = TextSelectionState.None;
+        
+        // Disable mouse tracking if we enabled it
+        if (_mouseTrackingEnabled)
+        {
+            // Note: This would need access to the terminal instance
+            // For now, we'll leave mouse tracking enabled to avoid flickering
+        }
+    }
+
+    /// <summary>
+    /// Handles mouse events for text selection.
+    /// </summary>
+    /// <param name="mouseEvent">The mouse event to handle.</param>
+    /// <param name="bounds">The bounds of this node.</param>
+    /// <returns>True if the event was handled, false otherwise.</returns>
+    public bool HandleMouseEvent(MouseEvent mouseEvent, Rect bounds)
+    {
+        if (!_selectionEnabled || mouseEvent.Button != MouseButton.Left)
+            return false;
+
+        var prefixLen = Prefix?.Length ?? 0;
+        var contentX = prefixLen;
+        var contentY = 0;
+
+        // Calculate the character position under the mouse
+        var charX = mouseEvent.X - contentX;
+        var charY = mouseEvent.Y - contentY;
+
+        // Check if mouse is within content area
+        if (charX < 0 || charY < 0)
+            return false;
+
+        switch (mouseEvent.EventType)
+        {
+            case MouseEventType.Press:
+                // Start selection
+                _selectionState = new TextSelectionState(charY, charX, charY, charX);
+                return true;
+
+            case MouseEventType.Drag:
+                // Update selection end
+                if (_selectionState.IsActive)
+                {
+                    _selectionState = new TextSelectionState(
+                        _selectionState.StartRow,
+                        _selectionState.StartCol,
+                        charY,
+                        charX
+                    );
+                }
+                return true;
+
+            case MouseEventType.Release:
+                // Copy selection to clipboard and clear
+                if (_selectionState.HasContent)
+                {
+                    var selectedText = GetSelectedText();
+                    if (!string.IsNullOrEmpty(selectedText))
+                    {
+                        _clipboardService?.Copy(selectedText);
+                        _toastService?.Show("Copied to clipboard", new ToastOptions { Duration = TimeSpan.FromSeconds(1) });
+                    }
+                }
+                _selectionState = TextSelectionState.None;
+                return true;
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -640,8 +748,8 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode, IScrollab
                 if (text.Length > availableWidth)
                     text = text[..availableWidth];
 
-                // Determine effective style (segment style with node-level fallback)
-                var effectiveStyle = GetEffectiveStyle(segment.Style);
+                // Determine effective style (segment style with node-level fallback and selection highlighting)
+                var effectiveStyle = GetEffectiveStyle(segment.Style, i, x);
 
                 // Apply style only if changed (optimization)
                 if (lastStyle == null || !lastStyle.Value.Equals(effectiveStyle))
@@ -717,7 +825,7 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode, IScrollab
     /// <summary>
     /// Gets the effective style by combining segment style with node-level defaults.
     /// </summary>
-    private TextStyle GetEffectiveStyle(TextStyle segmentStyle)
+    private TextStyle GetEffectiveStyle(TextStyle segmentStyle, int row, int col)
     {
         // Use segment colors if set, otherwise fall back to node-level colors
         var fg = segmentStyle.HasForeground ? segmentStyle.Foreground
@@ -725,7 +833,81 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode, IScrollab
         var bg = segmentStyle.HasBackground ? segmentStyle.Background
             : (Background ?? Color.Default);
 
+        // Check if this position is within the selection
+        if (_selectionState.IsActive)
+        {
+            var normalized = _selectionState.Normalized;
+            var isSelected = (row > normalized.StartRow 
+                || (row == normalized.StartRow && col >= normalized.StartCol))
+                && (row < normalized.EndRow 
+                    || (row == normalized.EndRow && col <= normalized.EndCol));
+            
+            if (isSelected)
+            {
+                // Highlight selected text with reverse colors
+                return new TextStyle(bg, fg, segmentStyle.Decoration | TextDecoration.Reverse);
+            }
+        }
+
         return new TextStyle(fg, bg, segmentStyle.Decoration);
+    }
+
+    /// <summary>
+    /// Extracts the selected text from the buffer based on the current selection state.
+    /// </summary>
+    /// <returns>The selected text, or empty string if no valid selection.</returns>
+    private string GetSelectedText()
+    {
+        if (!_selectionState.HasContent)
+            return string.Empty;
+
+        var normalized = _selectionState.Normalized;
+        var prefixLen = Prefix?.Length ?? 0;
+        
+        // Get all visible lines
+        var styledLines = _buffer.GetVisibleStyledLines(int.MaxValue, int.MaxValue);
+        
+        var result = new StringBuilder();
+        
+        for (var row = normalized.StartRow; row <= normalized.EndRow && row < styledLines.Count; row++)
+        {
+            var styledLine = styledLines[row];
+            var lineText = new StringBuilder();
+            
+            foreach (var segment in styledLine.Segments)
+            {
+                lineText.Append(segment.Text);
+            }
+            
+            var fullLine = lineText.ToString();
+            
+            if (row == normalized.StartRow && row == normalized.EndRow)
+            {
+                // Single line selection
+                var start = Math.Max(0, normalized.StartCol - prefixLen);
+                var end = Math.Min(fullLine.Length, normalized.EndCol - prefixLen);
+                result.Append(fullLine.Substring(start, end - start));
+            }
+            else if (row == normalized.StartRow)
+            {
+                // Start of multi-line selection
+                var start = Math.Max(0, normalized.StartCol - prefixLen);
+                result.Append(fullLine.Substring(start));
+            }
+            else if (row == normalized.EndRow)
+            {
+                // End of multi-line selection
+                var end = Math.Min(fullLine.Length, normalized.EndCol - prefixLen);
+                result.Append(fullLine.Substring(0, end));
+            }
+            else
+            {
+                // Middle lines of multi-line selection
+                result.AppendLine(fullLine);
+            }
+        }
+        
+        return result.ToString();
     }
 
     /// <inheritdoc />

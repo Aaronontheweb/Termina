@@ -540,6 +540,17 @@ public sealed class TerminaApplication
                     return; // Handled by focused scrollable
                 }
                 break; // No focused scrollable — fall through to ViewModel input observable
+
+            case MouseEvent mouseEvent:
+                // Route mouse events to layout nodes that can handle them
+                if (_currentPage is IBindablePage page)
+                {
+                    if (page.HandleMouseEvent(mouseEvent))
+                    {
+                        return; // Event handled by page
+                    }
+                }
+                break;
         }
 
         // Route input events: Page (capture) -> Focus Manager (bubble) -> ViewModel

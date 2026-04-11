@@ -257,6 +257,12 @@ public sealed class AnsiTerminal : IAnsiTerminal, IDisposable
         TerminaTrace.Platform.Debug(this, "Queued OSC52 BEL/ST plain sequences");
     }
 
+    /// <inheritdoc />
+    public void SendRaw(string sequence)
+    {
+        _buffer.Append(sequence);
+    }
+
     /// <summary>
     /// Dispose the terminal, restoring original state.
     /// </summary>

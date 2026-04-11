@@ -103,4 +103,10 @@ public interface IAnsiTerminal
     /// Request that the terminal copy text to the user's clipboard.
     /// </summary>
     void CopyToClipboard(string text);
+
+    /// <summary>
+    /// Send a raw ANSI escape sequence to the terminal.
+    /// </summary>
+    /// <param name="sequence">The raw escape sequence to send.</param>
+    void SendRaw(string sequence);
 }

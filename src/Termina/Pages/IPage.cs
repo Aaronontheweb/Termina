@@ -69,4 +69,11 @@ internal interface IBindablePage : IPage, IDisposable
     /// <param name="keyInfo">The key press information.</param>
     /// <returns>True if the page handled the input, false to let focused components handle it.</returns>
     bool HandlePageInput(ConsoleKeyInfo keyInfo);
+
+    /// <summary>
+    /// Handles mouse events at the page level.
+    /// </summary>
+    /// <param name="mouseEvent">The mouse event to handle.</param>
+    /// <returns>True if the page handled the event, false otherwise.</returns>
+    bool HandleMouseEvent(Termina.Input.MouseEvent mouseEvent);
 }

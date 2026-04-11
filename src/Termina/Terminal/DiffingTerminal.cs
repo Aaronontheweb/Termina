@@ -408,6 +408,12 @@ public sealed class DiffingTerminal : IAnsiTerminal, IDisposable
     }
 
     /// <inheritdoc />
+    public void SendRaw(string sequence)
+    {
+        _inner.Write(sequence);
+    }
+
+    /// <inheritdoc />
     public void Dispose()
     {
         if (_inner is IDisposable disposable)

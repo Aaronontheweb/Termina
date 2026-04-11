@@ -329,9 +329,8 @@ internal sealed class EscapeSequenceParser
     };
 
     /// <summary>
-    /// Parses an SGR mouse sequence and appends a <see cref="MouseScrollEvent"/> to <paramref name="results"/>
-    /// when the button code indicates a scroll event (64 = up, 65 = down).
-    /// Other mouse events (clicks, releases) are silently consumed — no event is appended.
+    /// Parses an SGR mouse sequence and emits the appropriate mouse event.
+    /// Supports scroll events (64/65) and full mouse events (clicks, drags, releases).
     /// </summary>
     /// <param name="seq">The buffered sequence string, e.g. <c>[&lt;64;5;10M</c>.</param>
     /// <param name="results">List to append events into.</param>
@@ -341,15 +340,61 @@ internal sealed class EscapeSequenceParser
         // Strip leading "[<" and trailing terminator char
         if (seq.Length < 3) return;
         var inner = seq[2..^1]; // "button;x;y"
-        var semicolon = inner.IndexOf(';');
-        if (semicolon < 0) return;
-        if (!int.TryParse(inner[..semicolon], out var button)) return;
+        var parts = inner.Split(';');
+        if (parts.Length < 3) return;
+        
+        if (!int.TryParse(parts[0], out var button)) return;
+        if (!int.TryParse(parts[1], out var x)) return;
+        if (!int.TryParse(parts[2], out var y)) return;
 
-        // SGR button 64 = wheel up, 65 = wheel down
+        // SGR button codes:
+        // 0-2: button press (left=0, middle=1, right=2)
+        // 3-5: button release (left=3, middle=4, right=5)
+        // 60-62: button drag (left=60, middle=61, right=62)
+        // 64: wheel up, 65: wheel down
+
+        // Determine modifiers from button code (high bits)
+        var modifiers = 0;
+        var baseButton = button & 0x3F; // Low 6 bits for button/action
+        var shiftBit = (button & 0x0020) != 0;
+        var altBit = (button & 0x0040) != 0;
+        var ctrlBit = (button & 0x0080) != 0;
+
+        if (shiftBit) modifiers |= (int)ConsoleModifiers.Shift;
+        if (altBit) modifiers |= (int)ConsoleModifiers.Alt;
+        if (ctrlBit) modifiers |= (int)ConsoleModifiers.Control;
+
+        // SGR mouse uses 1-based coordinates
+        var col = x - 1;
+        var row = y - 1;
+
+        // Handle scroll events
         if (button == 64)
+        {
             results.Add(new MouseScrollEvent(+1));
+            return;
+        }
         else if (button == 65)
+        {
             results.Add(new MouseScrollEvent(-1));
-        // All other buttons (clicks, releases, drags) are silently consumed
+            return;
+        }
+
+        // Map button code to button and action
+        var (mouseButton, mouseAction) = baseButton switch
+        {
+            0 => (MouseButton.Left, MouseEventType.Press),
+            1 => (MouseButton.Middle, MouseEventType.Press),
+            2 => (MouseButton.Right, MouseEventType.Press),
+            3 => (MouseButton.Left, MouseEventType.Release),
+            4 => (MouseButton.Middle, MouseEventType.Release),
+            5 => (MouseButton.Right, MouseEventType.Release),
+            60 => (MouseButton.Left, MouseEventType.Drag),
+            61 => (MouseButton.Middle, MouseEventType.Drag),
+            62 => (MouseButton.Right, MouseEventType.Drag),
+            _ => (MouseButton.None, MouseEventType.Move)
+        };
+
+        results.Add(new MouseEvent(col, row, mouseButton, mouseAction, (ConsoleModifiers)modifiers));
     }
 }
