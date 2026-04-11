@@ -368,7 +368,7 @@ internal sealed class EscapeSequenceParser
         var col = x - 1;
         var row = y - 1;
 
-        // Handle scroll events
+        // Handle scroll events — these are the only mouse events we emit
         if (button == 64)
         {
             results.Add(new MouseScrollEvent(+1));
@@ -380,21 +380,7 @@ internal sealed class EscapeSequenceParser
             return;
         }
 
-        // Map button code to button and action
-        var (mouseButton, mouseAction) = baseButton switch
-        {
-            0 => (MouseButton.Left, MouseEventType.Press),
-            1 => (MouseButton.Middle, MouseEventType.Press),
-            2 => (MouseButton.Right, MouseEventType.Press),
-            3 => (MouseButton.Left, MouseEventType.Release),
-            4 => (MouseButton.Middle, MouseEventType.Release),
-            5 => (MouseButton.Right, MouseEventType.Release),
-            60 => (MouseButton.Left, MouseEventType.Drag),
-            61 => (MouseButton.Middle, MouseEventType.Drag),
-            62 => (MouseButton.Right, MouseEventType.Drag),
-            _ => (MouseButton.None, MouseEventType.Move)
-        };
-
-        results.Add(new MouseEvent(col, row, mouseButton, mouseAction, (ConsoleModifiers)modifiers));
+        // All other SGR mouse events (clicks, releases, drags) are silently consumed
+        // to prevent spurious ESC keypresses from being emitted
     }
 }
