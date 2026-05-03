@@ -25,23 +25,24 @@ public sealed class AnsiTerminal : IAnsiTerminal, IDisposable
     /// </summary>
     /// <param name="useAlternateScreen">Whether to use alternate screen buffer on startup.</param>
     public AnsiTerminal(bool useAlternateScreen = true)
-        : this(Console.Out, useAlternateScreen)
+        : this(null, useAlternateScreen)
     {
     }
 
     /// <summary>
-    /// Create an AnsiTerminal writing to a specific TextWriter.
+    /// Create an AnsiTerminal. A specific TextWriter may be specified, or null for stdout.
     /// </summary>
-    internal AnsiTerminal(TextWriter output, bool useAlternateScreen = true)
+    internal AnsiTerminal(TextWriter? output, bool useAlternateScreen = true)
     {
-        _output = output;
+        // Set console to UTF-8.  (N.B. This may replace Console.Out.)
+        Console.OutputEncoding = Encoding.UTF8;
+        
+        _output = output ?? Console.Out;
+
         _useAlternateScreen = useAlternateScreen;
 
         TerminaTrace.Platform.Debug(this, "AnsiTerminal created: output={0}, useAlternateScreen={1}",
-            output.GetType().Name, useAlternateScreen);
-
-        // Set console to UTF-8
-        Console.OutputEncoding = Encoding.UTF8;
+            _output.GetType().Name, useAlternateScreen);
 
         if (_useAlternateScreen)
         {
