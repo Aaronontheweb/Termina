@@ -12,7 +12,12 @@ namespace Termina.Terminal;
 /// </summary>
 public sealed class AnsiTerminal : IAnsiTerminal, IDisposable
 {
-    private readonly TextWriter _output;
+    /// <summary>
+    /// Explicit output writer for tests/benchmarks, or <c>null</c> to write to
+    /// <see cref="Console.Out"/>. A cached <see cref="Console.Out"/> is deliberately
+    /// never stored here — see <see cref="Output"/>.
+    /// </summary>
+    private readonly TextWriter? _explicitOutput;
     private readonly StringBuilder _buffer = new();
     private readonly bool _useAlternateScreen;
     private bool _inAlternateScreen;
@@ -25,23 +30,26 @@ public sealed class AnsiTerminal : IAnsiTerminal, IDisposable
     /// </summary>
     /// <param name="useAlternateScreen">Whether to use alternate screen buffer on startup.</param>
     public AnsiTerminal(bool useAlternateScreen = true)
-        : this(Console.Out, useAlternateScreen)
+        : this(null, useAlternateScreen)
     {
     }
 
     /// <summary>
-    /// Create an AnsiTerminal writing to a specific TextWriter.
+    /// Create an AnsiTerminal. Pass an explicit <paramref name="output"/> writer for
+    /// tests/benchmarks, or <c>null</c> to write to <see cref="Console.Out"/>.
     /// </summary>
-    internal AnsiTerminal(TextWriter output, bool useAlternateScreen = true)
+    internal AnsiTerminal(TextWriter? output, bool useAlternateScreen = true)
     {
-        _output = output;
+        _explicitOutput = output;
         _useAlternateScreen = useAlternateScreen;
 
         TerminaTrace.Platform.Debug(this, "AnsiTerminal created: output={0}, useAlternateScreen={1}",
-            output.GetType().Name, useAlternateScreen);
+            output?.GetType().Name ?? "Console.Out", useAlternateScreen);
 
-        // Set console to UTF-8
-        Console.OutputEncoding = Encoding.UTF8;
+        // NOTE: UTF-8 output encoding is configured once by the platform console
+        // (ConsoleEnvironment.EnsureUtf8Output). This terminal deliberately does not
+        // set Console.OutputEncoding and never caches Console.Out, because that setter
+        // replaces Console.Out with a new TextWriter — see issue #204.
 
         if (_useAlternateScreen)
         {
@@ -50,6 +58,14 @@ public sealed class AnsiTerminal : IAnsiTerminal, IDisposable
 
         TerminaTrace.Platform.Debug(this, "AnsiTerminal initialization complete");
     }
+
+    /// <summary>
+    /// The writer used for output. Resolved on every access — never cached — because
+    /// setting <see cref="Console.OutputEncoding"/> replaces <see cref="Console.Out"/>
+    /// with a new <see cref="TextWriter"/>. Caching it risks writing through a writer
+    /// bound to a stale encoding, garbling non-ASCII output. See issue #204.
+    /// </summary>
+    private TextWriter Output => _explicitOutput ?? Console.Out;
 
     /// <inheritdoc />
     public int Width => GetConsoleWidth();
@@ -181,8 +197,10 @@ public sealed class AnsiTerminal : IAnsiTerminal, IDisposable
                 _flushCount, content.Length, byteCount);
             TerminaTrace.Render.Debug(this, "Content preview: {0}", preview);
 
-            _output.Write(content);
-            _output.Flush();
+            // Resolve Console.Out fresh on every flush — never cache it (see Output).
+            var output = Output;
+            output.Write(content);
+            output.Flush();
             _buffer.Clear();
 
             TerminaTrace.Render.Debug(this, "Flush #{0} complete", _flushCount);
