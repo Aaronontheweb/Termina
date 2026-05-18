@@ -141,7 +141,7 @@ jobs:
             runtime: linux-x64
           - os: windows-latest
             runtime: win-x64
-          - os: macos-latest
+          - os: macos-26
             runtime: osx-arm64
 
     steps:
