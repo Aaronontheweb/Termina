@@ -85,6 +85,18 @@ public sealed class UnixConsole : IPlatformConsole
     private ConsoleCancelEventHandler? _cancelKeyPressHandler;
     private PosixSignalRegistration? _sigwinchRegistration;
 
+    private bool _kittyKeyboardActive;
+
+    /// <summary>
+    /// True when this console has pushed the kitty keyboard protocol enhancement
+    /// (<c>CSI &gt; N u</c>). Driven by the <c>TERMINA_KITTY_KEYBOARD</c> environment variable
+    /// (set to the flag-bits value, e.g. <c>8</c> for <c>report_all_keys</c>). Consumers (e.g.
+    /// <see cref="Input.PlatformInputSource"/>) read this to configure the
+    /// <see cref="Input.EscapeSequenceParser"/>'s
+    /// <see cref="Input.EscapeSequenceParser.KittyKeyboardActive"/> flag.
+    /// </summary>
+    public bool KittyKeyboardActive => _kittyKeyboardActive;
+
     /// <inheritdoc />
     public bool SupportsEventDrivenInput => true;
 
@@ -98,6 +110,7 @@ public sealed class UnixConsole : IPlatformConsole
 
         ConsoleEnvironment.EnsureUtf8Output();
         EnterRawMode();
+        TryEnterKittyKeyboard();
 
         try { _lastWidth = Console.WindowWidth; _lastHeight = Console.WindowHeight; }
         catch (IOException) { _lastWidth = 80; _lastHeight = 24; }
@@ -232,11 +245,49 @@ public sealed class UnixConsole : IPlatformConsole
     {
         if (_restored || !_rawModeEntered) return;
         _restored = true;
+        TryLeaveKittyKeyboard();
         var h = GCHandle.Alloc(_savedTermios, GCHandleType.Pinned);
         try { _ = tcsetattr(StdInFd, Tcsanow, h.AddrOfPinnedObject()); }
         catch { /* ignore */ }
         finally { h.Free(); }
         TerminaTrace.Platform.Debug(this, "UnixConsole termios restored");
+    }
+
+    /// <summary>
+    /// Pushes the kitty keyboard protocol enhancement bits onto the terminal's per-screen stack
+    /// when <c>TERMINA_KITTY_KEYBOARD</c> is set to a non-zero integer. Common value is <c>8</c>
+    /// (<c>report_all_keys</c>), which forces all keyboard input through <c>CSI ... u</c> /
+    /// <c>CSI 1;mods X</c>, unambiguously separating real arrows from <c>?1007h</c> wheel events.
+    /// </summary>
+    private void TryEnterKittyKeyboard()
+    {
+        var raw = Environment.GetEnvironmentVariable("TERMINA_KITTY_KEYBOARD");
+        if (string.IsNullOrEmpty(raw)) return;
+        if (!int.TryParse(raw, out var flags) || flags <= 0) return;
+
+        try
+        {
+            Console.Out.Write($"\x1b[>{flags}u");
+            Console.Out.Flush();
+            _kittyKeyboardActive = true;
+            TerminaTrace.Platform.Info(this, "UnixConsole pushed kitty keyboard flags={0}", flags);
+        }
+        catch (Exception ex)
+        {
+            TerminaTrace.Platform.Error(this, "Failed to push kitty keyboard flags: {0}", ex.Message);
+        }
+    }
+
+    private void TryLeaveKittyKeyboard()
+    {
+        if (!_kittyKeyboardActive) return;
+        try
+        {
+            Console.Out.Write("\x1b[<u");
+            Console.Out.Flush();
+        }
+        catch { /* ignore — we're tearing down */ }
+        _kittyKeyboardActive = false;
     }
 
     private void ReaderLoop()

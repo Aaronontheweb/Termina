@@ -37,6 +37,11 @@ public sealed class PlatformInputSource : IInputSource
     {
         _console = console ?? throw new ArgumentNullException(nameof(console));
         _parser = new EscapeSequenceParser();
+        if ((OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
+            && _console is UnixConsole unix && unix.KittyKeyboardActive)
+        {
+            _parser.KittyKeyboardActive = true;
+        }
     }
 
     /// <inheritdoc />
