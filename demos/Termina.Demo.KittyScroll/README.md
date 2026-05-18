@@ -32,13 +32,15 @@ Tested terminals (expected behavior):
 ## What to verify
 
 1. **Scroll the wheel over the history panel** — the history should scroll,
-   the `Wheel ↑/↓` counters should tick.
-2. **Press the bare arrow keys** — the `Arrow ↑/↓` counters should tick, and
-   the history should **not** move.
+   the `Wheel ↑/↓` counters should tick, even while the input box is focused.
+2. **Type into the input and press Enter** — the message should echo into the
+   history as `you> …` / `bot> echo: …`. Arrow keys move the cursor within
+   the input, they do NOT scroll the history (that's the disambiguation).
 3. **Click and drag with the mouse** — your terminal's native selection
    highlight should appear over the text.
-4. **`Ctrl+Q`** quits cleanly; the kitty enhancement is popped via `CSI < u`
-   before termios is restored.
+4. **Press Ctrl+C once** — a `Press Ctrl+C again to quit` toast appears.
+   Press Ctrl+C again within 2s to exit cleanly. The kitty enhancement is
+   popped via `CSI < u` before termios is restored.
 
 ## Why two env vars
 

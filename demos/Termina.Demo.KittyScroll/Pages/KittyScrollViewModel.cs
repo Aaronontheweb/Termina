@@ -47,9 +47,6 @@ public class KittyScrollViewModel : ReactiveViewModel
             ArrowDownCount.Value++;
         else
             OtherKeyCount.Value++;
-
-        if (info.Key == ConsoleKey.Q && info.Modifiers.HasFlag(ConsoleModifiers.Control))
-            RequestShutdown();
     }
 
     public override void Dispose()

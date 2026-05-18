@@ -10,17 +10,22 @@ namespace Termina.Demo.KittyScroll.Pages;
 
 /// <summary>
 /// Prototype of "Option B" wheel-vs-arrow disambiguation: kitty keyboard
-/// <c>report_all_keys</c> (CSI &gt; 8 u) + <c>?1007h</c> alternate-scroll.
+/// <c>report_all_keys</c> (CSI &gt; 8 u) + <c>?1007h</c> alternate-scroll, in
+/// an AI-chat-style harness so you can verify the focused input doesn't eat
+/// wheel ticks and that double-press Ctrl+C exits cleanly even while typing.
 ///
-/// Wheel ticks → <see cref="MouseScrollEvent"/> → scrolls the history. Real
-/// arrow keys → <see cref="KeyPressed"/> → only update the on-screen counters
-/// (intentionally NOT routed to the history, so the disambiguation is visible
-/// to the eye). Native click-drag text selection keeps working because we
-/// never enable full mouse tracking.
+/// Layout:
+/// <list type="bullet">
+///   <item>Top: scrollable history panel (StreamingTextNode, pre-populated).</item>
+///   <item>Middle: status line (last key + per-class counters).</item>
+///   <item>Bottom: TextInputNode (focused). Press Enter to submit the message
+///         into the history. Arrows move the cursor; wheel scrolls history.</item>
+/// </list>
 /// </summary>
 public class KittyScrollPage : ReactivePage<KittyScrollViewModel>
 {
     private StreamingTextNode _history = null!;
+    private TextInputNode _input = null!;
 
     protected override void OnBound()
     {
@@ -33,35 +38,39 @@ public class KittyScrollPage : ReactivePage<KittyScrollViewModel>
         for (var i = 1; i <= 200; i++)
         {
             _history.AppendLine(
-                $"Line {i,3}: scroll the wheel here — the history should move; arrows should NOT.",
+                $"Line {i,3}: scroll the wheel here — focus stays in the input below.",
                 Color.White);
         }
+
+        _input = new TextInputNode()
+            .WithPlaceholder("Type a message and press Enter (Ctrl+C twice to quit)…")
+            .WithForeground(Color.Cyan);
     }
 
     public override void OnNavigatedTo()
     {
         base.OnNavigatedTo();
 
-        // Wheel scrolls the history. Under kitty keyboard + ?1007h, this fires
-        // for wheel ticks but NOT for arrow keypresses — that's the whole point.
+        // Echo submitted text into the history (AI-harness style).
+        _input.Submitted
+            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .Subscribe(text =>
+            {
+                _history.AppendLine($"you> {text}", Color.BrightCyan);
+                _history.AppendLine($"bot> echo: {text}", Color.BrightGreen);
+                _input.Clear();
+            })
+            .DisposeWith(Subscriptions);
+
+        // Wheel ticks fall through here whenever the focused node isn't IScrollable
+        // (the TextInputNode is the typical focus). Under kitty + ?1007h these only
+        // arrive on real wheel events — bare arrows go to the focused input via the
+        // FocusManager and act as cursor moves.
         ViewModel.Input.OfType<IInputEvent, MouseScrollEvent>()
             .Subscribe(scroll =>
             {
                 if (scroll.Delta > 0) ((IScrollable)_history).ScrollUp(3);
                 else ((IScrollable)_history).ScrollDown(3);
-            })
-            .DisposeWith(Subscriptions);
-
-        // Arrows deliberately do nothing to the history here, so you can verify
-        // that pressing them physically does not move the scrollback — only the
-        // arrow counters in the status line tick.
-        ViewModel.Input.OfType<IInputEvent, KeyPressed>()
-            .Subscribe(k =>
-            {
-                var key = k.KeyInfo.Key;
-                // PgUp/PgDn keyboard fallback for terminals without kitty support.
-                if (key == ConsoleKey.PageUp || key == ConsoleKey.PageDown)
-                    _history.HandleInput(k.KeyInfo, viewportHeight: 10, viewportWidth: 80);
             })
             .DisposeWith(Subscriptions);
     }
@@ -75,7 +84,7 @@ public class KittyScrollPage : ReactivePage<KittyScrollViewModel>
                     .Bold()
                     .Height(1))
             .WithChild(
-                new TextNode("Wheel → scrolls history.  Arrows → counters only.  Click-drag → native selection.")
+                new TextNode("Wheel scrolls history.  Arrows move input cursor.  Ctrl+C twice to quit.")
                     .WithForeground(Color.BrightBlack)
                     .Height(1))
             .WithChild(new EmptyNode().Height(1))
@@ -101,8 +110,13 @@ public class KittyScrollPage : ReactivePage<KittyScrollViewModel>
                     .AsLayout()
                     .Height(1))
             .WithChild(
-                new TextNode("  [PgUp/PgDn] keyboard scroll fallback   [Ctrl+Q] quit")
-                    .WithForeground(Color.BrightBlack)
-                    .Height(1));
+                new PanelNode()
+                    .WithTitle("Input  (Enter to send · ↑/↓ history · Ctrl+C×2 quit)")
+                    .WithTitleColor(Color.Cyan)
+                    .WithBorder(BorderStyle.Rounded)
+                    .WithBorderColor(Color.Cyan)
+                    .WithContent(_input)
+                    .Height(3));
     }
 }
+
