@@ -185,6 +185,22 @@ internal sealed class EscapeSequenceParser
                     break;
                 }
 
+                // Wheel-as-CSI-arrow under xterm alternate-scroll mode (?1007h).
+                // When DECCKM (?1h) is also active, real keyboard arrows are delivered as SS3
+                // sequences (ESC O A/B) which .NET's Console.ReadKey converts directly to
+                // ConsoleKey.UpArrow/DownArrow — they do NOT enter this bracket-sequence state.
+                // So a bare ESC[A / ESC[B reaching the parser unambiguously means the terminal
+                // translated a mouse-wheel tick. (ESC[C / ESC[D = horizontal wheel; rare.)
+                if (seq.Length == 2 && (key.KeyChar == 'A' || key.KeyChar == 'B'))
+                {
+                    var delta = key.KeyChar == 'A' ? +1 : -1;
+                    TerminaTrace.Input.Debug(this, "ESP: CSI {0} → MouseScrollEvent({1})", key.KeyChar, delta);
+                    results.Add(new MouseScrollEvent(delta));
+                    _seqBuffer.Clear();
+                    _state = State.Normal;
+                    break;
+                }
+
                 // If this sequence can no longer match any recognized pattern, flush as raw keys
                 if (!CouldLeadToRecognizedSequence(seq))
                 {
@@ -248,6 +264,10 @@ internal sealed class EscapeSequenceParser
 
         // Could be an SGR mouse event "[<button;x;yM" — open-ended length up to ~30 chars
         if (seq.Length >= 2 && seq[1] == '<' && seq.Length <= 30)
+            return true;
+
+        // Could be wheel-as-CSI-arrow under ?1007h: "[A" or "[B"
+        if (seq == "[")
             return true;
 
         return false;

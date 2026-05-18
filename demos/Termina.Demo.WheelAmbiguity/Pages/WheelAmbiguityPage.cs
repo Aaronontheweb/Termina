@@ -96,7 +96,7 @@ public class WheelAmbiguityPage : ReactivePage<WheelAmbiguityViewModel>
                     .Bold()
                     .Height(1))
             .WithChild(
-                new TextNode("Scroll the wheel over the history below. Expected: history scrolls. Actual: input cursor moves.")
+                new TextNode("Scroll the wheel over the history below. With DECCKM + ?1007h disambiguation, wheel events are recognized.")
                     .WithForeground(Color.BrightBlack)
                     .Height(1))
             .WithChild(new EmptyNode().Height(1))

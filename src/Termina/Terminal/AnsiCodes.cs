@@ -342,6 +342,19 @@ public static class AnsiCodes
     /// </summary>
     public const string DisableAlternateScroll = $"{Csi}?1007l";
 
+    /// <summary>
+    /// Enable DECCKM (cursor key application mode). Real keyboard arrow keys then send
+    /// <c>ESC O A/B/C/D</c> (SS3) instead of <c>ESC [ A/B/C/D</c> (CSI). When paired with
+    /// <see cref="EnableAlternateScroll"/>, this lets the input parser distinguish wheel-as-arrow
+    /// events (still CSI form) from real keyboard arrows (SS3 form). Format: CSI ?1h
+    /// </summary>
+    public const string EnableCursorKeyApplicationMode = $"{Csi}?1h";
+
+    /// <summary>
+    /// Disable DECCKM (cursor keys return to normal CSI form). Format: CSI ?1l
+    /// </summary>
+    public const string DisableCursorKeyApplicationMode = $"{Csi}?1l";
+
     // Alternate screen buffer
 
     /// <summary>

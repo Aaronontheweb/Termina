@@ -258,6 +258,10 @@ public sealed class AnsiTerminal : IAnsiTerminal, IDisposable
         if (!_wheelScrollEnabled)
         {
             _buffer.Append(AnsiCodes.EnableAlternateScroll);
+            // DECCKM: keyboard arrows -> SS3 (ESC O A/B), wheel still sends CSI (ESC [ A/B).
+            // The EscapeSequenceParser uses this distinction to emit MouseScrollEvent for wheel
+            // ticks while leaving real keyboard arrows as plain KeyPressed(UpArrow/DownArrow).
+            _buffer.Append(AnsiCodes.EnableCursorKeyApplicationMode);
             _wheelScrollEnabled = true;
         }
     }
@@ -267,6 +271,7 @@ public sealed class AnsiTerminal : IAnsiTerminal, IDisposable
     {
         if (_wheelScrollEnabled)
         {
+            _buffer.Append(AnsiCodes.DisableCursorKeyApplicationMode);
             _buffer.Append(AnsiCodes.DisableAlternateScroll);
             _wheelScrollEnabled = false;
         }
