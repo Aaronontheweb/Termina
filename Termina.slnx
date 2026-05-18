@@ -17,9 +17,6 @@
     <Project Path="demos/Termina.Demo.RegionBased/Termina.Demo.RegionBased.csproj" />
     <Project Path="demos/Termina.Demo.Streaming/Termina.Demo.Streaming.csproj" />
     <Project Path="demos/Termina.Demo.Wizard/Termina.Demo.Wizard.csproj" />
-    <Project Path="demos/Termina.Demo.WheelAmbiguity/Termina.Demo.WheelAmbiguity.csproj" />
-    <Project Path="demos/Termina.Demo.WheelScrollWorks/Termina.Demo.WheelScrollWorks.csproj" />
-    <Project Path="demos/Termina.Demo.RawStdinProbe/Termina.Demo.RawStdinProbe.csproj" />
     <Project Path="demos/Termina.Demo.KittyScroll/Termina.Demo.KittyScroll.csproj" />
   </Folder>
   <Folder Name="/tests/">
