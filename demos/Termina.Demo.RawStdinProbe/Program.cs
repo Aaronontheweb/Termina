@@ -49,6 +49,8 @@ internal static class Program
     private static readonly byte[] SavedTermios = new byte[TermiosBufferSize];
     private static bool _rawModeEntered;
     private static bool _restored;
+    private static int _kittyFlags;
+    private static bool _kittyPushed;
 
     private static int Main()
     {
@@ -79,7 +81,31 @@ internal static class Program
             // applies on the alt screen per xterm.ctlseqs. ?1h: DECCKM application cursor keys.
             Write("\x1b[?1049h\x1b[?1007h\x1b[?1h");
             PrintInfo("Sent ?1049h (alt screen) + ?1007h (alternate scroll) + ?1h (DECCKM)");
-            PrintInfo("Try: scroll wheel | press arrow keys | type some text | Ctrl+C | press 'q' to quit");
+
+            // Optional: kitty keyboard progressive enhancement push. TERMINA_KITTY_FLAGS env var
+            // selects which flag bits to set. Common values:
+            //   0  → disabled (legacy behavior; default if env unset/0)
+            //   1  → disambiguate escape codes only
+            //   8  → report all keys as escape codes (implies disambiguate)
+            //   9  → 1 | 8
+            //   11 → 1 | 2 | 8 (also report event types)
+            // We use CSI > <flags> u (PUSH onto the kitty stack) so we can cleanly pop on exit
+            // without clobbering whatever the parent shell had configured.
+            var kittyEnv = Environment.GetEnvironmentVariable("TERMINA_KITTY_FLAGS");
+            if (int.TryParse(kittyEnv, out var flags) && flags > 0)
+            {
+                _kittyFlags = flags;
+                Write($"\x1b[>{flags}u");
+                _kittyPushed = true;
+                PrintInfo($"Sent CSI > {flags} u   (kitty keyboard PUSH; bits: {DescribeKittyFlags(flags)})");
+                PrintInfo("Now press the same keys: arrows should arrive as CSI ... u (or CSI 1;<mods>A); wheel should still arrive as legacy ESC OA/B or ESC [A/B.");
+            }
+            else
+            {
+                PrintInfo("(no kitty keyboard enhancement; set TERMINA_KITTY_FLAGS=8 to enable)");
+            }
+
+            PrintInfo("Try: scroll wheel | press arrow keys | type some text | hold Shift+arrow | Ctrl+C | press 'q' to quit");
             PrintInfo("--------------------------------------------------------------------------------");
 
             RunLoop();
@@ -94,11 +120,31 @@ internal static class Program
         {
             // Disable mouse modes and leave the alt screen before restoring termios so the
             // terminal doesn't keep sending CSI sequences on the user's shell prompt after exit.
-            try { Write("\x1b[?1l\x1b[?1007l\x1b[?1049l"); } catch { /* ignore */ }
+            try
+            {
+                if (_kittyPushed)
+                {
+                    // POP one entry off the kitty keyboard stack.
+                    Write("\x1b[<u");
+                }
+                Write("\x1b[?1l\x1b[?1007l\x1b[?1049l");
+            }
+            catch { /* ignore */ }
             SafeRestore();
         }
 
         return 0;
+    }
+
+    private static string DescribeKittyFlags(int flags)
+    {
+        var parts = new List<string>();
+        if ((flags & 1) != 0) parts.Add("disambiguate");
+        if ((flags & 2) != 0) parts.Add("report-event-types");
+        if ((flags & 4) != 0) parts.Add("report-alternate-keys");
+        if ((flags & 8) != 0) parts.Add("report-all-keys-as-escape-codes");
+        if ((flags & 16) != 0) parts.Add("report-associated-text");
+        return parts.Count == 0 ? "(none)" : string.Join("|", parts);
     }
 
     private static void PrintBanner()
@@ -244,30 +290,54 @@ internal static class Program
     /// </summary>
     private static string? AnnotateSequence(byte[] b)
     {
-        if (b.Length == 3 && b[0] == 0x1B && b[1] == (byte)'[')
+        // CSI sequence: ESC [ ... <final byte in 0x40-0x7E>. Try to parse params + final.
+        if (b.Length >= 3 && b[0] == 0x1B && b[1] == (byte)'[')
         {
-            return b[2] switch
+            var final = b[^1];
+            if (final >= 0x40 && final <= 0x7E)
             {
-                (byte)'A' => "CSI [A   (WHEEL UP under ?1007h, or arrow if DECCKM off)",
-                (byte)'B' => "CSI [B   (WHEEL DOWN under ?1007h, or arrow if DECCKM off)",
-                (byte)'C' => "CSI [C   (right arrow, DECCKM off)",
-                (byte)'D' => "CSI [D   (left arrow, DECCKM off)",
-                _ => null,
-            };
+                var paramBytes = b.AsSpan(2, b.Length - 3);
+                var paramStr = Encoding.ASCII.GetString(paramBytes);
+
+                // CSI <num>;<mods>[;...] u  — kitty key event.
+                if (final == (byte)'u')
+                {
+                    return $"CSI {paramStr} u   → KITTY KEY EVENT ({DecodeKittyKey(paramStr)})";
+                }
+                // CSI <num>;<mods> [ABCDEFHPQRS]  — kitty "second form" arrows / function keys
+                // when at least one modifier is present (so the params appear).
+                if (final is >= (byte)'A' and <= (byte)'H' or >= (byte)'P' and <= (byte)'S' && paramStr.Length > 0)
+                {
+                    return $"CSI {paramStr}{(char)final}   → KITTY FUNCTIONAL ({DecodeFunctional((char)final, paramStr)})";
+                }
+                // No-param CSI A/B/C/D etc. — either wheel under ?1007h OR plain arrow without kitty.
+                if (paramStr.Length == 0)
+                {
+                    return (char)final switch
+                    {
+                        'A' => "CSI [A   (WHEEL UP under ?1007h, OR plain Up if no kitty/DECCKM off)",
+                        'B' => "CSI [B   (WHEEL DOWN under ?1007h, OR plain Down if no kitty/DECCKM off)",
+                        'C' => "CSI [C   (right arrow, DECCKM off, no kitty)",
+                        'D' => "CSI [D   (left arrow, DECCKM off, no kitty)",
+                        _ => $"CSI [{(char)final}   (unrecognized)",
+                    };
+                }
+                if (b.Length >= 4 && b[2] == (byte)'M')
+                    return "CSI [M ...  (X10 mouse report — ?1000h mouse tracking)";
+                return $"CSI {paramStr}{(char)final}   (unrecognized CSI)";
+            }
         }
         if (b.Length == 3 && b[0] == 0x1B && b[1] == (byte)'O')
         {
             return b[2] switch
             {
-                (byte)'A' => "SS3 OA   (REAL UP ARROW, DECCKM on)",
-                (byte)'B' => "SS3 OB   (REAL DOWN ARROW, DECCKM on)",
+                (byte)'A' => "SS3 OA   (REAL UP ARROW under DECCKM, OR WHEEL UP under ?1007h+DECCKM — INDISTINGUISHABLE)",
+                (byte)'B' => "SS3 OB   (REAL DOWN ARROW under DECCKM, OR WHEEL DOWN under ?1007h+DECCKM — INDISTINGUISHABLE)",
                 (byte)'C' => "SS3 OC   (right arrow, DECCKM on)",
                 (byte)'D' => "SS3 OD   (left arrow, DECCKM on)",
                 _ => null,
             };
         }
-        if (b.Length >= 4 && b[0] == 0x1B && b[1] == (byte)'[' && b[2] == (byte)'M')
-            return "CSI [M ...  (X10 mouse report — ?1000h mouse tracking)";
         if (b.Length == 1 && b[0] == 0x1B)
             return "bare ESC";
         if (b.Length == 1 && b[0] == 0x03)
@@ -279,6 +349,71 @@ internal static class Program
         if (b.Length == 1 && b[0] >= 0x20 && b[0] < 0x7F)
             return $"typed '{(char)b[0]}'";
         return null;
+    }
+
+    /// <summary>Decodes the params of a kitty CSI u event into a short human description.</summary>
+    private static string DecodeKittyKey(string paramStr)
+    {
+        var fields = paramStr.Split(';');
+        var keyField = fields.Length > 0 ? fields[0] : "";
+        var modField = fields.Length > 1 ? fields[1] : "";
+        var keycode = keyField.Split(':')[0];
+        var modValue = modField.Split(':')[0];
+        var keyName = KittyKeyName(keycode);
+        var modName = ModName(modValue);
+        return $"key={keycode}({keyName}) mods={modName}";
+    }
+
+    private static string DecodeFunctional(char final, string paramStr)
+    {
+        // CSI 1;<mods> A  — arrows + Home/End. Real-arrow encoding when kitty is on AND mods present.
+        var fields = paramStr.Split(';');
+        var modValue = fields.Length > 1 ? fields[1].Split(':')[0] : "1";
+        var name = final switch
+        {
+            'A' => "Up arrow", 'B' => "Down arrow", 'C' => "Right arrow", 'D' => "Left arrow",
+            'H' => "Home", 'F' => "End",
+            'P' => "F1", 'Q' => "F2", 'R' => "F3", 'S' => "F4",
+            _ => $"final={final}",
+        };
+        return $"{name} mods={ModName(modValue)}";
+    }
+
+    private static string KittyKeyName(string keycode)
+    {
+        if (!int.TryParse(keycode, out var n)) return "?";
+        return n switch
+        {
+            // ASCII / common
+            9 => "Tab", 13 => "Enter", 27 => "Esc", 32 => "Space", 127 => "Backspace",
+            // Kitty functional PUA codepoints (subset)
+            57344 => "Esc", 57345 => "Enter", 57346 => "Tab", 57347 => "Backspace",
+            57352 => "Up", 57353 => "Down", 57354 => "Left", 57355 => "Right",
+            57356 => "PageUp", 57357 => "PageDown", 57358 => "Home", 57359 => "End",
+            // Modifier-alone keys (commonly seen with report_all_keys)
+            57441 => "L-Shift", 57442 => "L-Ctrl", 57443 => "L-Alt", 57444 => "L-Super",
+            57447 => "R-Shift", 57448 => "R-Ctrl", 57449 => "R-Alt", 57450 => "R-Super",
+            // ASCII printable
+            >= 32 and <= 126 => $"'{(char)n}'",
+            _ => $"U+{n:X4}",
+        };
+    }
+
+    private static string ModName(string modValue)
+    {
+        if (!int.TryParse(modValue, out var v) || v < 1) return "(none)";
+        var bits = v - 1;
+        if (bits == 0) return "none";
+        var parts = new List<string>();
+        if ((bits & 1) != 0) parts.Add("Shift");
+        if ((bits & 2) != 0) parts.Add("Alt");
+        if ((bits & 4) != 0) parts.Add("Ctrl");
+        if ((bits & 8) != 0) parts.Add("Super");
+        if ((bits & 16) != 0) parts.Add("Hyper");
+        if ((bits & 32) != 0) parts.Add("Meta");
+        if ((bits & 64) != 0) parts.Add("CapsLock");
+        if ((bits & 128) != 0) parts.Add("NumLock");
+        return string.Join("+", parts);
     }
 
     private static void PrintInfo(string msg) => Console.WriteLine($"[probe] {msg}");
