@@ -60,6 +60,8 @@ public sealed class TerminaApplication
     private ReactiveViewModel? _currentViewModel;
     private ReactivePageRegistration? _currentRegistration;
     private CancellationTokenSource? _shutdownCts;
+    private DateTime? _firstCtrlCAt;
+    private static readonly TimeSpan CtrlCDoublePressWindow = TimeSpan.FromSeconds(2);
 
     /// <summary>
     /// Creates a new Termina application.
@@ -510,6 +512,33 @@ public sealed class TerminaApplication
     private void ProcessEvent(object evt)
     {
         TerminaTrace.Input.Trace(this, "ProcessEvent: {0}", evt.GetType().Name);
+
+        // Framework-level Ctrl+C handling: first press shows a hint, second press
+        // within CtrlCDoublePressWindow shuts the app down. This sits above page /
+        // focus handling so users can always get out, even from a focus-trapping
+        // input control. Under cfmakeraw (UnixConsole) Ctrl+C arrives as a normal
+        // KeyPressed event; on Windows ENABLE_PROCESSED_INPUT is also disabled by
+        // WindowsConsole when it owns input so the same path runs.
+        if (evt is KeyPressed ctrlC
+            && ctrlC.KeyInfo.Key == ConsoleKey.C
+            && ctrlC.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Control))
+        {
+            var now = DateTime.UtcNow;
+            if (_firstCtrlCAt.HasValue && (now - _firstCtrlCAt.Value) <= CtrlCDoublePressWindow)
+            {
+                TerminaTrace.Page.Info(this, "Ctrl+C pressed twice — shutting down");
+                _firstCtrlCAt = null;
+                Shutdown();
+                return;
+            }
+
+            _firstCtrlCAt = now;
+            _toastService?.Show(
+                "Press Ctrl+C again to quit",
+                new ToastOptions(Duration: CtrlCDoublePressWindow, Position: ToastPosition.BottomCenter));
+            RequestRedraw();
+            return;
+        }
 
         // Handle system events
         switch (evt)
