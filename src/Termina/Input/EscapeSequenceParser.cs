@@ -57,6 +57,24 @@ internal sealed class EscapeSequenceParser
     private readonly Func<long> _getTick;
 
     /// <summary>
+    /// When <c>true</c>, the parser interprets bare <c>CSI A/B/C/D/H/F/P-S</c> (no params) as
+    /// keyboard arrow / function keys instead of <see cref="MouseScrollEvent"/>. Set this when
+    /// the kitty keyboard progressive enhancement <c>report_all_keys</c> (flag 8) is active —
+    /// in that mode plain arrows are reported as canonical kitty escape codes and the only
+    /// remaining source of bare <c>CSI A/B</c> is the <c>?1007h</c> alternate-scroll wheel.
+    /// </summary>
+    /// <remarks>
+    /// When the kitty keyboard protocol is active <em>and</em> <c>?1007h</c> is also enabled,
+    /// the only way to distinguish wheel-up from Up-arrow is for the parser to know which mode
+    /// the terminal is in. The terminal's keyboard events get the kitty CSI-u / second-form
+    /// shape; wheel events keep emitting the legacy <c>ESC OA/B</c> (DECCKM on) or
+    /// <c>ESC [A/B</c> (DECCKM off) shape. With this flag set the parser routes the
+    /// bare-CSI-arrow shape to <see cref="KeyPressed"/> (treating any matching SS3 as the wheel
+    /// path instead — handled in <see cref="State.InSs3Sequence"/>).
+    /// </remarks>
+    public bool KittyKeyboardActive { get; set; }
+
+    /// <summary>
     /// Creates a parser using the system clock.
     /// </summary>
     public EscapeSequenceParser() : this(null) { }
@@ -175,7 +193,7 @@ internal sealed class EscapeSequenceParser
                 // CSI u (kitty keyboard protocol): ESC[keycode;modifiersu
                 if (key.KeyChar == 'u' && seq.Length >= 2)
                 {
-                    if (TryParseCsiU(seq, out var csiEvent))
+                    if (TryParseCsiU(seq, out var csiEvent) && csiEvent is not null)
                     {
                         TerminaTrace.Input.Debug(this, "ESP: CSI u detected: {0}", seq);
                         results.Add(csiEvent);
@@ -195,16 +213,45 @@ internal sealed class EscapeSequenceParser
                 }
 
                 // Wheel-as-CSI-arrow under xterm alternate-scroll mode (?1007h).
-                // With DECCKM (?1h) also enabled, the terminal sends real keyboard arrows as
-                // SS3 sequences (ESC O A/B/C/D) and only mouse-wheel ticks as CSI form
-                // (ESC [ A/B). Provided the input source delivers raw bytes (UnixConsole on
-                // Unix; Windows console event API doesn't use ?1007h anyway), a bare ESC[A /
-                // ESC[B reaching this state unambiguously means the wheel moved.
-                if (seq.Length == 2 && (key.KeyChar == 'A' || key.KeyChar == 'B'))
+                // Routing of bare CSI A/B depends on whether the kitty keyboard protocol is
+                // active:
+                //   - Kitty inactive: bare CSI A/B is the legacy ?1007h wheel emission
+                //     (because real arrows arrive as SS3 OA/B under DECCKM).
+                //   - Kitty active: bare CSI A/B/C/D/H/F/P-S are the kitty canonical no-mod
+                //     keyboard form; wheel still emits the DECCKM-controlled SS3 form, so the
+                //     CSI form is unambiguously a real key.
+                if (seq.Length == 2 && IsArrowOrFunctionalFinal(key.KeyChar))
                 {
-                    var delta = key.KeyChar == 'A' ? +1 : -1;
-                    TerminaTrace.Input.Debug(this, "ESP: CSI {0} → MouseScrollEvent({1})", key.KeyChar, delta);
-                    results.Add(new MouseScrollEvent(delta));
+                    if (KittyKeyboardActive)
+                    {
+                        var ck = FunctionalFinalToKey(key.KeyChar);
+                        if (ck != ConsoleKey.None)
+                        {
+                            TerminaTrace.Input.Debug(this, "ESP: CSI {0} (kitty no-mod) → KeyPressed({1})", key.KeyChar, ck);
+                            results.Add(new KeyPressed(new ConsoleKeyInfo('\0', ck, false, false, false)));
+                        }
+                    }
+                    else if (key.KeyChar == 'A' || key.KeyChar == 'B')
+                    {
+                        var delta = key.KeyChar == 'A' ? +1 : -1;
+                        TerminaTrace.Input.Debug(this, "ESP: CSI {0} → MouseScrollEvent({1})", key.KeyChar, delta);
+                        results.Add(new MouseScrollEvent(delta));
+                    }
+                    _seqBuffer.Clear();
+                    _state = State.Normal;
+                    break;
+                }
+
+                // Kitty "second form" with parameters: CSI 1;<mods>[:<event>] [ABCDEFHPQRS]
+                // Real arrows / function keys with a modifier pressed when kitty's
+                // disambiguate (bit 1) or report_all_keys (bit 8) flag is set.
+                if (IsArrowOrFunctionalFinal(key.KeyChar) && seq.Length >= 3 && seq[1] != '<')
+                {
+                    if (TryParseKittySecondForm(seq, out var keyEvent) && keyEvent is not null)
+                    {
+                        TerminaTrace.Input.Debug(this, "ESP: kitty second-form {0} → {1}", seq, keyEvent);
+                        results.Add(keyEvent);
+                    }
                     _seqBuffer.Clear();
                     _state = State.Normal;
                     break;
@@ -228,6 +275,20 @@ internal sealed class EscapeSequenceParser
                 // ESC O A/B/C/D → arrow keys delivered by the terminal under DECCKM (?1h).
                 // We re-emit these as the same ConsoleKeyInfo shape Console.ReadKey used to
                 // produce for arrow keys, so existing focus/scroll handlers see no difference.
+                //
+                // EXCEPTION: when the kitty keyboard protocol is active, real keyboard arrows
+                // arrive via the kitty CSI-u / second-form path instead, so any remaining
+                // SS3 OA/OB at this point must be the ?1007h wheel emission under DECCKM on.
+                // (SS3 OC/OD never come from the wheel — there is no horizontal wheel.)
+                if (KittyKeyboardActive && (key.KeyChar == 'A' || key.KeyChar == 'B'))
+                {
+                    var delta = key.KeyChar == 'A' ? +1 : -1;
+                    TerminaTrace.Input.Debug(this, "ESP: SS3 O{0} (kitty active) → MouseScrollEvent({1})", key.KeyChar, delta);
+                    results.Add(new MouseScrollEvent(delta));
+                    _state = State.Normal;
+                    break;
+                }
+
                 var ck = key.KeyChar switch
                 {
                     'A' => ConsoleKey.UpArrow,
@@ -301,19 +362,88 @@ internal sealed class EscapeSequenceParser
         if (seq.Length <= pasteStart.Length && pasteStart.StartsWith(seq, StringComparison.Ordinal))
             return true;
 
-        // Could be a CSI u sequence "[keycode;modifiersu" — digits, semicolons, up to ~15 chars
-        if (seq.Length >= 2 && seq.Length <= 15 && char.IsDigit(seq[1]))
+        // Could be a CSI u sequence "[keycode;modifiersu" — digits, semicolons, colons, up to ~32 chars
+        if (seq.Length >= 2 && seq.Length <= 32 && (char.IsDigit(seq[1]) || seq[1] == ';' || seq[1] == ':'))
             return true;
 
         // Could be an SGR mouse event "[<button;x;yM" — open-ended length up to ~30 chars
         if (seq.Length >= 2 && seq[1] == '<' && seq.Length <= 30)
             return true;
 
-        // Could be wheel-as-CSI-arrow under ?1007h: "[A" or "[B"
+        // Could be wheel-as-CSI-arrow under ?1007h: "[A" or "[B" / kitty second-form "[1;NA"
         if (seq == "[")
             return true;
 
         return false;
+    }
+
+    /// <summary>True for CSI finals that represent an arrow / Home/End / F1-F4.</summary>
+    private static bool IsArrowOrFunctionalFinal(char c) =>
+        c is 'A' or 'B' or 'C' or 'D' or 'E' or 'F' or 'H' or 'P' or 'Q' or 'R' or 'S';
+
+    /// <summary>Maps the CSI second-form final char to a <see cref="ConsoleKey"/>.</summary>
+    private static ConsoleKey FunctionalFinalToKey(char c) => c switch
+    {
+        'A' => ConsoleKey.UpArrow,
+        'B' => ConsoleKey.DownArrow,
+        'C' => ConsoleKey.RightArrow,
+        'D' => ConsoleKey.LeftArrow,
+        'H' => ConsoleKey.Home,
+        'F' => ConsoleKey.End,
+        'P' => ConsoleKey.F1,
+        'Q' => ConsoleKey.F2,
+        'R' => ConsoleKey.F3,
+        'S' => ConsoleKey.F4,
+        _ => ConsoleKey.None,
+    };
+
+    /// <summary>
+    /// Attempts to parse a kitty keyboard "second form" sequence: <c>[1;modifiers[:event] final</c>
+    /// where <c>final</c> is one of <c>A B C D E F H P Q R S</c>.
+    /// </summary>
+    /// <param name="seq">The buffered sequence string, e.g. <c>[1;5A</c> or <c>[1;2:1A</c>.</param>
+    /// <param name="result">
+    /// On <c>true</c> return: the resulting <see cref="KeyPressed"/> when this was a press event,
+    /// or <c>null</c> when a repeat/release event was parsed and intentionally swallowed.
+    /// </param>
+    /// <returns>
+    /// <c>true</c> if the sequence was recognized (whether or not an event is produced).
+    /// </returns>
+    private static bool TryParseKittySecondForm(string seq, out KeyPressed? result)
+    {
+        result = null;
+        if (seq.Length < 3 || seq[0] != '[') return false;
+        var final = seq[^1];
+        var key = FunctionalFinalToKey(final);
+        if (key == ConsoleKey.None) return false;
+
+        // Strip leading '[' and trailing final → "1;modifiers[:event]"
+        var inner = seq[1..^1];
+        var semicolon = inner.IndexOf(';');
+        if (semicolon < 0) return false;
+
+        // First field must be "1" for the second form.
+        if (inner[..semicolon] != "1") return false;
+        var rest = inner[(semicolon + 1)..];
+
+        // Parse modifiers and optional event-type subfield.
+        var colon = rest.IndexOf(':');
+        var modPart = colon < 0 ? rest : rest[..colon];
+        if (!int.TryParse(modPart, out var modValue) || modValue < 1) return false;
+
+        // Event type: 1 = press (default), 2 = repeat, 3 = release. Only emit press events.
+        if (colon >= 0)
+        {
+            if (!int.TryParse(rest[(colon + 1)..], out var eventType)) return false;
+            if (eventType != 1) return true; // parsed-and-swallowed; result stays null
+        }
+
+        var modBits = modValue - 1;
+        var shift = (modBits & 1) != 0;
+        var alt = (modBits & 2) != 0;
+        var ctrl = (modBits & 4) != 0;
+        result = new KeyPressed(new ConsoleKeyInfo('\0', key, shift, alt, ctrl));
+        return true;
     }
 
     /// <summary>
@@ -325,15 +455,15 @@ internal sealed class EscapeSequenceParser
     /// <param name="seq">The buffered sequence string, e.g. <c>[13;5u</c>.</param>
     /// <param name="result">The resulting <see cref="KeyPressed"/> event, if parsing succeeded.</param>
     /// <returns><c>true</c> if the sequence was successfully parsed.</returns>
-    private static bool TryParseCsiU(string seq, out KeyPressed result)
+    private static bool TryParseCsiU(string seq, out KeyPressed? result)
     {
-        result = default!;
+        result = null;
 
-        // seq = "[keycode;modifiersu" — strip leading "[" and trailing "u"
+        // seq = "[keycode[;modifiers[:event][;text...]]u" — strip leading "[" and trailing "u"
         if (seq.Length < 3 || seq[0] != '[' || seq[^1] != 'u')
             return false;
 
-        var inner = seq[1..^1]; // "keycode;modifiers"
+        var inner = seq[1..^1];
         var semicolon = inner.IndexOf(';');
 
         int keycode;
@@ -341,17 +471,44 @@ internal sealed class EscapeSequenceParser
 
         if (semicolon < 0)
         {
-            // No modifier field — just keycode
-            if (!int.TryParse(inner, out keycode))
+            // No modifier field — just keycode (possibly with :alternate sub-fields we ignore).
+            var keyPart = inner;
+            var sub = keyPart.IndexOf(':');
+            if (sub >= 0) keyPart = keyPart[..sub];
+            if (!int.TryParse(keyPart, out keycode))
                 return false;
         }
         else
         {
-            if (!int.TryParse(inner[..semicolon], out keycode))
+            var keyPart = inner[..semicolon];
+            var subKey = keyPart.IndexOf(':');
+            if (subKey >= 0) keyPart = keyPart[..subKey];
+            if (!int.TryParse(keyPart, out keycode))
                 return false;
-            if (!int.TryParse(inner[(semicolon + 1)..], out modValue))
-                return false;
+
+            // Modifier field may have a :<event-type> sub-field, and a trailing ;<text-codepoints>.
+            var rest = inner[(semicolon + 1)..];
+            // Strip any trailing ;text-codepoints (we ignore associated text in the prototype).
+            var nextSemi = rest.IndexOf(';');
+            if (nextSemi >= 0) rest = rest[..nextSemi];
+
+            var modPart = rest;
+            var colon = rest.IndexOf(':');
+            if (colon >= 0)
+            {
+                modPart = rest[..colon];
+                if (!int.TryParse(rest[(colon + 1)..], out var eventType))
+                    return false;
+                if (eventType != 1) return true; // swallow repeat / release
+            }
+            if (!int.TryParse(modPart, out modValue) || modValue < 1) return false;
         }
+
+        // Swallow modifier-key-alone press events (left/right Shift/Ctrl/Alt/Super/Hyper/Meta,
+        // CapsLock, NumLock, etc.) — the kitty PUA range 57441..57454 carries these and they
+        // overwhelm the prototype's input loop with noise on every keystroke.
+        if (keycode is >= 57441 and <= 57454)
+            return true; // parsed-and-swallowed
 
         // Decode 1-based modifier bitmask: value = 1 + (shift ? 1 : 0) + (alt ? 2 : 0) + (ctrl ? 4 : 0)
         var modBits = modValue - 1;
@@ -359,8 +516,11 @@ internal sealed class EscapeSequenceParser
         var alt = (modBits & 2) != 0;
         var ctrl = (modBits & 4) != 0;
 
-        // Map keycode to ConsoleKey and char
         var (consoleKey, keyChar) = MapKeycodeToConsoleKey(keycode);
+        // Modifier-alone or unknown keys we don't want to surface get ConsoleKey.None and '\0' —
+        // swallow them too rather than surfacing a confusing empty KeyPressed.
+        if (consoleKey == ConsoleKey.None && keyChar == '\0')
+            return true;
 
         result = new KeyPressed(new ConsoleKeyInfo(keyChar, consoleKey, shift, alt, ctrl));
         return true;
@@ -378,6 +538,24 @@ internal sealed class EscapeSequenceParser
         27 => (ConsoleKey.Escape, '\x1b'),
         // Printable ASCII range
         >= 32 and <= 126 => (CharToConsoleKey((char)keycode), (char)keycode),
+        // Kitty functional-key PUA codepoints (https://sw.kovidgoyal.net/kitty/keyboard-protocol/#functional)
+        57344 => (ConsoleKey.Escape, '\x1b'),
+        57345 => (ConsoleKey.Enter, '\r'),
+        57346 => (ConsoleKey.Tab, '\t'),
+        57347 => (ConsoleKey.Backspace, '\b'),
+        57348 => (ConsoleKey.Insert, '\0'),
+        57349 => (ConsoleKey.Delete, '\0'),
+        57350 => (ConsoleKey.LeftArrow, '\0'),
+        57351 => (ConsoleKey.RightArrow, '\0'),
+        57352 => (ConsoleKey.UpArrow, '\0'),
+        57353 => (ConsoleKey.DownArrow, '\0'),
+        57354 => (ConsoleKey.PageUp, '\0'),
+        57355 => (ConsoleKey.PageDown, '\0'),
+        57356 => (ConsoleKey.Home, '\0'),
+        57357 => (ConsoleKey.End, '\0'),
+        57358 => (ConsoleKey.None, '\0'), // CapsLock — no ConsoleKey constant; swallow.
+        // F1..F12 (Kitty PUA 57364..57375)
+        >= 57364 and <= 57375 => (ConsoleKey.F1 + (keycode - 57364), '\0'),
         // Default: use the codepoint as the char, no specific ConsoleKey
         _ => (ConsoleKey.None, keycode < 128 ? (char)keycode : '\0')
     };
