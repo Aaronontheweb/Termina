@@ -75,8 +75,10 @@ internal static class Program
         {
             PrintBanner();
             EnterRawMode();
-            Write("\x1b[?1007h\x1b[?1h");
-            PrintInfo("Sent ?1007h (alternate scroll) + ?1h (DECCKM application cursor keys)");
+            // ?1049h: switch to alternate screen buffer. ?1007h's wheel-as-arrow emission only
+            // applies on the alt screen per xterm.ctlseqs. ?1h: DECCKM application cursor keys.
+            Write("\x1b[?1049h\x1b[?1007h\x1b[?1h");
+            PrintInfo("Sent ?1049h (alt screen) + ?1007h (alternate scroll) + ?1h (DECCKM)");
             PrintInfo("Try: scroll wheel | press arrow keys | type some text | Ctrl+C | press 'q' to quit");
             PrintInfo("--------------------------------------------------------------------------------");
 
@@ -90,9 +92,9 @@ internal static class Program
         }
         finally
         {
-            // Disable mouse modes before restoring so the terminal doesn't keep sending CSI on
-            // the user's shell prompt after we exit.
-            try { Write("\x1b[?1l\x1b[?1007l"); } catch { /* ignore */ }
+            // Disable mouse modes and leave the alt screen before restoring termios so the
+            // terminal doesn't keep sending CSI sequences on the user's shell prompt after exit.
+            try { Write("\x1b[?1l\x1b[?1007l\x1b[?1049l"); } catch { /* ignore */ }
             SafeRestore();
         }
 
