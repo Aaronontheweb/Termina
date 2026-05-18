@@ -128,6 +128,27 @@ public class EscapeSequenceParserTests
         Assert.Equal(-1, mse.Delta);
     }
 
+    [Theory]
+    [InlineData('A', ConsoleKey.UpArrow)]
+    [InlineData('B', ConsoleKey.DownArrow)]
+    [InlineData('C', ConsoleKey.RightArrow)]
+    [InlineData('D', ConsoleKey.LeftArrow)]
+    [InlineData('H', ConsoleKey.Home)]
+    [InlineData('F', ConsoleKey.End)]
+    public void Ss3Arrow_EmitsKeyPressed_WithMatchingConsoleKey(char terminator, ConsoleKey expected)
+    {
+        // Under raw-stdin input (UnixConsole), real arrow keys arrive as the SS3 sequence
+        // ESC O A/B/C/D when the terminal is in cursor-key application mode (DECCKM, ?1h).
+        // The parser must turn them back into a single KeyPressed so existing keyboard
+        // handlers see a normal arrow keypress — NOT a MouseScrollEvent.
+        var parser = new EscapeSequenceParser();
+        var events = FeedSequence(parser, new[] { EscKey(), Key('O'), Key(terminator) });
+
+        var ev = Assert.Single(events);
+        var kp = Assert.IsType<KeyPressed>(ev);
+        Assert.Equal(expected, kp.KeyInfo.Key);
+    }
+
     [Fact]
     public void SgrMouseClickPress_IsSilentlyConsumed()
     {

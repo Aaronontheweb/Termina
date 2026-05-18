@@ -7,14 +7,14 @@ using Termina.Diagnostics;
 namespace Termina.Input;
 
 /// <summary>
-/// Parses escape sequences from individual <see cref="ConsoleKeyInfo"/> values returned by
-/// <see cref="Console.ReadKey(bool)"/>.
+/// Parses escape sequences from individual <see cref="ConsoleKeyInfo"/> values arriving from
+/// the active <see cref="Platform.IPlatformConsole"/>.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <c>Console.ReadKey</c> does not parse terminal mouse or paste escape sequences — it returns
-/// each byte of the sequence as a separate <see cref="ConsoleKeyInfo"/>. This parser buffers
-/// those individual key events and detects:
+/// Whether the bytes come from <c>Console.ReadKey</c> (Windows / fallback) or from raw stdin
+/// reads via <see cref="Platform.UnixConsole"/>, each byte of an escape sequence arrives as a
+/// separate <see cref="ConsoleKeyInfo"/>. This parser buffers them and detects:
 /// </para>
 /// <list type="bullet">
 ///   <item><description>Bracketed paste: <c>ESC[200~</c>…content…<c>ESC[201~</c> → <see cref="PasteEvent"/></description></item>
@@ -22,6 +22,8 @@ namespace Termina.Input;
 ///   <item><description>SGR mouse scroll down: <c>ESC[&lt;65;x;yM</c> → <see cref="MouseScrollEvent"/>(<c>-1</c>)</description></item>
 ///   <item><description>Other SGR mouse events (clicks, releases): silently consumed — prevents spurious <c>ESC</c> keypresses.</description></item>
 ///   <item><description>CSI u (kitty keyboard protocol): <c>ESC[keycode;modifiersu</c> → <see cref="KeyPressed"/> with correct modifiers.</description></item>
+///   <item><description>CSI arrow under xterm alternate-scroll mode: <c>ESC[A</c> / <c>ESC[B</c> → <see cref="MouseScrollEvent"/>.</description></item>
+///   <item><description>SS3 arrow / function key: <c>ESC O A/B/C/D/H/F/P-S</c> → <see cref="KeyPressed"/> (arrows, Home/End, F1-F4).</description></item>
 ///   <item><description>Alt+Enter: <c>ESC</c> followed by <c>\r</c>/<c>\n</c> → <see cref="KeyPressed"/> with Alt modifier set.</description></item>
 ///   <item><description>Standalone <c>ESC</c>: emitted as <see cref="KeyPressed"/> after a 50 ms timeout with no follow-up character.</description></item>
 /// </list>
@@ -41,7 +43,7 @@ namespace Termina.Input;
 /// </remarks>
 internal sealed class EscapeSequenceParser
 {
-    private enum State { Normal, AfterEscape, InBracketSequence, PasteBuffering }
+    private enum State { Normal, AfterEscape, InBracketSequence, InSs3Sequence, PasteBuffering }
 
     private State _state = State.Normal;
     private readonly StringBuilder _seqBuffer = new();
@@ -75,7 +77,7 @@ internal sealed class EscapeSequenceParser
     /// <c>ESC</c> key (with no follow-up) can be flushed via <see cref="CheckEscapeTimeout"/>.
     /// </summary>
     public bool IsBufferingEscape =>
-        _state == State.AfterEscape || _state == State.InBracketSequence;
+        _state == State.AfterEscape || _state == State.InBracketSequence || _state == State.InSs3Sequence;
 
     /// <summary>
     /// If 50 ms have elapsed since an <c>ESC</c> was buffered with no follow-up character,
@@ -133,6 +135,13 @@ internal sealed class EscapeSequenceParser
                     _seqBuffer.Append('[');
                     _state = State.InBracketSequence;
                 }
+                else if (key.KeyChar == 'O')
+                {
+                    // SS3 introducer: ESC O <final> — used for arrow keys (and PF1-4) when
+                    // the terminal is in cursor-key application mode (DECCKM, ?1h). With raw
+                    // stdin input these reach us as ESC + 'O' + final byte.
+                    _state = State.InSs3Sequence;
+                }
                 else if (key.Key == ConsoleKey.Enter || key.KeyChar == '\r' || key.KeyChar == '\n')
                 {
                     // ESC + Enter = Alt+Enter (terminals send Alt as ESC prefix)
@@ -186,11 +195,11 @@ internal sealed class EscapeSequenceParser
                 }
 
                 // Wheel-as-CSI-arrow under xterm alternate-scroll mode (?1007h).
-                // When DECCKM (?1h) is also active, real keyboard arrows are delivered as SS3
-                // sequences (ESC O A/B) which .NET's Console.ReadKey converts directly to
-                // ConsoleKey.UpArrow/DownArrow — they do NOT enter this bracket-sequence state.
-                // So a bare ESC[A / ESC[B reaching the parser unambiguously means the terminal
-                // translated a mouse-wheel tick. (ESC[C / ESC[D = horizontal wheel; rare.)
+                // With DECCKM (?1h) also enabled, the terminal sends real keyboard arrows as
+                // SS3 sequences (ESC O A/B/C/D) and only mouse-wheel ticks as CSI form
+                // (ESC [ A/B). Provided the input source delivers raw bytes (UnixConsole on
+                // Unix; Windows console event API doesn't use ?1007h anyway), a bare ESC[A /
+                // ESC[B reaching this state unambiguously means the wheel moved.
                 if (seq.Length == 2 && (key.KeyChar == 'A' || key.KeyChar == 'B'))
                 {
                     var delta = key.KeyChar == 'A' ? +1 : -1;
@@ -213,6 +222,40 @@ internal sealed class EscapeSequenceParser
                     _state = State.Normal;
                 }
                 break;
+
+            case State.InSs3Sequence:
+            {
+                // ESC O A/B/C/D → arrow keys delivered by the terminal under DECCKM (?1h).
+                // We re-emit these as the same ConsoleKeyInfo shape Console.ReadKey used to
+                // produce for arrow keys, so existing focus/scroll handlers see no difference.
+                var ck = key.KeyChar switch
+                {
+                    'A' => ConsoleKey.UpArrow,
+                    'B' => ConsoleKey.DownArrow,
+                    'C' => ConsoleKey.RightArrow,
+                    'D' => ConsoleKey.LeftArrow,
+                    'H' => ConsoleKey.Home,
+                    'F' => ConsoleKey.End,
+                    'P' => ConsoleKey.F1,
+                    'Q' => ConsoleKey.F2,
+                    'R' => ConsoleKey.F3,
+                    'S' => ConsoleKey.F4,
+                    _ => ConsoleKey.None,
+                };
+                if (ck != ConsoleKey.None)
+                {
+                    results.Add(new KeyPressed(new ConsoleKeyInfo('\0', ck, false, false, false)));
+                }
+                else
+                {
+                    // Unknown SS3 sequence — flush ESC + 'O' + this char as raw keys.
+                    results.Add(new KeyPressed(new ConsoleKeyInfo('\x1b', ConsoleKey.Escape, false, false, false)));
+                    results.Add(new KeyPressed(new ConsoleKeyInfo('O', ConsoleKey.O, false, false, false)));
+                    results.Add(new KeyPressed(new ConsoleKeyInfo(key.KeyChar, ConsoleKey.None, false, false, false)));
+                }
+                _state = State.Normal;
+                break;
+            }
 
             case State.PasteBuffering:
                 // Detect ESC[201~ end sentinel one character at a time
