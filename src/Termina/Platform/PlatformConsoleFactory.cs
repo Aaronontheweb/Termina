@@ -51,26 +51,12 @@ public static class PlatformConsoleFactory
             return new FallbackConsole();
         }
 
-        // Unix implementation: raw termios + raw stdin reads, required so that ?1007h
-        // mouse-wheel sequences (ESC[A/B) can be distinguished from real arrow keys
-        // (ESC OA/B). Console.ReadKey collapses both forms into ConsoleKey.UpArrow, so we
-        // can't disambiguate via the managed reader.
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ||
-            RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-        {
-            try
-            {
-                if (!Console.IsInputRedirected)
-                {
-                    TerminaTrace.Platform.Info(TraceSource, "Creating UnixConsole (raw termios + raw stdin)");
-                    return new UnixConsole();
-                }
-            }
-            catch
-            {
-                // Fall through to FallbackConsole.
-            }
-        }
+        // Unix implementation deferred (issue #80) - current polling works fine on Linux
+        // if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ||
+        //     RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        // {
+        //     return new UnixConsole();
+        // }
 
         TerminaTrace.Platform.Info(TraceSource, "Creating FallbackConsole (non-Windows platform)");
         return new FallbackConsole();
