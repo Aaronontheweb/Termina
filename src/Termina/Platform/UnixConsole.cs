@@ -83,6 +83,7 @@ public sealed class UnixConsole : IPlatformConsole
     private EventHandler? _processExitHandler;
     private UnhandledExceptionEventHandler? _unhandledExceptionHandler;
     private ConsoleCancelEventHandler? _cancelKeyPressHandler;
+    private PosixSignalRegistration? _sigwinchRegistration;
 
     /// <inheritdoc />
     public bool SupportsEventDrivenInput => true;
@@ -113,6 +114,18 @@ public sealed class UnixConsole : IPlatformConsole
         AppDomain.CurrentDomain.ProcessExit += _processExitHandler;
         AppDomain.CurrentDomain.UnhandledException += _unhandledExceptionHandler;
         Console.CancelKeyPress += _cancelKeyPressHandler;
+
+        // Event-driven resize via SIGWINCH. The handler runs on a thread-pool thread, so it
+        // safely posts a ConsoleResizeEvent into the same channel the reader thread writes to.
+        try
+        {
+            _sigwinchRegistration = PosixSignalRegistration.Create(
+                PosixSignal.SIGWINCH, _ => CheckResize());
+        }
+        catch (PlatformNotSupportedException)
+        {
+            TerminaTrace.Platform.Info(this, "SIGWINCH registration not supported — falling back to VTIME-tick resize polling.");
+        }
 
         _stopCts = new CancellationTokenSource();
         _readerThread = new Thread(ReaderLoop)
@@ -169,6 +182,7 @@ public sealed class UnixConsole : IPlatformConsole
             AppDomain.CurrentDomain.UnhandledException -= _unhandledExceptionHandler;
         if (_cancelKeyPressHandler is not null)
             Console.CancelKeyPress -= _cancelKeyPressHandler;
+        _sigwinchRegistration?.Dispose();
 
         SafeRestore();
 
@@ -294,13 +308,20 @@ public sealed class UnixConsole : IPlatformConsole
         }
     }
 
+    private readonly object _resizeLock = new();
+
     private void CheckResize()
     {
         int w, h;
         try { w = Console.WindowWidth; h = Console.WindowHeight; }
         catch (IOException) { return; }
-        if (w == _lastWidth && h == _lastHeight) return;
-        _lastWidth = w; _lastHeight = h;
+
+        lock (_resizeLock)
+        {
+            if (w == _lastWidth && h == _lastHeight) return;
+            _lastWidth = w; _lastHeight = h;
+        }
+
         var evt = new ConsoleResizeEvent(w, h);
         try { _resized.OnNext(evt); } catch { /* ignore */ }
         _events.Writer.TryWrite(evt);
