@@ -27,6 +27,11 @@ public class KittyScrollPage : ReactivePage<KittyScrollViewModel>
     private StreamingTextNode _history = null!;
     private TextInputNode _input = null!;
 
+    public KittyScrollPage()
+    {
+        FocusPolicy = FocusPolicy.FirstFocusable;
+    }
+
     protected override void OnBound()
     {
         base.OnBound();
