@@ -1,0 +1,318 @@
+// Copyright (c) Petabridge, LLC. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+using System.Runtime.InteropServices;
+using System.Text;
+
+namespace Termina.Demo.RawStdinProbe;
+
+/// <summary>
+/// Standalone raw-stdin probe for the future <c>UnixConsole</c> implementation. No dependency on
+/// Termina itself — intentionally a bare console app so termios behavior and raw byte flow can be
+/// verified on the user's actual terminal before any framework code changes.
+/// </summary>
+/// <remarks>
+/// What it does:
+/// <list type="number">
+///   <item>Prints platform, runtime-computed termios offsets, and current VMIN/VTIME so the user
+///   can confirm the constants are right on their box.</item>
+///   <item>Sends <c>?1007h</c> (alternate scroll) + <c>?1h</c> (DECCKM application cursor keys).</item>
+///   <item>Enters raw mode via <c>cfmakeraw</c>, preserves <c>OPOST</c> for sane log output,
+///   sets <c>VMIN=0</c>/<c>VTIME=1</c>.</item>
+///   <item>Loops on direct <c>libc.read(0, ...)</c>, printing every byte as
+///   <c>0xXX (char|.)</c> plus annotations for recognized wheel/arrow sequences.</item>
+///   <item>Quits cleanly on <c>q</c> or <c>Ctrl+C</c> (byte 0x03, since <c>cfmakeraw</c> clears
+///   <c>ISIG</c>). Restores termios on exit, <see cref="AppDomain.ProcessExit"/>, and
+///   <see cref="Console.CancelKeyPress"/>.</item>
+/// </list>
+/// </remarks>
+internal static class Program
+{
+    private const int StdInFd = 0;
+    private const int StdOutFd = 1;
+    private const int Tcsanow = 0;
+    private const int TermiosBufferSize = 256;
+
+    // termios layout — same constants Phase 2 UnixConsole will use.
+    //   Linux:  4 × tcflag_t (4 B each) + c_line (1 B)  → c_cc base 17; VTIME=5, VMIN=6.
+    //   macOS:  4 × tcflag_t (8 B each)                  → c_cc base 32; VMIN=16, VTIME=17.
+    private static int CcBase => OperatingSystem.IsMacOS() ? 32 : 17;
+    private static int VminIdx => OperatingSystem.IsMacOS() ? 16 : 6;
+    private static int VtimeIdx => OperatingSystem.IsMacOS() ? 17 : 5;
+    private static int VminOffset => CcBase + VminIdx;
+    private static int VtimeOffset => CcBase + VtimeIdx;
+
+    // c_oflag is the second tcflag_t in the struct. OPOST is the low bit on both platforms.
+    private static int COflagOffset => OperatingSystem.IsMacOS() ? 8 : 4;
+    private const byte OpostBit = 0x01;
+
+    private static readonly byte[] SavedTermios = new byte[TermiosBufferSize];
+    private static bool _rawModeEntered;
+    private static bool _restored;
+
+    private static int Main()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            Console.Error.WriteLine("This probe only runs on Linux/macOS. Windows uses WindowsConsole.");
+            return 1;
+        }
+
+        Console.OutputEncoding = Encoding.UTF8;
+
+        // Register restore hooks before we touch termios.
+        AppDomain.CurrentDomain.ProcessExit += (_, _) => SafeRestore();
+        AppDomain.CurrentDomain.UnhandledException += (_, _) => SafeRestore();
+        Console.CancelKeyPress += (_, e) =>
+        {
+            // With ISIG cleared by cfmakeraw, this handler shouldn't fire while in raw mode —
+            // but cover the window before EnterRawMode() and after Restore().
+            SafeRestore();
+            e.Cancel = false;
+        };
+
+        try
+        {
+            PrintBanner();
+            EnterRawMode();
+            Write("\x1b[?1007h\x1b[?1h");
+            PrintInfo("Sent ?1007h (alternate scroll) + ?1h (DECCKM application cursor keys)");
+            PrintInfo("Try: scroll wheel | press arrow keys | type some text | Ctrl+C | press 'q' to quit");
+            PrintInfo("--------------------------------------------------------------------------------");
+
+            RunLoop();
+        }
+        catch (Exception ex)
+        {
+            SafeRestore();
+            Console.Error.WriteLine($"FATAL: {ex}");
+            return 2;
+        }
+        finally
+        {
+            // Disable mouse modes before restoring so the terminal doesn't keep sending CSI on
+            // the user's shell prompt after we exit.
+            try { Write("\x1b[?1l\x1b[?1007l"); } catch { /* ignore */ }
+            SafeRestore();
+        }
+
+        return 0;
+    }
+
+    private static void PrintBanner()
+    {
+        var os = OperatingSystem.IsMacOS() ? "macOS"
+               : OperatingSystem.IsLinux() ? "Linux"
+               : RuntimeInformation.OSDescription;
+        Console.WriteLine("==== Termina raw-stdin probe ====");
+        Console.WriteLine($"OS:               {os}");
+        Console.WriteLine($"Arch:             {RuntimeInformation.OSArchitecture}");
+        Console.WriteLine($"Runtime:          {RuntimeInformation.FrameworkDescription}");
+        Console.WriteLine($"TERM:             {Environment.GetEnvironmentVariable("TERM") ?? "(unset)"}");
+        Console.WriteLine($"c_oflag offset:   {COflagOffset}  (OPOST bit 0x{OpostBit:X2})");
+        Console.WriteLine($"c_cc base:        {CcBase}");
+        Console.WriteLine($"VMIN offset:      {VminOffset}  (c_cc base {CcBase} + idx {VminIdx})");
+        Console.WriteLine($"VTIME offset:     {VtimeOffset}  (c_cc base {CcBase} + idx {VtimeIdx})");
+        Console.WriteLine();
+    }
+
+    private static void EnterRawMode()
+    {
+        var savedHandle = GCHandle.Alloc(SavedTermios, GCHandleType.Pinned);
+        try
+        {
+            if (tcgetattr(StdInFd, savedHandle.AddrOfPinnedObject()) != 0)
+                throw new InvalidOperationException("tcgetattr(stdin) failed — is stdin a TTY?");
+        }
+        finally
+        {
+            savedHandle.Free();
+        }
+
+        var initialVmin = SavedTermios[VminOffset];
+        var initialVtime = SavedTermios[VtimeOffset];
+        var initialOflag = SavedTermios[COflagOffset];
+        PrintInfo($"Initial termios: c_oflag[byte0]=0x{initialOflag:X2}, VMIN={initialVmin}, VTIME={initialVtime}");
+
+        var working = (byte[])SavedTermios.Clone();
+        var workHandle = GCHandle.Alloc(working, GCHandleType.Pinned);
+        try
+        {
+            var ptr = workHandle.AddrOfPinnedObject();
+            cfmakeraw(ptr);
+            // Re-enable OPOST so '\n' → '\r\n' translation still happens for our own probe output.
+            working[COflagOffset] = (byte)(working[COflagOffset] | OpostBit);
+            working[VminOffset] = 0;
+            working[VtimeOffset] = 1;
+            if (tcsetattr(StdInFd, Tcsanow, ptr) != 0)
+                throw new InvalidOperationException("tcsetattr(stdin) failed.");
+
+            // Read back what we set, to confirm offsets actually landed where we expected.
+            var verify = new byte[TermiosBufferSize];
+            var verifyHandle = GCHandle.Alloc(verify, GCHandleType.Pinned);
+            try
+            {
+                tcgetattr(StdInFd, verifyHandle.AddrOfPinnedObject());
+                var readbackOflag = verify[COflagOffset];
+                var readbackVmin = verify[VminOffset];
+                var readbackVtime = verify[VtimeOffset];
+                PrintInfo($"After tcsetattr: c_oflag[byte0]=0x{readbackOflag:X2} (OPOST {(((readbackOflag & OpostBit) != 0) ? "ON" : "OFF")}), VMIN={readbackVmin}, VTIME={readbackVtime}");
+                if (readbackVmin != 0 || readbackVtime != 1)
+                {
+                    PrintInfo("!! VMIN/VTIME readback does not match what was set — offsets are likely WRONG on this platform. Phase 2 should not ship until this matches.");
+                }
+                if ((readbackOflag & OpostBit) == 0)
+                {
+                    PrintInfo("!! OPOST is OFF after our set — c_oflag offset is likely WRONG.");
+                }
+            }
+            finally
+            {
+                verifyHandle.Free();
+            }
+        }
+        finally
+        {
+            workHandle.Free();
+        }
+        _rawModeEntered = true;
+    }
+
+    private static void RunLoop()
+    {
+        var buf = new byte[64];
+        var bufHandle = GCHandle.Alloc(buf, GCHandleType.Pinned);
+        try
+        {
+            while (true)
+            {
+                var n = read(StdInFd, bufHandle.AddrOfPinnedObject(), (nuint)buf.Length);
+                if (n < 0)
+                {
+                    var err = Marshal.GetLastPInvokeError();
+                    // EINTR (4) is fine — the read got interrupted by a signal; loop and try again.
+                    if (err == 4) continue;
+                    throw new InvalidOperationException($"read(stdin) failed: errno {err}");
+                }
+                if (n == 0)
+                {
+                    // VTIME expired with no input. Loop.
+                    continue;
+                }
+
+                var bytes = new byte[n];
+                Array.Copy(buf, bytes, n);
+                PrintReadResult(bytes);
+
+                // Quit shortcuts.
+                if (bytes.Length == 1)
+                {
+                    if (bytes[0] == (byte)'q') { PrintInfo("'q' received — exiting."); return; }
+                    if (bytes[0] == 0x03)      { PrintInfo("Ctrl+C (0x03) received — exiting."); return; }
+                }
+            }
+        }
+        finally
+        {
+            bufHandle.Free();
+        }
+    }
+
+    private static void PrintReadResult(byte[] bytes)
+    {
+        var sb = new StringBuilder();
+        sb.Append($"read() → {bytes.Length,2} byte(s): [");
+        for (var i = 0; i < bytes.Length; i++)
+        {
+            if (i > 0) sb.Append(' ');
+            var b = bytes[i];
+            var ch = (b >= 0x20 && b < 0x7F) ? (char)b : '.';
+            sb.Append($"0x{b:X2}({ch})");
+        }
+        sb.Append(']');
+
+        var annotation = AnnotateSequence(bytes);
+        if (annotation is not null) sb.Append("   → ").Append(annotation);
+        Console.WriteLine(sb.ToString());
+    }
+
+    /// <summary>
+    /// Recognizes the specific sequences this whole exercise is about, so the user can read
+    /// success/failure at a glance without staring at hex.
+    /// </summary>
+    private static string? AnnotateSequence(byte[] b)
+    {
+        if (b.Length == 3 && b[0] == 0x1B && b[1] == (byte)'[')
+        {
+            return b[2] switch
+            {
+                (byte)'A' => "CSI [A   (WHEEL UP under ?1007h, or arrow if DECCKM off)",
+                (byte)'B' => "CSI [B   (WHEEL DOWN under ?1007h, or arrow if DECCKM off)",
+                (byte)'C' => "CSI [C   (right arrow, DECCKM off)",
+                (byte)'D' => "CSI [D   (left arrow, DECCKM off)",
+                _ => null,
+            };
+        }
+        if (b.Length == 3 && b[0] == 0x1B && b[1] == (byte)'O')
+        {
+            return b[2] switch
+            {
+                (byte)'A' => "SS3 OA   (REAL UP ARROW, DECCKM on)",
+                (byte)'B' => "SS3 OB   (REAL DOWN ARROW, DECCKM on)",
+                (byte)'C' => "SS3 OC   (right arrow, DECCKM on)",
+                (byte)'D' => "SS3 OD   (left arrow, DECCKM on)",
+                _ => null,
+            };
+        }
+        if (b.Length >= 4 && b[0] == 0x1B && b[1] == (byte)'[' && b[2] == (byte)'M')
+            return "CSI [M ...  (X10 mouse report — ?1000h mouse tracking)";
+        if (b.Length == 1 && b[0] == 0x1B)
+            return "bare ESC";
+        if (b.Length == 1 && b[0] == 0x03)
+            return "Ctrl+C";
+        if (b.Length == 1 && b[0] == 0x0D)
+            return "Enter (CR)";
+        if (b.Length == 1 && b[0] == 0x7F)
+            return "Backspace (DEL)";
+        if (b.Length == 1 && b[0] >= 0x20 && b[0] < 0x7F)
+            return $"typed '{(char)b[0]}'";
+        return null;
+    }
+
+    private static void PrintInfo(string msg) => Console.WriteLine($"[probe] {msg}");
+
+    private static void Write(string s)
+    {
+        var bytes = Encoding.UTF8.GetBytes(s);
+        var h = GCHandle.Alloc(bytes, GCHandleType.Pinned);
+        try { write(StdOutFd, h.AddrOfPinnedObject(), (nuint)bytes.Length); }
+        finally { h.Free(); }
+    }
+
+    private static void SafeRestore()
+    {
+        if (_restored || !_rawModeEntered) return;
+        _restored = true;
+        var h = GCHandle.Alloc(SavedTermios, GCHandleType.Pinned);
+        try { _ = tcsetattr(StdInFd, Tcsanow, h.AddrOfPinnedObject()); }
+        catch { /* ignore */ }
+        finally { h.Free(); }
+    }
+
+    private const string Libc = "libc";
+
+    [DllImport(Libc, SetLastError = true)]
+    private static extern int tcgetattr(int fd, IntPtr termios_p);
+
+    [DllImport(Libc, SetLastError = true)]
+    private static extern int tcsetattr(int fd, int optional_actions, IntPtr termios_p);
+
+    [DllImport(Libc)]
+    private static extern void cfmakeraw(IntPtr termios_p);
+
+    [DllImport(Libc, SetLastError = true)]
+    private static extern nint read(int fd, IntPtr buf, nuint count);
+
+    [DllImport(Libc, SetLastError = true)]
+    private static extern nint write(int fd, IntPtr buf, nuint count);
+}
