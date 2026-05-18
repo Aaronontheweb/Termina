@@ -13,6 +13,12 @@
     <PackageVersion Include="Akka.Hosting" Version="1.5.64" />
     <PackageVersion Include="R3" Version="1.3.0" />
   </ItemGroup>
+  <!-- Transitive dependency override (security): Akka.Hosting pulls in
+       OpenTelemetry.Api 1.9.0 transitively, which is affected by CVE-2026-40894
+       (GHSA-g94r-2vxg-569j). Pin it up to the first patched release. -->
+  <ItemGroup>
+    <PackageVersion Include="OpenTelemetry.Api" Version="1.15.3" />
+  </ItemGroup>
   <!-- Test dependencies -->
   <ItemGroup>
     <PackageVersion Include="coverlet.collector" Version="8.0.1" />

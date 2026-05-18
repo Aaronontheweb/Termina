@@ -18,6 +18,9 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Akka.Hosting" />
+    <!-- Not used directly: pins the transitive OpenTelemetry.Api (pulled in by
+         Akka.Hosting) above the vulnerable 1.9.0. See CVE-2026-40894. -->
+    <PackageReference Include="OpenTelemetry.Api" />
   </ItemGroup>
 
   <ItemGroup>
