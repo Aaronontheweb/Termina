@@ -51,12 +51,20 @@ public static class PlatformConsoleFactory
             return new FallbackConsole();
         }
 
-        // Unix implementation deferred (issue #80) - current polling works fine on Linux
-        // if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ||
-        //     RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-        // {
-        //     return new UnixConsole();
-        // }
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ||
+            RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        {
+            // UnixConsole is opt-in until Phase 4 of the raw-stdin plan flips the default.
+            // Set TERMINA_UNIX_RAW_INPUT=1 to enable raw-byte stdin reads — required for
+            // ?1007h wheel-scroll disambiguation from real arrow keys.
+            var rawOptIn = Environment.GetEnvironmentVariable("TERMINA_UNIX_RAW_INPUT");
+            if (string.Equals(rawOptIn, "1", StringComparison.Ordinal) ||
+                string.Equals(rawOptIn, "true", StringComparison.OrdinalIgnoreCase))
+            {
+                TerminaTrace.Platform.Info(TraceSource, "Creating UnixConsole (TERMINA_UNIX_RAW_INPUT={0})", rawOptIn);
+                return new UnixConsole();
+            }
+        }
 
         TerminaTrace.Platform.Info(TraceSource, "Creating FallbackConsole (non-Windows platform)");
         return new FallbackConsole();
