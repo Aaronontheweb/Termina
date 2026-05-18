@@ -19,6 +19,7 @@ namespace Termina.Demo.Gallery.Pages;
 /// - Both single and multi-select modes
 /// - Rich multi-line content with styling
 /// - WithFillHeight() expanding a long list to fill its column (Issue #207 fix)
+/// - WithHighlightedIndex() pre-selecting an item, scrolled into view (Issue #203 fix)
 /// </summary>
 public class SelectionListGalleryPage : ReactivePage<SelectionListGalleryViewModel>
 {
@@ -100,13 +101,16 @@ public class SelectionListGalleryPage : ReactivePage<SelectionListGalleryViewMod
             .WithVisibleRows(8);
 
         // Fill-height list with 100 items - expands to fill the column instead of
-        // being capped at the 10-row default (Issue #207).
+        // being capped at the 10-row default (Issue #207). WithHighlightedIndex
+        // pre-selects item #50, so the list opens scrolled to it rather than at
+        // the top (Issue #203).
         _numberedList = Layouts.SelectionList(
             Enumerable.Range(1, 100).Select(i => $"Item number {i}"))
             .WithMode(SelectionMode.Single)
             .WithShowNumbers(true)
             .WithHighlightColors(Color.Black, Color.Cyan)
-            .WithFillHeight();
+            .WithFillHeight()
+            .WithHighlightedIndex(49);
 
         return Layouts.Vertical()
             .WithChild(BuildHeader())
@@ -174,7 +178,7 @@ public class SelectionListGalleryPage : ReactivePage<SelectionListGalleryViewMod
                         .Bold()
                         .Height(1))
                 .WithChild(
-                    new TextNode("100 items, WithFillHeight() fills the column")
+                    new TextNode("100 items via WithFillHeight(), opens pre-selected at #50")
                         .WithForeground(Color.DarkGray)
                         .Height(2))
                 .WithChild(_numberedList));

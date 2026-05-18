@@ -178,6 +178,32 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode
     }
 
     /// <summary>
+    /// Sets the initially highlighted item by index. Useful for pre-selecting an item
+    /// when re-entering a previously configured view (e.g. a wizard edit flow).
+    /// </summary>
+    /// <param name="index">
+    /// The item index to highlight. Clamped to the valid range; ignored when the list
+    /// is empty.
+    /// </param>
+    /// <remarks>
+    /// The highlighted item is scrolled into view using the current visible-row count,
+    /// so call this after <see cref="WithVisibleRows"/> when both are used. In
+    /// <see cref="WithFillHeight"/> mode the row count is not known until layout, so the
+    /// scroll offset is computed against the default; the highlight still becomes visible
+    /// once the user navigates, which re-runs the scroll math against the real height.
+    /// </remarks>
+    public SelectionListNode<T> WithHighlightedIndex(int index)
+    {
+        if (_items.Count > 0)
+        {
+            _highlightedIndex = Math.Clamp(index, 0, _items.Count - 1);
+            EnsureVisible();
+        }
+
+        return this;
+    }
+
+    /// <summary>
     /// Sets the default foreground color.
     /// </summary>
     public SelectionListNode<T> WithForeground(Color color)
