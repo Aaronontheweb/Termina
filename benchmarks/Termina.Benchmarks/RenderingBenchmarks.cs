@@ -229,5 +229,7 @@ internal sealed class BenchmarkTerminal : IAnsiTerminal
     public void ExitAlternateScreen() { }
     public void EnableMouse() { }
     public void DisableMouse() { }
+    public void EnableWheelScroll() { }
+    public void DisableWheelScroll() { }
     public void CopyToClipboard(string text) { }
 }

@@ -324,6 +324,24 @@ public static class AnsiCodes
     /// </summary>
     public const string DisableMouseSgr = $"{Csi}?1006l";
 
+    /// <summary>
+    /// Enable alternate scroll mode (xterm 1007). While the alternate screen buffer is active,
+    /// the terminal translates mouse wheel events into cursor up/down key sequences instead of
+    /// raw mouse events. This lets applications get wheel-driven scrolling without enabling any
+    /// mouse tracking mode — preserving the terminal's native click-drag text selection,
+    /// triple-click word selection, middle-click paste, and OS clipboard integration.
+    /// Supported by xterm (≥277), iTerm2, kitty, WezTerm, Alacritty, Windows Terminal, and
+    /// VTE-based terminals (GNOME Terminal ≥0.40). Legacy <c>conhost.exe</c> and a few embedded
+    /// terminals ignore this mode; in that case the wheel produces no events and PgUp/PgDn
+    /// remains the keyboard fallback. Format: CSI ?1007h
+    /// </summary>
+    public const string EnableAlternateScroll = $"{Csi}?1007h";
+
+    /// <summary>
+    /// Disable alternate scroll mode. Format: CSI ?1007l
+    /// </summary>
+    public const string DisableAlternateScroll = $"{Csi}?1007l";
+
     // Alternate screen buffer
 
     /// <summary>

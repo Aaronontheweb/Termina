@@ -285,6 +285,29 @@ public class VirtualTerminalTests
     }
 
     [Fact]
+    public void EnableWheelScroll_SetsFlag()
+    {
+        var terminal = new VirtualTerminal();
+        Assert.False(terminal.WheelScrollEnabled);
+
+        terminal.EnableWheelScroll();
+
+        Assert.True(terminal.WheelScrollEnabled);
+        Assert.False(terminal.MouseEnabled);
+    }
+
+    [Fact]
+    public void DisableWheelScroll_ClearsFlag()
+    {
+        var terminal = new VirtualTerminal();
+        terminal.EnableWheelScroll();
+
+        terminal.DisableWheelScroll();
+
+        Assert.False(terminal.WheelScrollEnabled);
+    }
+
+    [Fact]
     public void GetLine_ReturnsCorrectContent()
     {
         var terminal = new VirtualTerminal();

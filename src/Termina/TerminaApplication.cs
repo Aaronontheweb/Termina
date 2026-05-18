@@ -411,9 +411,12 @@ public sealed class TerminaApplication
             _terminal.Flush();
             TerminaTrace.Render.Debug(this, "Entered alternate screen, cursor hidden, flushed");
 
-            // Enable bracketed paste mode; enable mouse tracking for scroll wheel events.
-            // Use ?1000h (normal mode) + ?1006h (SGR encoding) - sufficient for scroll events
-            // without the noisy button/drag events that ?1002h generates in tmux.
+            // Enable bracketed paste mode and wheel-only scrolling. We use the terminal's
+            // alternate-scroll mode (CSI ?1007h) rather than SGR mouse tracking so that
+            // mouse-wheel events arrive as cursor up/down keypresses while the host terminal
+            // continues to own click-drag selection, triple-click word selection, and OS
+            // clipboard integration. Apps that need full mouse capture (clicks, drags) can
+            // still call IAnsiTerminal.EnableMouse() explicitly.
             Console.Write(AnsiCodes.EnableBracketedPaste);
 
             // Enable kitty keyboard protocol (flag 1 = disambiguate escape codes) so that
@@ -433,7 +436,7 @@ public sealed class TerminaApplication
                 Console.Write(AnsiCodes.TmuxPassthrough(AnsiCodes.EnableKittyKeyboard));
             }
 
-            _terminal.EnableMouse();
+            _terminal.EnableWheelScroll();
             _terminal.Flush();
 
             // Initial render
@@ -465,8 +468,10 @@ public sealed class TerminaApplication
                 Console.Write(AnsiCodes.TmuxPassthrough(AnsiCodes.DisableBracketedPaste));
             }
 
-            // Restore terminal state fully to avoid artifacts
-            // DisableMouse() handles ?1000h and ?1006h cleanup
+            // Restore terminal state fully to avoid artifacts.
+            // DisableWheelScroll() emits CSI ?1007l; DisableMouse() is a no-op unless an
+            // app explicitly opted into full mouse capture.
+            _terminal.DisableWheelScroll();
             _terminal.DisableMouse();
             _terminal.SetCursorVisible(true);
             _terminal.ResetColors();

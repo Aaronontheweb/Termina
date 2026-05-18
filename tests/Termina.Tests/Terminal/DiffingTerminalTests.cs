@@ -324,6 +324,30 @@ public class DiffingTerminalTests
     }
 
     [Fact]
+    public void EnableWheelScroll_PassesThrough()
+    {
+        var inner = new VirtualTerminal(80, 24);
+        var diffing = new DiffingTerminal(inner);
+
+        diffing.EnableWheelScroll();
+
+        Assert.True(inner.WheelScrollEnabled);
+        Assert.False(inner.MouseEnabled);
+    }
+
+    [Fact]
+    public void DisableWheelScroll_PassesThrough()
+    {
+        var inner = new VirtualTerminal(80, 24);
+        var diffing = new DiffingTerminal(inner);
+
+        diffing.EnableWheelScroll();
+        diffing.DisableWheelScroll();
+
+        Assert.False(inner.WheelScrollEnabled);
+    }
+
+    [Fact]
     public void CopyToClipboard_PassesThroughWithoutChangingFrame()
     {
         var inner = new VirtualTerminal(80, 24);

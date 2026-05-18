@@ -402,6 +402,18 @@ public sealed class DiffingTerminal : IAnsiTerminal, IDisposable
     }
 
     /// <inheritdoc />
+    public void EnableWheelScroll()
+    {
+        _inner.EnableWheelScroll();
+    }
+
+    /// <inheritdoc />
+    public void DisableWheelScroll()
+    {
+        _inner.DisableWheelScroll();
+    }
+
+    /// <inheritdoc />
     public void CopyToClipboard(string text)
     {
         _inner.CopyToClipboard(text);

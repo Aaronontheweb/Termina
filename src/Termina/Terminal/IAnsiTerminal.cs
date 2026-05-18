@@ -90,7 +90,11 @@ public interface IAnsiTerminal
     void ExitAlternateScreen();
 
     /// <summary>
-    /// Enable mouse tracking.
+    /// Enable mouse tracking. Captures clicks, releases, drags, and the wheel as application
+    /// input via SGR escape sequences (CSI ?1000h + CSI ?1006h). Side effect: the host terminal
+    /// stops handling native click-drag text selection while this mode is active. Most apps
+    /// should prefer <see cref="EnableWheelScroll"/>, which only takes the wheel and leaves
+    /// selection to the terminal.
     /// </summary>
     void EnableMouse();
 
@@ -98,6 +102,20 @@ public interface IAnsiTerminal
     /// Disable mouse tracking.
     /// </summary>
     void DisableMouse();
+
+    /// <summary>
+    /// Enable wheel-only scrolling via the terminal's alternate-scroll mode (CSI ?1007h).
+    /// While in the alternate screen buffer, the terminal translates mouse-wheel events into
+    /// cursor up/down key sequences instead of mouse events. The application gets scrolling
+    /// without the side effects of full mouse tracking, so native click-drag selection,
+    /// triple-click word selection, and OS clipboard integration continue to work.
+    /// </summary>
+    void EnableWheelScroll();
+
+    /// <summary>
+    /// Disable wheel-only scrolling (CSI ?1007l).
+    /// </summary>
+    void DisableWheelScroll();
 
     /// <summary>
     /// Request that the terminal copy text to the user's clipboard.

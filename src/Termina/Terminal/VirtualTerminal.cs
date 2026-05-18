@@ -68,6 +68,11 @@ public sealed class VirtualTerminal : IAnsiTerminal
     public bool MouseEnabled { get; private set; }
 
     /// <summary>
+    /// Whether alternate-scroll (wheel-only) mode is enabled.
+    /// </summary>
+    public bool WheelScrollEnabled { get; private set; }
+
+    /// <summary>
     /// Raw output strings written to the terminal (for debugging).
     /// </summary>
     public IReadOnlyList<string> RawOutput => _rawOutput;
@@ -226,6 +231,18 @@ public sealed class VirtualTerminal : IAnsiTerminal
     public void DisableMouse()
     {
         MouseEnabled = false;
+    }
+
+    /// <inheritdoc />
+    public void EnableWheelScroll()
+    {
+        WheelScrollEnabled = true;
+    }
+
+    /// <inheritdoc />
+    public void DisableWheelScroll()
+    {
+        WheelScrollEnabled = false;
     }
 
     /// <inheritdoc />

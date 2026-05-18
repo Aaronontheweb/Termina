@@ -303,6 +303,18 @@ public class AnsiCodesTests
         Assert.Equal($"{Csi}?1006l", AnsiCodes.DisableMouseSgr);
     }
 
+    [Fact]
+    public void EnableAlternateScroll_IsCorrect()
+    {
+        Assert.Equal($"{Csi}?1007h", AnsiCodes.EnableAlternateScroll);
+    }
+
+    [Fact]
+    public void DisableAlternateScroll_IsCorrect()
+    {
+        Assert.Equal($"{Csi}?1007l", AnsiCodes.DisableAlternateScroll);
+    }
+
     // Alternate screen
     [Fact]
     public void EnterAlternateScreen_IsCorrect()
