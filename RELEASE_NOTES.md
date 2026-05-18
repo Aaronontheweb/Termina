@@ -1,3 +1,13 @@
+#### 0.8.1 May 17th 2026 ####
+
+**Bug Fixes**:
+- **Fixed garbled output when the terminal does not start in UTF-8** ([#204](https://github.com/Aaronontheweb/termina/issues/204))
+  - `AnsiTerminal` no longer caches `Console.Out`. Setting `Console.OutputEncoding` replaces `Console.Out` with a new `TextWriter`, so a cached reference could be left bound to a stale, non-UTF-8 encoding — rendering Unicode box-drawing characters as `U+FFFD`. The output writer is now resolved on every flush.
+  - Consolidated UTF-8 output-encoding setup into a single owner (`ConsoleEnvironment.EnsureUtf8Output`, invoked by the platform console) instead of three separate call sites.
+  - Original problem diagnosed by [@logical-intent](https://github.com/logical-intent) in [#204](https://github.com/Aaronontheweb/termina/issues/204) / [#205](https://github.com/Aaronontheweb/termina/pull/205).
+
+---
+
 #### 0.8.0 March 17th 2026 ####
 
 **New Features**:

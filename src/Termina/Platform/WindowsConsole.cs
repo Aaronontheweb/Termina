@@ -310,8 +310,8 @@ public sealed class WindowsConsole : IPlatformConsole
             }
         }
 
-        // Ensure UTF-8 output encoding
-        Console.OutputEncoding = System.Text.Encoding.UTF8;
+        // Ensure UTF-8 output encoding (single owner: ConsoleEnvironment)
+        ConsoleEnvironment.EnsureUtf8Output();
         TerminaTrace.Platform.Debug(this, "Set Console.OutputEncoding to UTF-8");
 
         // Capture initial window size for resize event deduplication
