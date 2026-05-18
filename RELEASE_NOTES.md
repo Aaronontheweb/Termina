@@ -1,10 +1,27 @@
-#### 0.8.1 May 17th 2026 ####
+#### 0.9.0 May 18th 2026 ####
+
+**New Features**:
+- **SelectionListNode pre-selection via `WithHighlightedIndex()`** ([#213](https://github.com/Aaronontheweb/termina/pull/213))
+  - New fluent method `WithHighlightedIndex(int index)` allows callers to pre-select a highlighted item in `SelectionListNode` by index at construction time
+  - Useful for dialogs that should open with a sensible default already highlighted
+
+- **SelectionListNode full-height mode via `WithFillHeight()`** ([#210](https://github.com/Aaronontheweb/termina/pull/210))
+  - New fluent method `WithFillHeight()` makes `SelectionListNode` expand to fill all available vertical space
+  - Enables list-first layouts where the selection list is the primary content of the page
 
 **Bug Fixes**:
+- **Fixed navigation data race that crashed pages on ARM64** ([#212](https://github.com/Aaronontheweb/termina/pull/212))
+  - Resolved a race condition in the navigation system that caused page crashes on ARM64 hardware
+  - Affects any multi-core ARM64 deployment (Apple Silicon, AWS Graviton, Raspberry Pi, etc.)
+
 - **Fixed garbled output when the terminal does not start in UTF-8** ([#204](https://github.com/Aaronontheweb/termina/issues/204))
   - `AnsiTerminal` no longer caches `Console.Out`. Setting `Console.OutputEncoding` replaces `Console.Out` with a new `TextWriter`, so a cached reference could be left bound to a stale, non-UTF-8 encoding — rendering Unicode box-drawing characters as `U+FFFD`. The output writer is now resolved on every flush.
   - Consolidated UTF-8 output-encoding setup into a single owner (`ConsoleEnvironment.EnsureUtf8Output`, invoked by the platform console) instead of three separate call sites.
   - Original problem diagnosed by [@logical-intent](https://github.com/logical-intent) in [#204](https://github.com/Aaronontheweb/termina/issues/204) / [#205](https://github.com/Aaronontheweb/termina/pull/205).
+
+**Security**:
+- **Fixed CVE-2026-40894: pinned OpenTelemetry.Api to 1.15.3** ([#209](https://github.com/Aaronontheweb/termina/pull/209))
+  - Pinned `OpenTelemetry.Api` to 1.15.3 to address a security vulnerability in earlier versions
 
 ---
 
