@@ -53,6 +53,7 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode
     private Color? _foreground;
     private Color? _selectedForeground;
     private bool _showNumbers = true;
+    private bool _fillHeight;
 
     /// <summary>
     /// Creates a new SelectionListNode with the specified items and plain text display.
@@ -122,7 +123,7 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode
     public SizeConstraint WidthConstraint => SizeConstraint.FillRemaining();
 
     /// <inheritdoc />
-    public SizeConstraint HeightConstraint => SizeConstraint.AutoSize();
+    public SizeConstraint HeightConstraint => _fillHeight ? SizeConstraint.FillRemaining() : SizeConstraint.AutoSize();
 
     /// <inheritdoc />
     public bool CanFocus => true;
@@ -209,6 +210,18 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode
     public SelectionListNode<T> WithVisibleRows(int rows)
     {
         _visibleRows = Math.Max(1, rows);
+        _fillHeight = false;
+        return this;
+    }
+
+    /// <summary>
+    /// Enables fill-height mode: the list expands to fill the available vertical space,
+    /// using available.Height / bounds.Height as the visible row count.
+    /// This overrides any previously set WithVisibleRows value.
+    /// </summary>
+    public SelectionListNode<T> WithFillHeight()
+    {
+        _fillHeight = true;
         return this;
     }
 
@@ -460,7 +473,16 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode
     public Size Measure(Size available)
     {
         var totalLines = TotalLineCount;
-        var height = Math.Min(totalLines, _visibleRows);
+        int height;
+        if (_fillHeight)
+        {
+            _visibleRows = Math.Max(1, available.Height);
+            height = Math.Min(totalLines, _visibleRows);
+        }
+        else
+        {
+            height = Math.Min(totalLines, _visibleRows);
+        }
 
         // Calculate width based on content
         var maxItemWidth = _items.Count > 0

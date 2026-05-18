@@ -738,5 +738,88 @@ public class SelectionListNodeTests
         Assert.Equal("Header\nBody", item.Content.ToPlainText());
     }
 
+
+    [Fact]
+    public void SelectionListNode_WithFillHeight_ReturnsThis()
+    {
+        var items = new[] { "A", "B", "C" };
+        using var list = new SelectionListNode<string>(items, s => s);
+
+        var result = list.WithFillHeight();
+
+        Assert.Same(list, result);
+    }
+
+    [Fact]
+    public void SelectionListNode_WithFillHeight_HeightConstraintIsFill()
+    {
+        using var list = Layouts.SelectionList("A", "B");
+
+        // Default: AutoSize
+        Assert.IsType<SizeConstraint.Auto>(list.HeightConstraint);
+
+        list.WithFillHeight();
+
+        Assert.IsType<SizeConstraint.Fill>(list.HeightConstraint);
+    }
+
+    [Fact]
+    public void SelectionListNode_WithFillHeight_MeasureUsesAvailableHeight()
+    {
+        var items = Enumerable.Range(1, 50).Select(i => "Item " + i).ToArray();
+        using var list = new SelectionListNode<string>(items, s => s).WithFillHeight();
+
+        var measured = list.Measure(new Size(80, 30));
+
+        Assert.Equal(30, measured.Height);
+    }
+
+    [Fact]
+    public void SelectionListNode_WithFillHeight_MeasureClampsToContentCount()
+    {
+        var items = new[] { "A", "B", "C" };
+        using var list = new SelectionListNode<string>(items, s => s).WithFillHeight();
+
+        var measured = list.Measure(new Size(80, 50));
+
+        Assert.Equal(3, measured.Height);
+    }
+
+    [Fact]
+    public void SelectionListNode_WithFillHeight_SmallAvailableHeight_ClampsToOne()
+    {
+        var items = Enumerable.Range(1, 50).Select(i => "Item " + i).ToArray();
+        using var list = new SelectionListNode<string>(items, s => s).WithFillHeight();
+
+        var measured = list.Measure(new Size(80, 0));
+
+        Assert.Equal(1, measured.Height);
+    }
+
+    [Fact]
+    public void SelectionListNode_DefaultBehavior_CapsAtVisibleRows()
+    {
+        var items = Enumerable.Range(1, 50).Select(i => "Item " + i).ToArray();
+        using var list = new SelectionListNode<string>(items, s => s);
+
+        var measured = list.Measure(new Size(80, 50));
+
+        Assert.Equal(10, measured.Height);
+    }
+
+    [Fact]
+    public void SelectionListNode_WithVisibleRows_DisablesFillHeight()
+    {
+        var items = Enumerable.Range(1, 50).Select(i => "Item " + i).ToArray();
+        using var list = new SelectionListNode<string>(items, s => s)
+            .WithFillHeight()
+            .WithVisibleRows(5);
+
+        Assert.IsType<SizeConstraint.Auto>(list.HeightConstraint);
+
+        var measured = list.Measure(new Size(80, 30));
+        Assert.Equal(5, measured.Height);
+    }
+
     #endregion
 }

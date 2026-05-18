@@ -169,6 +169,25 @@ list.OtherSelected.Subscribe(customText => {
 
 When the user navigates to or selects the "Other" option, a text input appears immediately inline, allowing them to type without pressing Enter first.
 
+## Sizing
+
+By default, `SelectionListNode` auto-sizes to its content with a maximum of 10 visible rows. Use `WithFillHeight()` to make the list expand and fill its parent's available vertical space — ideal for long lists in full-height panels:
+
+```csharp
+// 100 items filling the available height
+var items = Enumerable.Range(1, 100).Select(i => "Item " + i);
+var list = Layouts.SelectionList(items)
+    .WithFillHeight();
+
+// WithFillHeight() is also useful inside scrollable containers or panels
+var panel = Layouts.Panel()
+    .WithTitle("Approvals")
+    .WithBorder(BorderStyle.Rounded)
+    .WithChild(list);
+```
+
+When fill height is enabled, the node measures its height from `available.Height` at layout time, keeping scroll offsets and the scrollbar accurate. Calling `WithVisibleRows()` after `WithFillHeight()` disables fill mode and restores the fixed row count.
+
 ## Styling
 
 ```csharp
@@ -178,6 +197,7 @@ Layouts.SelectionList("A", "B", "C")
     .WithSelectedForeground(Color.Green)            // Checked items color
     .WithShowNumbers(true)                          // Show 1. 2. 3. prefixes
     .WithVisibleRows(5)                             // Max visible before scrolling
+    .WithFillHeight()                               // Fill available vertical space
 ```
 
 ## With Typed Items
@@ -390,6 +410,7 @@ public class SettingsPage : ReactivePage<SettingsViewModel>
 | `.WithSelectedForeground(Color)` | Set checked item color |
 | `.WithShowNumbers(bool)` | Show/hide number prefixes |
 | `.WithVisibleRows(int)` | Set max visible rows before scroll |
+| `.WithFillHeight()` | Fill available vertical space (overrides WithVisibleRows) |
 | `.WithOtherOption(string, Action?)` | Add custom input option |
 
 ### SelectionItem Properties
