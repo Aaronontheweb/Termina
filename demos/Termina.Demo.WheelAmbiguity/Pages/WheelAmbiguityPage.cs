@@ -24,9 +24,9 @@ public class WheelAmbiguityPage : ReactivePage<WheelAmbiguityViewModel>
     private StreamingTextNode _history = null!;
     private TextInputNode _input = null!;
 
-    public override void OnNavigatedTo()
+    protected override void OnBound()
     {
-        base.OnNavigatedTo();
+        base.OnBound();
 
         _history = StreamingTextNode.Create()
             .WithPrefix("  ", Color.Gray)
@@ -46,6 +46,11 @@ public class WheelAmbiguityPage : ReactivePage<WheelAmbiguityViewModel>
         // Pre-fill the input so cursor motion is visible.
         foreach (var c in "abcdefghijklmnopqrstuvwxyz")
             _input.HandleInput(new ConsoleKeyInfo(c, ConsoleKey.A, false, false, false));
+    }
+
+    public override void OnNavigatedTo()
+    {
+        base.OnNavigatedTo();
 
         // Route keys: PgUp/PgDn -> history; everything else -> focused input.
         ViewModel.Input.OfType<IInputEvent, KeyPressed>()
