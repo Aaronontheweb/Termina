@@ -196,6 +196,19 @@ A few details worth knowing:
 - To truly fill a container, the container must allocate the full height. A `Fill`-constrained parent (e.g. a `VerticalLayout` slot or a `Fill()` panel) does this; an auto-sized parent shrinks to the list's content.
 - `WithFillHeight(false)` disables fill mode, as does calling `WithVisibleRows()` afterward — both restore the fixed row count.
 
+## Pre-selecting an Item
+
+By default the first item (index 0) is highlighted. Use `WithHighlightedIndex()` to start on a different item — useful when re-entering a previously configured view, such as a wizard step the user is editing:
+
+```csharp
+// Re-open an "Enable DMs?" step on the option the user chose last time
+var list = Layouts.SelectionList("Yes", "No")
+    .WithMode(SelectionMode.Single)
+    .WithHighlightedIndex(previousChoice == DmSetting.Enabled ? 0 : 1);
+```
+
+The index is clamped to the valid range, and the call is ignored when the list is empty. The highlighted item is scrolled into view, so call `WithHighlightedIndex()` after `WithVisibleRows()` when both are used so the scroll offset is computed against the intended row count.
+
 ## Styling
 
 ```csharp
@@ -414,6 +427,7 @@ public class SettingsPage : ReactivePage<SettingsViewModel>
 |--------|-------------|
 | `.WithMode(SelectionMode)` | Set Single or Multi select mode |
 | `.WithHighlightColors(fg, bg)` | Set highlight row colors |
+| `.WithHighlightedIndex(int)` | Set the initially highlighted item (clamped) |
 | `.WithForeground(Color)` | Set default text color |
 | `.WithSelectedForeground(Color)` | Set checked item color |
 | `.WithShowNumbers(bool)` | Show/hide number prefixes |

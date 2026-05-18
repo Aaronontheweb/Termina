@@ -854,5 +854,78 @@ public class SelectionListNodeTests
         Assert.Contains("Item 7", rendered);
     }
 
+    [Fact]
+    public void SelectionListNode_WithHighlightedIndex_ReturnsThis()
+    {
+        var items = new[] { "A", "B", "C" };
+        using var list = new SelectionListNode<string>(items, s => s);
+
+        var result = list.WithHighlightedIndex(1);
+
+        Assert.Same(list, result);
+    }
+
+    [Fact]
+    public void SelectionListNode_WithHighlightedIndex_SetsHighlightedItem()
+    {
+        using var list = Layouts.SelectionList("A", "B", "C")
+            .WithHighlightedIndex(2);
+
+        Assert.Equal("C", list.HighlightedItem?.DisplayText);
+    }
+
+    [Fact]
+    public void SelectionListNode_WithHighlightedIndex_ClampsAboveRange()
+    {
+        using var list = Layouts.SelectionList("A", "B", "C")
+            .WithHighlightedIndex(99);
+
+        Assert.Equal("C", list.HighlightedItem?.DisplayText);
+    }
+
+    [Fact]
+    public void SelectionListNode_WithHighlightedIndex_ClampsNegativeToFirst()
+    {
+        using var list = Layouts.SelectionList("A", "B", "C")
+            .WithHighlightedIndex(-5);
+
+        Assert.Equal("A", list.HighlightedItem?.DisplayText);
+    }
+
+    [Fact]
+    public void SelectionListNode_WithHighlightedIndex_EmptyList_DoesNotThrow()
+    {
+        using var list = new SelectionListNode<string>(Array.Empty<string>(), s => s);
+
+        var result = list.WithHighlightedIndex(3);
+
+        Assert.Same(list, result);
+        Assert.Null(list.HighlightedItem);
+    }
+
+    [Fact]
+    public void SelectionListNode_WithHighlightedIndex_ScrollsHighlightIntoView()
+    {
+        // Pre-highlight an item well below the viewport. WithHighlightedIndex calls
+        // EnsureVisible(), so the initial render should already be scrolled to it
+        // rather than starting at the top.
+        var items = Enumerable.Range(1, 50).Select(i => "Item " + i).ToArray();
+        using var list = new SelectionListNode<string>(items, s => s)
+            .WithVisibleRows(5)
+            .WithHighlightedIndex(40);
+
+        var terminal = new VirtualTerminal(30, 5);
+        var context = new RegionRenderContext(terminal, 0, 0, 30, 5);
+        list.Render(context, new Rect(0, 0, 30, 5));
+
+        var rendered = string.Join("\n", Enumerable.Range(0, 5).Select(terminal.GetLine));
+
+        // Highlight is on index 40 ("Item 41"); with 5 visible rows the list scrolls
+        // to offset 36, showing items 37..41 -- "Item 37" at the top proves it is not
+        // still parked at the default top-of-list position.
+        Assert.Contains("Item 41", rendered);
+        Assert.Contains("Item 37", rendered);
+    }
+
     #endregion
 }
