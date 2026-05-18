@@ -35,8 +35,8 @@ public sealed class FallbackConsole : IPlatformConsole
     /// <inheritdoc />
     public void Initialize()
     {
-        // Set UTF-8 encoding for proper Unicode support
-        Console.OutputEncoding = System.Text.Encoding.UTF8;
+        // Set UTF-8 encoding for proper Unicode support (single owner: ConsoleEnvironment)
+        ConsoleEnvironment.EnsureUtf8Output();
 
         // Capture initial dimensions
         try

@@ -53,6 +53,7 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode
     private Color? _foreground;
     private Color? _selectedForeground;
     private bool _showNumbers = true;
+    private bool _fillHeight;
 
     /// <summary>
     /// Creates a new SelectionListNode with the specified items and plain text display.
@@ -122,7 +123,7 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode
     public SizeConstraint WidthConstraint => SizeConstraint.FillRemaining();
 
     /// <inheritdoc />
-    public SizeConstraint HeightConstraint => SizeConstraint.AutoSize();
+    public SizeConstraint HeightConstraint => _fillHeight ? SizeConstraint.FillRemaining() : SizeConstraint.AutoSize();
 
     /// <inheritdoc />
     public bool CanFocus => true;
@@ -209,6 +210,23 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode
     public SelectionListNode<T> WithVisibleRows(int rows)
     {
         _visibleRows = Math.Max(1, rows);
+        _fillHeight = false;
+        return this;
+    }
+
+    /// <summary>
+    /// Enables fill-height mode: the list expands to fill the available vertical space,
+    /// using available.Height / bounds.Height as the visible row count.
+    /// This overrides any previously set WithVisibleRows value.
+    /// </summary>
+    /// <param name="fill">
+    /// When <c>true</c> (the default), the list fills its parent's available height.
+    /// When <c>false</c>, fill mode is disabled and the current <see cref="WithVisibleRows"/>
+    /// count is used.
+    /// </param>
+    public SelectionListNode<T> WithFillHeight(bool fill = true)
+    {
+        _fillHeight = fill;
         return this;
     }
 
@@ -460,6 +478,13 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode
     public Size Measure(Size available)
     {
         var totalLines = TotalLineCount;
+
+        // In fill mode, the visible-row count is dictated by the space the parent
+        // allocates. Render() re-syncs this from bounds.Height (the authoritative
+        // value) so EnsureVisible()'s scroll math stays correct between renders.
+        if (_fillHeight)
+            _visibleRows = Math.Max(1, available.Height);
+
         var height = Math.Min(totalLines, _visibleRows);
 
         // Calculate width based on content
@@ -518,6 +543,13 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode
 
         // Create a sub-context for this node's bounds so all coordinates are relative
         var subContext = context.CreateSubContext(bounds);
+
+        // In fill mode, bounds.Height is the authoritative visible-row count. Sync it
+        // here so EnsureVisible()'s scroll math is correct even if Render() runs without
+        // a preceding Measure() (e.g. as a Fill child, which VerticalLayout.Render does
+        // not re-measure).
+        if (_fillHeight)
+            _visibleRows = Math.Max(1, bounds.Height);
 
         var visibleLines = Math.Min(_visibleRows, bounds.Height);
         var needsScrollbar = TotalLineCount > visibleLines;

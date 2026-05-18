@@ -18,6 +18,7 @@ namespace Termina.Demo.Gallery.Pages;
 /// - "Other" option with fixed UX (Issue #102 fix)
 /// - Both single and multi-select modes
 /// - Rich multi-line content with styling
+/// - WithFillHeight() expanding a long list to fill its column (Issue #207 fix)
 /// </summary>
 public class SelectionListGalleryPage : ReactivePage<SelectionListGalleryViewModel>
 {
@@ -98,13 +99,14 @@ public class SelectionListGalleryPage : ReactivePage<SelectionListGalleryViewMod
             .WithHighlightColors(Color.Black, Color.Yellow)
             .WithVisibleRows(8);
 
-        // Scrolling list with 12 items in 6 visible rows
+        // Fill-height list with 100 items - expands to fill the column instead of
+        // being capped at the 10-row default (Issue #207).
         _numberedList = Layouts.SelectionList(
-            Enumerable.Range(1, 12).Select(i => $"Item number {i}"))
+            Enumerable.Range(1, 100).Select(i => $"Item number {i}"))
             .WithMode(SelectionMode.Single)
             .WithShowNumbers(true)
             .WithHighlightColors(Color.Black, Color.Cyan)
-            .WithVisibleRows(6);
+            .WithFillHeight();
 
         return Layouts.Vertical()
             .WithChild(BuildHeader())
@@ -163,16 +165,16 @@ public class SelectionListGalleryPage : ReactivePage<SelectionListGalleryViewMod
                         .Height(2))
                 .WithChild(_multiSelectRichList));
 
-        // Column 3: Scrolling numbered list (12 items)
+        // Column 3: Fill-height numbered list (100 items)
         grid.SetCell(0, 2,
             Layouts.Vertical()
                 .WithChild(
-                    new TextNode("Scrolling List")
+                    new TextNode("Fill-Height List")
                         .WithForeground(Color.BrightCyan)
                         .Bold()
                         .Height(1))
                 .WithChild(
-                    new TextNode("12 items in 6 visible rows")
+                    new TextNode("100 items, WithFillHeight() fills the column")
                         .WithForeground(Color.DarkGray)
                         .Height(2))
                 .WithChild(_numberedList));
