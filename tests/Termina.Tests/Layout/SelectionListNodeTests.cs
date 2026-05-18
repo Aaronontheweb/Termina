@@ -4,6 +4,7 @@
 using R3;
 using Termina.Components.Streaming;
 using Termina.Layout;
+using Termina.Rendering;
 using Termina.Terminal;
 using Streaming = Termina.Components.Streaming;
 
@@ -819,6 +820,38 @@ public class SelectionListNodeTests
 
         var measured = list.Measure(new Size(80, 30));
         Assert.Equal(5, measured.Height);
+    }
+
+    [Fact]
+    public void SelectionListNode_WithFillHeight_RenderSyncsVisibleRowsForScrolling()
+    {
+        // 50 items in a fill-height list rendered straight into a 5-row viewport with
+        // no preceding Measure() -- this is how VerticalLayout.Render treats a Fill
+        // child. Render() must sync the visible-row count from bounds.Height so that
+        // EnsureVisible()'s scroll math uses 5, not the default _visibleRows of 10.
+        var items = Enumerable.Range(1, 50).Select(i => "Item " + i).ToArray();
+        using var list = new SelectionListNode<string>(items, s => s).WithFillHeight();
+
+        var terminal = new VirtualTerminal(30, 5);
+        var context = new RegionRenderContext(terminal, 0, 0, 30, 5);
+
+        list.Render(context, new Rect(0, 0, 30, 5));
+
+        // Navigate well past the bottom of the 5-row viewport.
+        var downKey = new ConsoleKeyInfo('\0', ConsoleKey.DownArrow, false, false, false);
+        for (var i = 0; i < 10; i++)
+            list.HandleInput(downKey);
+
+        list.Render(context, new Rect(0, 0, 30, 5));
+
+        var rendered = string.Join("\n", Enumerable.Range(0, 5).Select(terminal.GetLine));
+
+        // The highlight is on "Item 11" (index 10). With visible rows synced to 5 the
+        // list scrolls to keep it on screen (offset 6 -> items 7..11). If _visibleRows
+        // were stuck at 10, EnsureVisible() would scroll only to offset 1 and "Item 11"
+        // would fall off the bottom of the viewport.
+        Assert.Contains("Item 11", rendered);
+        Assert.Contains("Item 7", rendered);
     }
 
     #endregion

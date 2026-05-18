@@ -179,14 +179,22 @@ var items = Enumerable.Range(1, 100).Select(i => "Item " + i);
 var list = Layouts.SelectionList(items)
     .WithFillHeight();
 
-// WithFillHeight() is also useful inside scrollable containers or panels
+// WithFillHeight() is also useful inside scrollable containers or panels.
+// Give the panel a Fill height so it claims the full height for the list to fill.
 var panel = Layouts.Panel()
     .WithTitle("Approvals")
     .WithBorder(BorderStyle.Rounded)
-    .WithChild(list);
+    .WithChild(list)
+    .Fill();
 ```
 
-When fill height is enabled, the node measures its height from `available.Height` at layout time, keeping scroll offsets and the scrollbar accurate. Calling `WithVisibleRows()` after `WithFillHeight()` disables fill mode and restores the fixed row count.
+When fill height is enabled, the node syncs its visible-row count from the height its parent allocates at layout time, keeping scroll offsets and the scrollbar accurate.
+
+A few details worth knowing:
+
+- Fill mode caps the measured height at the item count. If the list has fewer items than the available height, it sizes to its content rather than leaving empty rows — the list never reports a height taller than it can fill.
+- To truly fill a container, the container must allocate the full height. A `Fill`-constrained parent (e.g. a `VerticalLayout` slot or a `Fill()` panel) does this; an auto-sized parent shrinks to the list's content.
+- `WithFillHeight(false)` disables fill mode, as does calling `WithVisibleRows()` afterward — both restore the fixed row count.
 
 ## Styling
 

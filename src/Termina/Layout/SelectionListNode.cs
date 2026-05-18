@@ -219,9 +219,14 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode
     /// using available.Height / bounds.Height as the visible row count.
     /// This overrides any previously set WithVisibleRows value.
     /// </summary>
-    public SelectionListNode<T> WithFillHeight()
+    /// <param name="fill">
+    /// When <c>true</c> (the default), the list fills its parent's available height.
+    /// When <c>false</c>, fill mode is disabled and the current <see cref="WithVisibleRows"/>
+    /// count is used.
+    /// </param>
+    public SelectionListNode<T> WithFillHeight(bool fill = true)
     {
-        _fillHeight = true;
+        _fillHeight = fill;
         return this;
     }
 
@@ -473,16 +478,14 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode
     public Size Measure(Size available)
     {
         var totalLines = TotalLineCount;
-        int height;
+
+        // In fill mode, the visible-row count is dictated by the space the parent
+        // allocates. Render() re-syncs this from bounds.Height (the authoritative
+        // value) so EnsureVisible()'s scroll math stays correct between renders.
         if (_fillHeight)
-        {
             _visibleRows = Math.Max(1, available.Height);
-            height = Math.Min(totalLines, _visibleRows);
-        }
-        else
-        {
-            height = Math.Min(totalLines, _visibleRows);
-        }
+
+        var height = Math.Min(totalLines, _visibleRows);
 
         // Calculate width based on content
         var maxItemWidth = _items.Count > 0
@@ -540,6 +543,13 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode
 
         // Create a sub-context for this node's bounds so all coordinates are relative
         var subContext = context.CreateSubContext(bounds);
+
+        // In fill mode, bounds.Height is the authoritative visible-row count. Sync it
+        // here so EnsureVisible()'s scroll math is correct even if Render() runs without
+        // a preceding Measure() (e.g. as a Fill child, which VerticalLayout.Render does
+        // not re-measure).
+        if (_fillHeight)
+            _visibleRows = Math.Max(1, bounds.Height);
 
         var visibleLines = Math.Min(_visibleRows, bounds.Height);
         var needsScrollbar = TotalLineCount > visibleLines;
