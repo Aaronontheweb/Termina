@@ -10,20 +10,20 @@
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <VersionPrefix>0.8.0</VersionPrefix>
+    <VersionPrefix>0.9.0</VersionPrefix>
     <PackageReleaseNotes>**New Features**:
-- **CopyableTextNode with terminal clipboard support** ([#179](https://github.com/Aaronontheweb/termina/pull/179))
-  - New `CopyableTextNode` component for selectable, copyable text with keyboard-driven selection
-  - Configurable copy key bindings via `CopyKeyBinding`
-  - Terminal clipboard integration using OSC 52 escape sequences with automatic tmux transport fallback
-  - `IClipboardService` / `IClipboardTransport` interfaces for extensible clipboard backends
-  - `TerminalClipboardService` registered automatically via `AddTermina()` in DI
+- **SelectionListNode pre-selection via `WithHighlightedIndex()`** ([#213](https://github.com/Aaronontheweb/termina/pull/213))
+  - New fluent method `WithHighlightedIndex(int index)` allows callers to pre-select a highlighted item in `SelectionListNode` by index at construction time
 
-- **Toast notification system** ([#179](https://github.com/Aaronontheweb/termina/pull/179))
-  - New `ToastOverlayNode` for non-blocking in-app notifications
-  - `IToastService` / `ToastService` for programmatic toast dispatch
-  - Configurable `ToastPosition` (TopRight, TopLeft, BottomRight, BottomLeft) and `ToastOptions`
-  - `CopyFeedbackMode` controls copy success feedback: toast overlay or inline indicator
+- **SelectionListNode full-height mode via `WithFillHeight()`** ([#210](https://github.com/Aaronontheweb/termina/pull/210))
+  - New fluent method `WithFillHeight()` makes `SelectionListNode` expand to fill all available vertical space
+
+**Bug Fixes**:
+- **Fixed navigation data race that crashed pages on ARM64** ([#212](https://github.com/Aaronontheweb/termina/pull/212))
+- **Fixed garbled output when the terminal does not start in UTF-8** ([#204](https://github.com/Aaronontheweb/termina/issues/204))
+
+**Security**:
+- **Fixed CVE-2026-40894: pinned OpenTelemetry.Api to 1.15.3** ([#209](https://github.com/Aaronontheweb/termina/pull/209))
 
 ---</PackageReleaseNotes>
   </PropertyGroup>
