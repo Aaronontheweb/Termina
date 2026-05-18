@@ -257,8 +257,10 @@ public sealed class TerminaApplication
                 receiver.SetRouteParameters(parameters);
             }
 
-            // Wire up ViewModel with navigation, shutdown, redraw, and input
-            _currentViewModel.WireUp(NavigateTo, (t, v) => NavigateTo(t, v), Shutdown, RequestRedraw, Input);
+            // Wire up ViewModel with navigation, shutdown, redraw, and input.
+            // Navigation is routed through the event channel (RequestNavigation)
+            // so it is processed on the render loop thread, not the caller's.
+            _currentViewModel.WireUp(RequestNavigation, RequestNavigation, Shutdown, RequestRedraw, Input);
 
             // Bind page to ViewModel and wire up focus and navigation
             BindPageToViewModel(_currentPage, _currentViewModel);
@@ -312,7 +314,9 @@ public sealed class TerminaApplication
     {
         if (page is IBindablePage bindablePage)
         {
-            bindablePage.WireUpNavigation(NavigateTo, (t, v) => NavigateTo(t, v), Shutdown);
+            // Route through the event channel so navigation is processed on the
+            // render loop thread (see RequestNavigation).
+            bindablePage.WireUpNavigation(RequestNavigation, RequestNavigation, Shutdown);
         }
     }
 
@@ -344,6 +348,24 @@ public sealed class TerminaApplication
     {
         // Push a redraw event to the event channel - this will trigger re-render
         _eventChannel.Writer.TryWrite(RedrawRequested.Instance);
+    }
+
+    // Navigation requested by a ViewModel or page runs on whatever thread the
+    // caller is on (e.g. an async continuation on the thread pool). Posting a
+    // NavigationRequested event to the channel defers NavigateToInternal to the
+    // render loop thread, so page swaps are serialized against rendering. A
+    // direct cross-thread NavigateTo would publish a not-yet-bound _currentPage
+    // to the render thread — a data race that crashes under ARM64's weak memory
+    // model (the render loop calls BuildLayout() before OnBound() has run).
+    private void RequestNavigation(string path)
+    {
+        _eventChannel.Writer.TryWrite(new NavigationRequested(path));
+    }
+
+    private void RequestNavigation(string routeTemplate, object? routeValues)
+    {
+        _eventChannel.Writer.TryWrite(
+            new NavigationRequested(RouteMatcher.BuildPath(routeTemplate, routeValues)));
     }
 
     /// <summary>
