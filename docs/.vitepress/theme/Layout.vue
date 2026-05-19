@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import DefaultTheme from 'vitepress/theme'
-import { useData, useRoute } from 'vitepress'
+import { useData, useRoute, withBase } from 'vitepress'
 import VersionBadge from './VersionBadge.vue'
 
 const { Layout } = DefaultTheme
@@ -22,6 +22,14 @@ const showFooter = computed(() => {
   <Layout>
     <template #nav-bar-content-after>
       <VersionBadge />
+    </template>
+    <template #home-hero-image>
+      <div class="hero-gif">
+        <img
+          :src="withBase('/gallery/hero-overview.gif')"
+          alt="A guided tour of the Termina component gallery"
+        />
+      </div>
     </template>
     <template #doc-after>
       <div class="custom-footer" v-if="showFooter">

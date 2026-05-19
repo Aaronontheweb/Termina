@@ -11,6 +11,41 @@ img[src*="/gallery/"] {
   border-radius: 8px;
 }
 
+/* Homepage hero: the guided-tour GIF sits in the right-hand image slot,
+   replacing the logo. Overrides VitePress's logo-sized hero image styling. */
+.VPHero.has-image .image-bg {
+  display: none;            /* circular glow is meant for a logo, not a GIF */
+}
+.VPHero.has-image .image {
+  margin: 0;                /* default mobile margins bleed a logo into the nav */
+}
+.VPHero.has-image .image-container {
+  width: 100%;
+  max-width: 560px;
+  transform: none;          /* drop the logo float offset */
+}
+.hero-gif {
+  width: 100%;
+}
+.hero-gif img[src*="/gallery/"] {
+  margin: 0;
+}
+
+/* Mobile: VitePress stacks the image slot before the text. Flip the order
+   so the headline leads, and let the GIF box shrink to the GIF itself
+   (its default height is sized for a square logo, leaving dead space). */
+@media (max-width: 959px) {
+  .VPHero.has-image .container {
+    flex-direction: column-reverse;
+  }
+  .VPHero.has-image .image {
+    margin-top: 2rem;
+  }
+  .VPHero.has-image .image-container {
+    height: auto;
+  }
+}
+
 /* Caption: an italic line on its own immediately after a gallery GIF. */
 p:has(> img[src*="/gallery/"]) + p:has(> em:only-child) {
   margin-top: -0.75rem;

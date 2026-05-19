@@ -5,9 +5,6 @@ hero:
   name: Termina
   text: Reactive TUI Framework for .NET
   tagline: Build beautiful terminal applications with declarative layouts and reactive state management
-  image:
-    src: /termina-icon.png
-    alt: Termina
   actions:
     - theme: brand
       text: Get Started
@@ -61,10 +58,6 @@ dotnet add package Termina
 </div>
 
 ## See It In Action
-
-![Termina component gallery: keyboard-driven menus, live spinners, and selection lists](/gallery/hero-overview.gif)
-
-*A guided tour of the Termina component gallery.*
 
 Termina apps are fully interactive — reactive state, streaming text, and surgical region-based updates, all in the terminal.
 
