@@ -6,6 +6,12 @@
 
 **Termina** is a reactive terminal UI (TUI) framework for .NET with declarative layouts and surgical region-based rendering. It provides an MVVM architecture with reactive properties, ASP.NET Core-style routing, and seamless integration with Microsoft.Extensions.Hosting.
 
+## See It In Action
+
+![Termina component gallery: keyboard-driven menus, live spinners, and selection lists](https://raw.githubusercontent.com/Aaronontheweb/termina/refs/heads/dev/docs/public/gallery/hero-overview.gif)
+
+*A guided tour of the Termina component gallery.*
+
 ## Documentation
 
 **[Full Documentation](https://aaronontheweb.github.io/termina/)**

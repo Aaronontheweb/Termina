@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Termina.Demo.RegionBased;
 using Termina.Hosting;
 using Termina.Input;
@@ -10,6 +11,9 @@ using Termina.Input;
 var testMode = args.Contains("--test");
 
 var builder = Host.CreateApplicationBuilder(args);
+
+// Suppress host/console logging so it doesn't bleed into the TUI's rendered output.
+builder.Logging.SetMinimumLevel(LogLevel.Warning);
 
 // Set up input source based on mode
 VirtualInputSource? scriptedInput = null;

@@ -2,6 +2,10 @@
 
 `GridNode` provides true 2D layout with consistent column widths and row heights across all cells. Unlike nesting `HorizontalLayout` inside `VerticalLayout` (where each row calculates widths independently), `GridNode` ensures uniform cell sizing across the entire grid.
 
+![GridNode demo: a dashboard with nested grids, progress bars, and a log table](/gallery/grid-dashboard.gif)
+
+*A dashboard built with `GridNode` — nested grids and a log table.*
+
 ## When to Use GridNode
 
 | Use Case | Why GridNode |

@@ -2,6 +2,10 @@
 
 Termina provides a set of built-in layout nodes (components) for building terminal UIs. Each component handles a specific rendering concern and can be composed together.
 
+![Component gallery demo: browsing the built-in components in the Termina demo gallery](/gallery/gallery-menu.gif)
+
+*The component gallery — `demos/Termina.Demo.Gallery`.*
+
 ## Display Components
 
 | Component | Description |

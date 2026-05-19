@@ -11,6 +11,10 @@ A todo list application with:
 - Navigation to other pages
 - Progress tracking
 
+![Todo list demo: adding tasks through a modal, then toggling completion](/gallery/todo-list.gif)
+
+*The finished todo list app.*
+
 ## Project Setup
 
 This tutorial extends from the counter app. If starting fresh:

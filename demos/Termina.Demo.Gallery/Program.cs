@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Termina.Demo.Gallery;
 using Termina.Diagnostics;
 using Termina.Demo.Gallery.Pages;
@@ -11,6 +12,9 @@ using Termina.Pages;
 var testMode = args.Contains("--test");
 
 var builder = Host.CreateApplicationBuilder(args);
+
+// Suppress host/console logging so it doesn't bleed into the TUI's rendered output.
+builder.Logging.SetMinimumLevel(LogLevel.Warning);
 
 var traceDir = Path.Combine(Path.GetTempPath(), "termina-logs");
 Directory.CreateDirectory(traceDir);

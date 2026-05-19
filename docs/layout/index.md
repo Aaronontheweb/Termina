@@ -2,6 +2,10 @@
 
 Termina uses a declarative, tree-based layout system inspired by modern UI frameworks. Instead of imperatively positioning elements, you describe your UI as a tree of layout nodes and let the framework handle measurement and rendering.
 
+![Layout demo: vertical, horizontal, panel, and nested layouts in a 2x2 grid](/gallery/gallery-layout.gif)
+
+*Vertical, horizontal, panel, and nested layouts.*
+
 ## How It Works
 
 Every UI in Termina is built by implementing `BuildLayout()` in your page:
