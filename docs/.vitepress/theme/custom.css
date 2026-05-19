@@ -1,7 +1,5 @@
-/* Framing for the terminal-demo GIFs produced by the screenshots/ pipeline.
-   The GIFs have a near-black terminal background; without a border they
-   bleed into the page in dark mode. This also caps their width so the
-   wide hero GIFs on the homepage don't render full-bleed. */
+/* Without a border, the near-black terminal GIFs bleed into the page in
+   dark mode; cap the width so wide hero GIFs don't render full-bleed. */
 img[src*="/gallery/"] {
   display: block;
   width: 100%;
@@ -24,10 +22,7 @@ img[src*="/gallery/"] {
   max-width: 560px;
   transform: none;          /* drop the logo float offset */
 }
-.hero-gif {
-  width: 100%;
-}
-.hero-gif img[src*="/gallery/"] {
+.VPHero.has-image .image-container img[src*="/gallery/"] {
   margin: 0;
 }
 

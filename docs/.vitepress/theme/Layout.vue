@@ -24,12 +24,10 @@ const showFooter = computed(() => {
       <VersionBadge />
     </template>
     <template #home-hero-image>
-      <div class="hero-gif">
-        <img
-          :src="withBase('/gallery/hero-overview.gif')"
-          alt="A guided tour of the Termina component gallery"
-        />
-      </div>
+      <img
+        :src="withBase('/gallery/hero-overview.gif')"
+        alt="A guided tour of the Termina component gallery"
+      />
     </template>
     <template #doc-after>
       <div class="custom-footer" v-if="showFooter">

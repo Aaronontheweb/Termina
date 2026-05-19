@@ -2,13 +2,7 @@
 # Copyable text with toast and inline-indicator feedback.
 Output docs/public/gallery/gallery-clipboard.gif
 
-Set Shell "bash"
-Set Theme "Catppuccin Mocha"
-Set Width 1200
-Set Height 700
-Set FontSize 16
-Set Padding 20
-Set TypingSpeed 50ms
+Source screenshots/tapes/_common.tape
 
 Hide
 Type "dotnet run --no-build -c Release --project demos/Termina.Demo.Gallery"

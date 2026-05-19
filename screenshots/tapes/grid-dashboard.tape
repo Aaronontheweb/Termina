@@ -2,13 +2,9 @@
 # Nested grids, progress bars, and a log table; metrics update live every 2s.
 Output docs/public/gallery/grid-dashboard.gif
 
-Set Shell "bash"
-Set Theme "Catppuccin Mocha"
+Source screenshots/tapes/_common.tape
 Set Width 1400
 Set Height 800
-Set FontSize 16
-Set Padding 20
-Set TypingSpeed 50ms
 
 Hide
 Type "dotnet run --no-build -c Release --project demos/Termina.Demo.Grid"

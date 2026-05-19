@@ -72,7 +72,7 @@ changes:
 ```bash
 # Requires vhs, ttyd, and ffmpeg in addition to the .NET SDK
 ./screenshots/capture.sh            # regenerate every GIF
-./screenshots/capture.sh counter    # regenerate a single GIF
+./screenshots/capture.sh wizard     # regenerate a single GIF
 ```
 
 See [`screenshots/README.md`](screenshots/README.md) for setup and details.

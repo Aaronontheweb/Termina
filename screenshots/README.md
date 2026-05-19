@@ -38,7 +38,7 @@ Run from anywhere in the repo:
 ./screenshots/capture.sh
 
 # Regenerate a single asset while iterating on a tape
-./screenshots/capture.sh counter
+./screenshots/capture.sh wizard
 ```
 
 Output lands in `docs/public/gallery/`. Preview it locally with the docs site:

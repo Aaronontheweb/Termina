@@ -2,13 +2,8 @@
 # Adds tasks via the modal, then toggles completion.
 Output docs/public/gallery/todo-list.gif
 
-Set Shell "bash"
-Set Theme "Catppuccin Mocha"
-Set Width 1200
+Source screenshots/tapes/_common.tape
 Set Height 500
-Set FontSize 16
-Set Padding 20
-Set TypingSpeed 50ms
 
 Hide
 Type "dotnet run --no-build -c Release --project demos/Termina.Demo"

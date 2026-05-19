@@ -2,13 +2,9 @@
 # Token-by-token streaming text plus an interactive decision list.
 Output docs/public/gallery/streaming-chat.gif
 
-Set Shell "bash"
-Set Theme "Catppuccin Mocha"
+Source screenshots/tapes/_common.tape
 Set Width 1400
 Set Height 680
-Set FontSize 16
-Set Padding 20
-Set TypingSpeed 70ms
 
 # Longer startup sleep: the demo spins up an Akka.NET ActorSystem.
 Hide

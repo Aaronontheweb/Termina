@@ -2,13 +2,8 @@
 # Steps through Provider -> Authentication -> Confirm.
 Output docs/public/gallery/wizard.gif
 
-Set Shell "bash"
-Set Theme "Catppuccin Mocha"
-Set Width 1200
+Source screenshots/tapes/_common.tape
 Set Height 440
-Set FontSize 16
-Set Padding 20
-Set TypingSpeed 50ms
 
 # Sleep inside the hidden block also swallows the demo's stderr trace line.
 Hide

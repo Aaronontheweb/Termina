@@ -2,13 +2,8 @@
 # Menu -> animations -> selection lists, showing off the framework at a glance.
 Output docs/public/gallery/hero-overview.gif
 
-Set Shell "bash"
-Set Theme "Catppuccin Mocha"
-Set Width 1200
+Source screenshots/tapes/_common.tape
 Set Height 560
-Set FontSize 16
-Set Padding 20
-Set TypingSpeed 50ms
 
 Hide
 Type "dotnet run --no-build -c Release --project demos/Termina.Demo.Gallery"

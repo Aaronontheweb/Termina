@@ -3,13 +3,7 @@
 # then submits to the priority picker modal.
 Output docs/public/gallery/modal.gif
 
-Set Shell "bash"
-Set Theme "Catppuccin Mocha"
-Set Width 1200
-Set Height 700
-Set FontSize 16
-Set Padding 20
-Set TypingSpeed 50ms
+Source screenshots/tapes/_common.tape
 
 # Launch, navigate to the todo list, and open the add-task modal — all
 # hidden — so the first visible frame already shows a modal overlay.
