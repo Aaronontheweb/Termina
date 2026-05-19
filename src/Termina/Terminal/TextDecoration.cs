@@ -44,5 +44,11 @@ public enum TextDecoration
     /// <summary>
     /// Strikethrough text (ANSI SGR 9).
     /// </summary>
-    Strikethrough = 1 << 4
+    Strikethrough = 1 << 4,
+
+    /// <summary>
+    /// Reverse video / inverted colors (ANSI SGR 7).
+    /// Used for text selection highlighting.
+    /// </summary>
+    Reverse = 1 << 5
 }

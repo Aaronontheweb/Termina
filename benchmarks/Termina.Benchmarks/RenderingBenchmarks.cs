@@ -230,4 +230,5 @@ internal sealed class BenchmarkTerminal : IAnsiTerminal
     public void EnableMouse() { }
     public void DisableMouse() { }
     public void CopyToClipboard(string text) { }
+    public void SendRaw(string sequence) { }
 }

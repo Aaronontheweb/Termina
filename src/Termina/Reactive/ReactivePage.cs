@@ -174,6 +174,25 @@ public abstract class ReactivePage<TViewModel> : IBindablePage, IDisposable
     }
 
     /// <summary>
+    /// Handles mouse events at the page level.
+    /// Override this method for custom mouse event handling.
+    /// </summary>
+    /// <param name="mouseEvent">The mouse event to handle.</param>
+    /// <returns>True if the page handled the event, false otherwise.</returns>
+    public virtual bool HandleMouseEvent(Termina.Input.MouseEvent mouseEvent)
+    {
+        // Default implementation: try to route to layout root if it supports mouse events
+        if (_layoutRoot is IMouseHandler handler)
+        {
+            // Pass the bounds as the full terminal size for top-level nodes
+            var bounds = new Termina.Layout.Rect(0, 0, Console.WindowWidth, Console.WindowHeight);
+            return handler.HandleMouseEvent(mouseEvent, bounds);
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Binds the ViewModel to this page.
     /// Called by the framework during page initialization.
     /// </summary>
