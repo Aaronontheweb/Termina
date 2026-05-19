@@ -517,8 +517,11 @@ public sealed class TerminaApplication
         // within CtrlCDoublePressWindow shuts the app down. This sits above page /
         // focus handling so users can always get out, even from a focus-trapping
         // input control. Under cfmakeraw (UnixConsole) Ctrl+C arrives as a normal
-        // KeyPressed event; on Windows ENABLE_PROCESSED_INPUT is also disabled by
-        // WindowsConsole when it owns input so the same path runs.
+        // KeyPressed event because ISIG is cleared. On Windows in raw-VT mode
+        // (WindowsConsole opt-in via TERMINA_RAW_INPUT) ENABLE_PROCESSED_INPUT is
+        // cleared for the same reason and Ctrl+C arrives in-band as well. In
+        // Windows record mode the .NET Console.ReadKey path also surfaces Ctrl+C
+        // as a KeyPressed(Key=C, Control), so this handler runs uniformly.
         if (evt is KeyPressed ctrlC
             && ctrlC.KeyInfo.Key == ConsoleKey.C
             && ctrlC.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Control))

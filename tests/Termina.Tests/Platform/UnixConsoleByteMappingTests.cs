@@ -1,8 +1,6 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
-#pragma warning disable CA1416  // ByteToKeyInfo is pure; OS attribute lives on the class for the syscall surface.
-
 using System.Text;
 using Termina.Input;
 using Termina.Platform;
@@ -10,15 +8,15 @@ using Termina.Platform;
 namespace Termina.Tests.Platform;
 
 /// <summary>
-/// Tests for <see cref="UnixConsole.ByteToKeyInfo"/> and the byte → KeyInfo → EscapeSequenceParser
-/// pipeline that the real raw-stdin reader thread feeds. No TTY required.
+/// Tests for <see cref="RawByteKeyMapper.ByteToKeyInfo"/> and the byte → KeyInfo → EscapeSequenceParser
+/// pipeline that both the Unix raw-stdin reader and the Windows raw-VT reader feed. No TTY required.
 /// </summary>
 public class UnixConsoleByteMappingTests
 {
     [Fact]
     public void Backspace_DelByte_MapsToBackspace()
     {
-        var k = UnixConsole.ByteToKeyInfo(0x7F);
+        var k = RawByteKeyMapper.ByteToKeyInfo(0x7F);
         Assert.Equal(ConsoleKey.Backspace, k.Key);
         Assert.Equal('\x7F', k.KeyChar);
     }
@@ -26,14 +24,14 @@ public class UnixConsoleByteMappingTests
     [Fact]
     public void Backspace_BsByte_MapsToBackspace()
     {
-        var k = UnixConsole.ByteToKeyInfo(0x08);
+        var k = RawByteKeyMapper.ByteToKeyInfo(0x08);
         Assert.Equal(ConsoleKey.Backspace, k.Key);
     }
 
     [Fact]
     public void Tab_MapsToTab()
     {
-        var k = UnixConsole.ByteToKeyInfo(0x09);
+        var k = RawByteKeyMapper.ByteToKeyInfo(0x09);
         Assert.Equal(ConsoleKey.Tab, k.Key);
     }
 
@@ -42,14 +40,14 @@ public class UnixConsoleByteMappingTests
     [InlineData((byte)0x0D)]
     public void Enter_LfOrCr_MapsToEnter(byte b)
     {
-        var k = UnixConsole.ByteToKeyInfo(b);
+        var k = RawByteKeyMapper.ByteToKeyInfo(b);
         Assert.Equal(ConsoleKey.Enter, k.Key);
     }
 
     [Fact]
     public void Escape_MapsToEscape()
     {
-        var k = UnixConsole.ByteToKeyInfo(0x1B);
+        var k = RawByteKeyMapper.ByteToKeyInfo(0x1B);
         Assert.Equal(ConsoleKey.Escape, k.Key);
         Assert.Equal('\x1B', k.KeyChar);
     }
@@ -57,7 +55,7 @@ public class UnixConsoleByteMappingTests
     [Fact]
     public void Space_MapsToSpacebar()
     {
-        var k = UnixConsole.ByteToKeyInfo(0x20);
+        var k = RawByteKeyMapper.ByteToKeyInfo(0x20);
         Assert.Equal(ConsoleKey.Spacebar, k.Key);
         Assert.Equal(' ', k.KeyChar);
     }
@@ -68,7 +66,7 @@ public class UnixConsoleByteMappingTests
     [InlineData((byte)0x1A, ConsoleKey.Z)]  // Ctrl+Z
     public void CtrlLetter_MapsToLetterWithControlModifier(byte b, ConsoleKey expectedKey)
     {
-        var k = UnixConsole.ByteToKeyInfo(b);
+        var k = RawByteKeyMapper.ByteToKeyInfo(b);
         Assert.Equal(expectedKey, k.Key);
         Assert.True((k.Modifiers & ConsoleModifiers.Control) != 0, "Control modifier missing");
         Assert.Equal((char)b, k.KeyChar);
@@ -83,7 +81,7 @@ public class UnixConsoleByteMappingTests
     [InlineData((byte)'9', '9', ConsoleKey.D9, false)]
     public void PrintableAscii_MapsCorrectly(byte b, char expectedChar, ConsoleKey expectedKey, bool expectedShift)
     {
-        var k = UnixConsole.ByteToKeyInfo(b);
+        var k = RawByteKeyMapper.ByteToKeyInfo(b);
         Assert.Equal(expectedChar, k.KeyChar);
         Assert.Equal(expectedKey, k.Key);
         Assert.Equal(expectedShift, (k.Modifiers & ConsoleModifiers.Shift) != 0);
@@ -93,7 +91,7 @@ public class UnixConsoleByteMappingTests
     [Fact]
     public void HighBitByte_PassedThroughVerbatim()
     {
-        var k = UnixConsole.ByteToKeyInfo(0xC3);
+        var k = RawByteKeyMapper.ByteToKeyInfo(0xC3);
         Assert.Equal('\u00C3', k.KeyChar);
         Assert.Equal(ConsoleKey.None, k.Key);
     }
@@ -109,9 +107,9 @@ public class UnixConsoleByteMappingTests
     {
         var parser = new EscapeSequenceParser();
         var events = new List<IInputEvent>();
-        events.AddRange(parser.Process(UnixConsole.ByteToKeyInfo(0x1B)));
-        events.AddRange(parser.Process(UnixConsole.ByteToKeyInfo((byte)'[')));
-        events.AddRange(parser.Process(UnixConsole.ByteToKeyInfo((byte)letter)));
+        events.AddRange(parser.Process(RawByteKeyMapper.ByteToKeyInfo(0x1B)));
+        events.AddRange(parser.Process(RawByteKeyMapper.ByteToKeyInfo((byte)'[')));
+        events.AddRange(parser.Process(RawByteKeyMapper.ByteToKeyInfo((byte)letter)));
 
         var scroll = Assert.Single(events);
         var mse = Assert.IsType<MouseScrollEvent>(scroll);
@@ -131,9 +129,9 @@ public class UnixConsoleByteMappingTests
     {
         var parser = new EscapeSequenceParser();
         var events = new List<IInputEvent>();
-        events.AddRange(parser.Process(UnixConsole.ByteToKeyInfo(0x1B)));
-        events.AddRange(parser.Process(UnixConsole.ByteToKeyInfo((byte)'O')));
-        events.AddRange(parser.Process(UnixConsole.ByteToKeyInfo((byte)letter)));
+        events.AddRange(parser.Process(RawByteKeyMapper.ByteToKeyInfo(0x1B)));
+        events.AddRange(parser.Process(RawByteKeyMapper.ByteToKeyInfo((byte)'O')));
+        events.AddRange(parser.Process(RawByteKeyMapper.ByteToKeyInfo((byte)letter)));
 
         var evt = Assert.Single(events);
         var kp = Assert.IsType<KeyPressed>(evt);

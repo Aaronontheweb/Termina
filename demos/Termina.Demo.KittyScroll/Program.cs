@@ -19,14 +19,17 @@ using Termina.Hosting;
 //                                 Dispatched as MouseScrollEvent.
 //
 // Prerequisites for this demo to behave as advertised:
-//   1. TERMINA_UNIX_RAW_INPUT=1 (so the raw-stdin UnixConsole is used —
-//      Console.ReadKey would otherwise fold both forms to UpArrow before our
-//      parser ever sees the bytes).
+//   1. TERMINA_RAW_INPUT=1 (so the raw-byte console implementation is used —
+//      Console.ReadKey on Unix and Windows record-mode would otherwise fold
+//      both forms to UpArrow before our parser ever sees the bytes). The
+//      legacy TERMINA_UNIX_RAW_INPUT name still works on Unix as a deprecated
+//      alias.
 //   2. TERMINA_KITTY_KEYBOARD=8 (or 9 / 11 if you want disambiguate + report
 //      bits as well — see Termina.Demo.RawStdinProbe for the spec).
 //   3. A terminal that implements the kitty keyboard protocol. Confirmed:
-//      Ghostty, kitty, foot, wezterm, iTerm2 ≥ 3.5. macOS Terminal.app does
-//      NOT support it and will degrade to today's ambiguity.
+//      Ghostty, kitty, foot, wezterm, iTerm2 ≥ 3.5, Windows Terminal 1.21+.
+//      macOS Terminal.app and older Windows Terminal builds do NOT support
+//      it and will degrade to today's ambiguity.
 //
 // What to look for once it's running:
 //   • Scroll the wheel over the history panel — the history should scroll
@@ -38,8 +41,11 @@ using Termina.Hosting;
 //     selection should appear, because we never enabled mouse tracking.
 //   • Ctrl+Q quits.
 //
-// Run:
-//   TERMINA_UNIX_RAW_INPUT=1 TERMINA_KITTY_KEYBOARD=8 \
+// Run (bash/zsh):
+//   TERMINA_RAW_INPUT=1 TERMINA_KITTY_KEYBOARD=8 \
+//     dotnet run --project demos/Termina.Demo.KittyScroll
+// Run (PowerShell):
+//   $env:TERMINA_RAW_INPUT="1"; $env:TERMINA_KITTY_KEYBOARD="8"; `
 //     dotnet run --project demos/Termina.Demo.KittyScroll
 // -----------------------------------------------------------------------------
 

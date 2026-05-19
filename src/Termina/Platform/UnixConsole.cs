@@ -87,15 +87,8 @@ public sealed class UnixConsole : IPlatformConsole
 
     private bool _kittyKeyboardActive;
 
-    /// <summary>
-    /// True when this console has pushed the kitty keyboard protocol enhancement
-    /// (<c>CSI &gt; N u</c>). Driven by the <c>TERMINA_KITTY_KEYBOARD</c> environment variable
-    /// (set to the flag-bits value, e.g. <c>8</c> for <c>report_all_keys</c>). Consumers (e.g.
-    /// <see cref="Input.PlatformInputSource"/>) read this to configure the
-    /// <see cref="Input.EscapeSequenceParser"/>'s
-    /// <see cref="Input.EscapeSequenceParser.KittyKeyboardActive"/> flag.
-    /// </summary>
-    public bool KittyKeyboardActive => _kittyKeyboardActive;
+    /// <inheritdoc />
+    public TerminalCapabilities Capabilities => new(KittyKeyboardActive: _kittyKeyboardActive);
 
     /// <inheritdoc />
     public bool SupportsEventDrivenInput => true;
@@ -253,40 +246,15 @@ public sealed class UnixConsole : IPlatformConsole
         TerminaTrace.Platform.Debug(this, "UnixConsole termios restored");
     }
 
-    /// <summary>
-    /// Pushes the kitty keyboard protocol enhancement bits onto the terminal's per-screen stack
-    /// when <c>TERMINA_KITTY_KEYBOARD</c> is set to a non-zero integer. Common value is <c>8</c>
-    /// (<c>report_all_keys</c>), which forces all keyboard input through <c>CSI ... u</c> /
-    /// <c>CSI 1;mods X</c>, unambiguously separating real arrows from <c>?1007h</c> wheel events.
-    /// </summary>
     private void TryEnterKittyKeyboard()
     {
-        var raw = Environment.GetEnvironmentVariable("TERMINA_KITTY_KEYBOARD");
-        if (string.IsNullOrEmpty(raw)) return;
-        if (!int.TryParse(raw, out var flags) || flags <= 0) return;
-
-        try
-        {
-            Console.Out.Write($"\x1b[>{flags}u");
-            Console.Out.Flush();
-            _kittyKeyboardActive = true;
-            TerminaTrace.Platform.Info(this, "UnixConsole pushed kitty keyboard flags={0}", flags);
-        }
-        catch (Exception ex)
-        {
-            TerminaTrace.Platform.Error(this, "Failed to push kitty keyboard flags: {0}", ex.Message);
-        }
+        _kittyKeyboardActive = KittyKeyboardEnhancement.TryEnter(this);
     }
 
     private void TryLeaveKittyKeyboard()
     {
         if (!_kittyKeyboardActive) return;
-        try
-        {
-            Console.Out.Write("\x1b[<u");
-            Console.Out.Flush();
-        }
-        catch { /* ignore — we're tearing down */ }
+        KittyKeyboardEnhancement.TryLeave();
         _kittyKeyboardActive = false;
     }
 
@@ -334,7 +302,7 @@ public sealed class UnixConsole : IPlatformConsole
                     if (b < 0x80)
                     {
                         // ASCII / control / escape-sequence bytes — emit verbatim, one event each.
-                        _events.Writer.TryWrite(new ConsoleKeyEvent(ByteToKeyInfo(b)));
+                        _events.Writer.TryWrite(new ConsoleKeyEvent(RawByteKeyMapper.ByteToKeyInfo(b)));
                     }
                     else
                     {
@@ -377,39 +345,6 @@ public sealed class UnixConsole : IPlatformConsole
         try { _resized.OnNext(evt); } catch { /* ignore */ }
         _events.Writer.TryWrite(evt);
     }
-
-    /// <summary>
-    /// Maps a single raw byte from stdin into a <see cref="ConsoleKeyInfo"/> shaped the same
-    /// way <see cref="Console.ReadKey(bool)"/> would shape it. The
-    /// <see cref="Input.EscapeSequenceParser"/> reassembles multi-byte escape sequences from
-    /// the resulting <see cref="ConsoleKeyEvent"/> stream.
-    /// </summary>
-    internal static ConsoleKeyInfo ByteToKeyInfo(byte b) => b switch
-    {
-        0x08 => new ConsoleKeyInfo('\b', ConsoleKey.Backspace, false, false, false),
-        0x09 => new ConsoleKeyInfo('\t', ConsoleKey.Tab, false, false, false),
-        0x0A => new ConsoleKeyInfo('\n', ConsoleKey.Enter, false, false, false),
-        0x0D => new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false),
-        0x1B => new ConsoleKeyInfo('\x1B', ConsoleKey.Escape, false, false, false),
-        0x20 => new ConsoleKeyInfo(' ', ConsoleKey.Spacebar, false, false, false),
-        0x7F => new ConsoleKeyInfo('\x7F', ConsoleKey.Backspace, false, false, false),
-        // Ctrl+letter (0x01..0x1A excluding the special cases above) → A..Z + Control modifier.
-        >= 0x01 and <= 0x1A => new ConsoleKeyInfo(
-            (char)b, ConsoleKey.A + (b - 1), false, false, true),
-        // Printable ASCII.
-        >= 0x21 and <= 0x7E => new ConsoleKeyInfo(
-            (char)b, MapPrintableToConsoleKey((char)b),
-            shift: b >= 'A' && b <= 'Z', alt: false, control: false),
-        _ => new ConsoleKeyInfo((char)b, ConsoleKey.None, false, false, false),
-    };
-
-    private static ConsoleKey MapPrintableToConsoleKey(char c) => c switch
-    {
-        >= 'a' and <= 'z' => ConsoleKey.A + (c - 'a'),
-        >= 'A' and <= 'Z' => ConsoleKey.A + (c - 'A'),
-        >= '0' and <= '9' => ConsoleKey.D0 + (c - '0'),
-        _ => ConsoleKey.None,
-    };
 
     // libc resolves to libSystem.B.dylib on macOS and to libc.so.6 (glibc) / libc.musl-*.so on Linux.
     private const string Libc = "libc";
