@@ -2,6 +2,10 @@
 
 A modal overlay component that displays content over the rest of the UI with configurable backdrop, borders, and positioning.
 
+![ModalNode demo: an add-task modal and priority picker over a dimmed backdrop](/gallery/modal.gif)
+
+*An add-task modal and priority picker over a dimmed backdrop.*
+
 ## Basic Usage
 
 ```csharp

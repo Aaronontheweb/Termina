@@ -10,6 +10,10 @@ A counter application with:
 - Real-time status updates
 - Escape to quit
 
+![Counter app demo: arrow keys drive a reactive count, with a text input for messages](/gallery/region-counter.gif)
+
+*The finished counter app.*
+
 ## Project Setup
 
 Create a new console application:

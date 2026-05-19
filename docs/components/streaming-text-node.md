@@ -2,6 +2,10 @@
 
 Displays streaming text content with automatic scrolling and word wrapping. Ideal for chat interfaces, logs, and LLM output.
 
+![StreamingTextNode demo: a chat response streaming in token-by-token](/gallery/streaming-chat.gif)
+
+*`StreamingTextNode` rendering a chat response as it streams.*
+
 ## Basic Usage
 
 ```csharp

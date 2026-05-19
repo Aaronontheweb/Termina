@@ -2,6 +2,10 @@
 
 An animated loading indicator with configurable styles and label.
 
+![SpinnerNode demo: cycling through spinner styles with a live animated preview](/gallery/gallery-spinners.gif)
+
+*The Animations gallery, cycling through spinner styles.*
+
 ## Basic Usage
 
 ```csharp

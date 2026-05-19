@@ -60,6 +60,22 @@ dotnet add package Termina
   </a>
 </div>
 
+## See It In Action
+
+![Termina component gallery: keyboard-driven menus, live spinners, and selection lists](/gallery/hero-overview.gif)
+
+*A guided tour of the Termina component gallery.*
+
+Termina apps are fully interactive — reactive state, streaming text, and surgical region-based updates, all in the terminal.
+
+![Streaming chat demo: tokens render one-by-one into a scrolling transcript](/gallery/streaming-chat.gif)
+
+*Streaming text rendered token-by-token, with an interactive decision list.*
+
+![Dashboard demo: a multi-panel grid layout with live-updating metrics](/gallery/grid-dashboard.gif)
+
+*A live dashboard composed with `GridNode`.*
+
 ## Quick Example
 
 ```csharp

@@ -58,6 +58,25 @@ dotnet run --project demos/Termina.Demo.Streaming
 dotnet run --project demos/Termina.Demo
 ```
 
+## Demo Screenshots
+
+The animated GIFs shown throughout the documentation are recorded from the demo
+apps with [VHS](https://github.com/charmbracelet/vhs). The recording pipeline
+lives in [`screenshots/`](screenshots/README.md): each `.tape` file scripts a
+demo, and `screenshots/capture.sh` builds the demos and runs the tapes.
+
+Generated assets are committed under `docs/public/gallery/` and deployed
+automatically by the docs workflow. Regenerate them locally when a demo's UI
+changes:
+
+```bash
+# Requires vhs, ttyd, and ffmpeg in addition to the .NET SDK
+./screenshots/capture.sh            # regenerate every GIF
+./screenshots/capture.sh counter    # regenerate a single GIF
+```
+
+See [`screenshots/README.md`](screenshots/README.md) for setup and details.
+
 ## Documentation
 
 The documentation website is built with [VitePress](https://vitepress.dev/).

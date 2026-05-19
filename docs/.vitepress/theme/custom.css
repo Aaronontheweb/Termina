@@ -1,0 +1,20 @@
+/* Framing for the terminal-demo GIFs produced by the screenshots/ pipeline.
+   The GIFs have a near-black terminal background; without a border they
+   bleed into the page in dark mode. This also caps their width so the
+   wide hero GIFs on the homepage don't render full-bleed. */
+img[src*="/gallery/"] {
+  display: block;
+  width: 100%;
+  max-width: 760px;
+  margin: 1.5rem auto;
+  border: 1px solid var(--vp-c-border);
+  border-radius: 8px;
+}
+
+/* Caption: an italic line on its own immediately after a gallery GIF. */
+p:has(> img[src*="/gallery/"]) + p:has(> em:only-child) {
+  margin-top: -0.75rem;
+  text-align: center;
+  font-size: 0.85em;
+  color: var(--vp-c-text-2);
+}

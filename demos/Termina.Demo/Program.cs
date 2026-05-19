@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Termina.Demo;
 using Termina.Demo.Pages;
 using Termina.Diagnostics;
@@ -16,6 +17,9 @@ Directory.CreateDirectory(traceDir);
 var traceFile = Path.Combine(traceDir, $"trace-{DateTime.Now:yyyyMMdd-HHmmss}.log");
 
 var builder = Host.CreateApplicationBuilder(args);
+
+// Suppress host/console logging so it doesn't bleed into the TUI's rendered output.
+builder.Logging.SetMinimumLevel(LogLevel.Warning);
 
 // Enable file tracing and register the path for UI display
 builder.Services.AddTerminaFileTracing(traceFile, TerminaTraceCategory.All, TerminaTraceLevel.Debug);

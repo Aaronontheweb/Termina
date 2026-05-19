@@ -4,6 +4,10 @@ A single-line text input with cursor, selection, and keyboard handling.
 
 For multi-line input, see [`TextAreaNode`](./text-area-node.md). Both share a common base class (`TextInputBaseNode`) for cursor management, selection, history, and paste handling.
 
+![TextInputNode demo: typing into single-line inputs and a multi-line text area](/gallery/gallery-text-input.gif)
+
+*Single-line inputs and a multi-line text area.*
+
 ## Basic Usage
 
 ```csharp
