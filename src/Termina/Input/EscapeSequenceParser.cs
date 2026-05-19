@@ -377,11 +377,21 @@ internal sealed class EscapeSequenceParser
         return false;
     }
 
-    /// <summary>True for CSI finals that represent an arrow / Home/End / F1-F4.</summary>
+    /// <summary>True for CSI finals that represent an arrow / Home/End / F1-F4 / KP_Begin.</summary>
+    /// <remarks>
+    /// <c>'E'</c> is KP_Begin (numpad-5 / "center" with NumLock off). It is recognized here so
+    /// the shape <c>ESC[E</c> / <c>ESC[1;&lt;mods&gt;E</c> is consumed rather than flushed as raw
+    /// keys, but <see cref="FunctionalFinalToKey"/> has no mapping for it (no equivalent
+    /// <see cref="ConsoleKey"/>), so it is intentionally swallowed.
+    /// </remarks>
     private static bool IsArrowOrFunctionalFinal(char c) =>
         c is 'A' or 'B' or 'C' or 'D' or 'E' or 'F' or 'H' or 'P' or 'Q' or 'R' or 'S';
 
     /// <summary>Maps the CSI second-form final char to a <see cref="ConsoleKey"/>.</summary>
+    /// <remarks>
+    /// <c>'E'</c> (KP_Begin) returns <see cref="ConsoleKey.None"/> on purpose — call sites
+    /// treat that as "recognized but no event to emit" so the sequence is consumed silently.
+    /// </remarks>
     private static ConsoleKey FunctionalFinalToKey(char c) => c switch
     {
         'A' => ConsoleKey.UpArrow,
