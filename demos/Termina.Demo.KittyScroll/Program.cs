@@ -39,7 +39,7 @@ using Termina.Hosting;
 //     the scrollable in this demo, to make the disambiguation visible).
 //   • Click and drag with the mouse to select text — your terminal's native
 //     selection should appear, because we never enabled mouse tracking.
-//   • Ctrl+Q quits.
+//   • Press Ctrl+C twice to quit.
 //
 // Run (bash/zsh):
 //   TERMINA_RAW_INPUT=1 TERMINA_KITTY_KEYBOARD=8 \
