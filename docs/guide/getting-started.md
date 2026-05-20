@@ -30,6 +30,10 @@ Termina uses an MVVM pattern with three key pieces:
 
 Here's a complete working example from the Termina demos.
 
+![Counter demo: the count updates with surgical region-based re-rendering](/gallery/region-counter.gif)
+
+*The counter demo from `demos/Termina.Demo.RegionBased`.*
+
 ### The ViewModel
 
 The ViewModel manages state with `ReactiveProperty<T>` — a value holder that is also an `Observable<T>`, enabling automatic UI updates:

@@ -5,9 +5,6 @@ hero:
   name: Termina
   text: Reactive TUI Framework for .NET
   tagline: Build beautiful terminal applications with declarative layouts and reactive state management
-  image:
-    src: /termina-icon.png
-    alt: Termina
   actions:
     - theme: brand
       text: Get Started
@@ -59,6 +56,18 @@ dotnet add package Termina
     <img src="https://img.shields.io/nuget/dt/Termina?style=flat-square&logo=nuget&label=Downloads" alt="Downloads" />
   </a>
 </div>
+
+## See It In Action
+
+Termina apps are fully interactive — reactive state, streaming text, and surgical region-based updates, all in the terminal.
+
+![Streaming chat demo: tokens render one-by-one into a scrolling transcript](/gallery/streaming-chat.gif)
+
+*Streaming text rendered token-by-token, with an interactive decision list.*
+
+![Dashboard demo: a multi-panel grid layout with live-updating metrics](/gallery/grid-dashboard.gif)
+
+*A live dashboard composed with `GridNode`.*
 
 ## Quick Example
 

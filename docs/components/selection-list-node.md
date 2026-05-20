@@ -2,6 +2,10 @@
 
 An interactive list selection component with keyboard navigation, supporting single and multi-select modes. Supports both simple text items and rich content with multiple lines and styled/animated segments.
 
+![SelectionListNode demo: single-select, multi-select, and a fill-height numbered list](/gallery/gallery-selection-list.gif)
+
+*Single-select, multi-select, and fill-height lists in the gallery.*
+
 ## Basic Usage
 
 ```csharp

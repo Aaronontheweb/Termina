@@ -2,6 +2,10 @@
 
 This tutorial walks through building a 3-step setup wizard using `WizardNode<TStep>`, `FocusPolicy.FirstFocusable`, and Tab cycling. WizardNode uses `KeyedDynamicLayoutNode<int>` internally for automatic step content caching — each step's content factory is called once and the result is cached for reuse when navigating back.
 
+![Setup wizard demo: stepping through provider selection, authentication, and confirmation](/gallery/wizard.gif)
+
+*The finished setup wizard.*
+
 ## Define the Steps
 
 ```csharp

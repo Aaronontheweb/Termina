@@ -11,6 +11,10 @@ A streaming chat application with:
 - Cancellation support
 - Akka.NET actor integration
 
+![Streaming chat demo: a response streaming in token-by-token, then an interactive decision list](/gallery/streaming-chat.gif)
+
+*The finished streaming chat app.*
+
 ## Prerequisites
 
 This is an advanced tutorial. You should understand:

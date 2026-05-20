@@ -2,6 +2,10 @@
 
 Termina's clipboard support is terminal-native first. It is designed to work in local terminals, remote SSH sessions, and tmux-based workflows without dropping into platform-specific clipboard commands.
 
+![Clipboard demo: copying text with toast and inline-indicator feedback](/gallery/gallery-clipboard.gif)
+
+*Copying text with toast and inline-indicator feedback.*
+
 ## Clipboard Architecture
 
 Clipboard requests flow through `IClipboardService`, which fans out to one or more transports.
