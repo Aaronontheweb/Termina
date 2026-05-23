@@ -105,6 +105,10 @@ public sealed class ConformanceViewModel : ReactiveViewModel
 
     private static string ProbeTmuxMouse()
     {
+        var envMouse = Environment.GetEnvironmentVariable("TMUX_EXPECTED_MOUSE");
+        if (!string.IsNullOrEmpty(envMouse))
+            return envMouse;
+
         try
         {
             using var proc = new System.Diagnostics.Process

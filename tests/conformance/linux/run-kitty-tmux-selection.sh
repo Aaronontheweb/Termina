@@ -33,6 +33,7 @@ EOF
 export DISPLAY="$DISPLAY_NUM"
 export TERMINA_RAW_INPUT=1
 export TERMINA_KITTY_KEYBOARD=9
+export TMUX_EXPECTED_MOUSE="off"
 export TMPDIR="$RUN_ROOT"
 unset TERM_PROGRAM || true
 
@@ -41,17 +42,25 @@ XVFB_PID=$!
 
 cleanup() {
   kill "$KITTY_PID" "$XVFB_PID" >/dev/null 2>&1 || true
+  tmux -L "$TMUX_SOCKET" kill-server >/dev/null 2>&1 || true
   rm -rf "$RUN_ROOT"
 }
 trap cleanup EXIT
 
+tmux -L "$TMUX_SOCKET" kill-server >/dev/null 2>&1 || true
+
+tmux -L "$TMUX_SOCKET" new-session -d -s "$TMUX_SESSION" \
+  "script -qefc 'dotnet run --project demos/Termina.Demo.Conformance/Termina.Demo.Conformance.csproj -c Release --no-build -- --kitty-alt-scroll' '$CAPTURE'"
+
+tmux -L "$TMUX_SOCKET" set-option -g allow-passthrough on
+tmux -L "$TMUX_SOCKET" set-option -g mouse off
+
 kitty --config "$KITTY_CONF" --listen-on "$SOCKET" \
-  tmux -L "$TMUX_SOCKET" new-session -d -s "$TMUX_SESSION" \
-  "bash --noprofile --norc -lc 'tmux set -g allow-passthrough on; tmux set -g mouse off; script -qefc \"dotnet run --project demos/Termina.Demo.Conformance/Termina.Demo.Conformance.csproj -c Release --no-build -- --kitty-alt-scroll\" '\"$CAPTURE\"'" \
+  tmux -L "$TMUX_SOCKET" attach -t "$TMUX_SESSION" \
   >"$ARTIFACT_DIR/kitty.log" 2>&1 &
 KITTY_PID=$!
 
-for _ in $(seq 1 40); do
+for _ in $(seq 1 50); do
   kitty @ --to "$SOCKET" ls >"$ARTIFACT_DIR/kitty-ls.json" 2>/dev/null && [[ -s "$ARTIFACT_DIR/kitty-ls.json" ]] && [[ -f "$CONFORMANCE_DIR/events.jsonl" ]] && break
   sleep 1
 done
@@ -62,6 +71,8 @@ LINES=$(jq '.[0].tabs[0].windows[0].lines // 0' "$ARTIFACT_DIR/kitty-ls.json")
 
 if [[ "$WINDOW_ID" -eq 0 || "$COLS" -eq 0 || "$LINES" -eq 0 ]]; then
   echo "kitty window metadata not ready" >&2
+  cat "$ARTIFACT_DIR/kitty-ls.json" >&2 || true
+  cat "$ARTIFACT_DIR/kitty.log" >&2 || true
   exit 1
 fi
 
