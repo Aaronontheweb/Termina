@@ -1,7 +1,7 @@
   using System.Diagnostics;
-    using R3;
-    using Termina.Input;
-    using Termina.Reactive;
+using R3;
+using Termina.Input;
+using Termina.Reactive;
 
 namespace Termina.Conformance;
 

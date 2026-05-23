@@ -134,10 +134,6 @@ rm -f "$SOCKET_PATH"
 
 cp "$CONFORMANCE_DIR/events.jsonl" "$EVENTS"
 
-echo "Selection: $(cat "$SELECTION_FILE" 2>/dev/null || echo '(empty)')" >&2
-echo "Events:" >&2
-cat "$EVENTS" >&2
-
 python3 "$ROOT_DIR/tests/conformance/linux/assert-conformance.py" \
   --events "$EVENTS" \
   --selection "$SELECTION_FILE" \
