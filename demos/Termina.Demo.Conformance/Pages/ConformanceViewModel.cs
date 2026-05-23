@@ -1,6 +1,7 @@
-using R3;
-using Termina.Input;
-using Termina.Reactive;
+  using System.Diagnostics;
+    using R3;
+    using Termina.Input;
+    using Termina.Reactive;
 
 namespace Termina.Conformance;
 
@@ -29,6 +30,9 @@ public sealed class ConformanceViewModel : ReactiveViewModel
 
     public override void OnActivated()
     {
+        var inTmux = Environment.GetEnvironmentVariable("TMUX") is not null;
+        var tmuxMouse = inTmux ? ProbeTmuxMouse() : "n/a";
+
         _recorder.RecordLine(
             JsonLine(
                 ("phase", "startup"),
@@ -36,7 +40,8 @@ public sealed class ConformanceViewModel : ReactiveViewModel
                 ("eventLogPath", _paths.EventLogPath),
                 ("envRawInput", Environment.GetEnvironmentVariable("TERMINA_RAW_INPUT") ?? ""),
                 ("envKittyKeyboard", Environment.GetEnvironmentVariable("TERMINA_KITTY_KEYBOARD") ?? ""),
-                ("tmux", (Environment.GetEnvironmentVariable("TMUX") is not null).ToString().ToLowerInvariant()),
+                ("tmux", inTmux.ToString().ToLowerInvariant()),
+                ("tmuxMouse", tmuxMouse),
                 ("term", Environment.GetEnvironmentVariable("TERM") ?? ""),
                 ("termProgram", Environment.GetEnvironmentVariable("TERM_PROGRAM") ?? "")));
 
@@ -96,6 +101,43 @@ public sealed class ConformanceViewModel : ReactiveViewModel
     private static string JsonLine(params (string Key, string Value)[] fields)
     {
         return "{" + string.Join(",", fields.Select(field => $"\"{Escape(field.Key)}\":\"{Escape(field.Value)}\"")) + "}";
+    }
+
+    private static string ProbeTmuxMouse()
+    {
+        try
+        {
+            using var proc = new System.Diagnostics.Process
+            {
+                StartInfo = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "tmux",
+                    ArgumentList = { "show", "-gv", "mouse" },
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                }
+            };
+            proc.Start();
+            proc.WaitForExit(2000);
+            if (proc.ExitCode == 0)
+            {
+                var line = proc.StandardOutput.ReadLine()?.Trim();
+                if (line is not null)
+                {
+                    var idx = line.LastIndexOf(' ');
+                    if (idx >= 0)
+                        return line[(idx + 1)..];
+                }
+            }
+        }
+        catch
+        {
+            // Ignore probe failures; fall through to "unknown"
+        }
+
+        return "unknown";
     }
 
     private static string Escape(string value)

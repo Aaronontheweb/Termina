@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/terminal-conformance-matrix
+      - feature/tmux-conformance-matrix
   pull_request:
     paths:
       - '.github/workflows/terminal_conformance.yml'
@@ -68,8 +69,12 @@ jobs:
           path: ${{ runner.temp }}/conformance-kitty
 
   linux-tmux:
-    name: Linux-Tmux-Conformance
+    name: Linux-Tmux-${{ matrix.tmux_mouse }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        tmux_mouse: [off, on]
 
     steps:
       - name: Checkout
@@ -87,11 +92,42 @@ jobs:
         run: dotnet build demos/Termina.Demo.Conformance/Termina.Demo.Conformance.csproj -c Release
 
       - name: Run tmux conformance harness
-        run: bash tests/conformance/linux/run-tmux-capture.sh "$RUNNER_TEMP/conformance-tmux"
+        env:
+          TMUX_CONFORMANCE_MOUSE: ${{ matrix.tmux_mouse }}
+        run: bash tests/conformance/linux/run-tmux-capture.sh "$RUNNER_TEMP/conformance-tmux-${{ matrix.tmux_mouse }}"
 
       - name: Upload tmux artifacts
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: conformance-tmux
-          path: ${{ runner.temp }}/conformance-tmux
+          name: conformance-tmux-${{ matrix.tmux_mouse }}
+          path: ${{ runner.temp }}/conformance-tmux-${{ matrix.tmux_mouse }}
+
+  linux-kitty-tmux:
+    name: Linux-Kitty-Tmux-Selection
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@v5.2.0
+        with:
+          global-json-file: ./global.json
+
+      - name: Install Linux terminal harness deps
+        run: sudo apt-get update && sudo apt-get install -y kitty xdotool xsel xvfb jq python3 tmux
+
+      - name: Build conformance demo
+        run: dotnet build demos/Termina.Demo.Conformance/Termina.Demo.Conformance.csproj -c Release
+
+      - name: Run kitty+tmux selection harness
+        run: bash tests/conformance/linux/run-kitty-tmux-selection.sh "$RUNNER_TEMP/conformance-kitty-tmux"
+
+      - name: Upload kitty+tmux artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: conformance-kitty-tmux
+          path: ${{ runner.temp }}/conformance-kitty-tmux
