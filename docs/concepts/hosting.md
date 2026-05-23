@@ -46,6 +46,27 @@ termina.RegisterRoute<TodoPage, TodoViewModel>("/todos");
 termina.RegisterRoute<DetailPage, DetailViewModel>("/todos/{id:int}");
 ```
 
+### ConfigureRuntime
+
+Configure terminal runtime behavior such as raw input, alternate-scroll, kitty keyboard negotiation, and framework-level `Ctrl+C` handling:
+
+```csharp
+builder.Services.AddTermina("/chat", termina =>
+{
+    termina.ConfigureRuntime(options =>
+    {
+        options.PreferRawInput = true;
+        options.ScrollInputMode = ScrollInputMode.AlternateScroll;
+        options.KittyKeyboardMode = KittyKeyboardMode.ReportAllKeysPlusDisambiguate;
+        options.CtrlCHandlingMode = CtrlCHandlingMode.DoublePressWhenRawInput;
+    });
+
+    termina.RegisterRoute<ChatPage, ChatViewModel>("/chat");
+});
+```
+
+See [Terminal Input Modes](/concepts/terminal-input-modes) for the detailed behavior and rollout guidance.
+
 ### Navigation Behavior
 
 Control page lifecycle during navigation:

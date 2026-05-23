@@ -618,6 +618,8 @@ The scrollbar occupies 1 column on the right edge, reducing the content area wid
 
 `StreamingTextNode` implements `IScrollable`, which enables automatic mouse wheel scroll support. When a `StreamingTextNode` has focus, mouse wheel events are routed to it automatically — no additional code is needed.
 
+By default, Termina captures wheel input using legacy mouse tracking. Apps that want wheel scrolling without taking over native terminal selection can opt into raw input plus alternate-scroll mode. See [Terminal Input Modes](/concepts/terminal-input-modes).
+
 ```csharp
 // Mouse wheel scrolling works automatically when the node has focus
 var stream = StreamingTextNode.Create()

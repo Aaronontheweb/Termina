@@ -64,9 +64,8 @@ public sealed class FallbackConsole : IPlatformConsole
         while (!cancellationToken.IsCancellationRequested)
         {
             // Check for keyboard input
-            if (Console.KeyAvailable)
+            if (TryReadKey(out var key))
             {
-                var key = Console.ReadKey(intercept: true);
                 return new ConsoleKeyEvent(key);
             }
 
@@ -89,6 +88,29 @@ public sealed class FallbackConsole : IPlatformConsole
         }
 
         return null;
+    }
+
+    private static bool TryReadKey(out ConsoleKeyInfo key)
+    {
+        key = default;
+
+        try
+        {
+            if (!Console.KeyAvailable)
+                return false;
+
+            key = Console.ReadKey(intercept: true);
+            return true;
+        }
+        catch (InvalidOperationException)
+        {
+            // No interactive console available (redirected input / test host).
+            return false;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
     }
 
     /// <inheritdoc />
