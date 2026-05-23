@@ -40,6 +40,11 @@ public abstract class ReactivePage<TViewModel> : IBindablePage, IDisposable
     where TViewModel : ReactiveViewModel
 {
     private readonly CompositeDisposable _subscriptions = new();
+    // Framework-internal subscriptions tied to the current _layoutRoot (e.g.,
+    // IInvalidatingNode.Invalidated → RequestRedraw). Kept separate from
+    // _subscriptions so InvalidateLayout() can tear them down and re-wire
+    // without touching user code's page-level subscriptions.
+    private readonly CompositeDisposable _layoutSubscriptions = new();
     private readonly PageKeyBindings _keyBindings = new();
     private ILayoutNode? _layoutRoot;
 
@@ -189,20 +194,72 @@ public abstract class ReactivePage<TViewModel> : IBindablePage, IDisposable
     /// </summary>
     public virtual void OnNavigatedTo()
     {
-        // Build layout once on first navigation, reactivate on subsequent visits
+        BuildAndActivateLayout();
+    }
+
+    /// <summary>
+    /// Discards the cached layout root so the next render rebuilds via
+    /// <see cref="BuildLayout"/>. Use this when external state captured at
+    /// <see cref="BuildLayout"/>-time has changed (e.g., terminal dimensions
+    /// baked into a <c>HeightAuto</c> constraint, theme values frozen into
+    /// node colors) and you need the layout tree to re-evaluate those values.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// User subscriptions in <see cref="Subscriptions"/> and registered
+    /// <see cref="KeyBindings"/> are preserved. Framework-internal wiring
+    /// against the current layout (invalidation→redraw) is torn down and
+    /// re-created against the new tree.
+    /// </para>
+    /// <para>
+    /// The old layout root is deactivated but NOT disposed — callers may
+    /// hold references to nodes used inside <see cref="BuildLayout"/> (e.g.,
+    /// a streaming text component initialized in <see cref="OnBound"/> and
+    /// reused as panel content); disposing would destroy that state. The
+    /// orphaned wrapper nodes built only inside <see cref="BuildLayout"/>
+    /// (panels, vertical/horizontal layouts) are garbage-collected.
+    /// </para>
+    /// </remarks>
+    protected void InvalidateLayout()
+    {
+        // Drop the layout-tied subscriptions so the new tree's invalidation
+        // events flow into a fresh subscription. User subscriptions are
+        // untouched.
+        _layoutSubscriptions.Clear();
+
+        // Pause the old tree before replacing it. We do NOT Dispose() because
+        // user-held node references would be destroyed (see remarks).
+        if (_layoutRoot is LayoutNode oldNode)
+        {
+            oldNode.OnDeactivate();
+        }
+
+        _layoutRoot = null;
+
+        BuildAndActivateLayout();
+    }
+
+    /// <summary>
+    /// Build (if needed) and activate the layout tree, wiring framework-level
+    /// subscriptions. Called from <see cref="OnNavigatedTo"/> and from
+    /// <see cref="InvalidateLayout"/>.
+    /// </summary>
+    private void BuildAndActivateLayout()
+    {
+        // Build layout once on first navigation, reactivate on subsequent visits.
         if (_layoutRoot == null)
         {
             _layoutRoot = BuildLayout();
         }
 
-        // Subscribe to layout invalidation events to trigger redraws.
-        // This must be outside the null check because _subscriptions is cleared
-        // in OnNavigatingFrom() — the subscription must be re-created on each visit.
+        // Subscribe to layout invalidation events to trigger redraws. Lives in
+        // _layoutSubscriptions so InvalidateLayout can replace it without
+        // touching user-held entries in _subscriptions.
         if (_layoutRoot is IInvalidatingNode invalidating)
         {
             invalidating.Invalidated
                 .Subscribe(_ => ViewModel.RequestRedraw())
-                .DisposeWith(_subscriptions);
+                .DisposeWith(_layoutSubscriptions);
         }
 
         // Activate the layout tree (resume subscriptions, timers, etc.)
@@ -268,8 +325,9 @@ public abstract class ReactivePage<TViewModel> : IBindablePage, IDisposable
     /// </summary>
     public virtual void OnNavigatingFrom()
     {
-        // Clear page-level subscriptions and key bindings
+        // Clear page-level subscriptions, framework layout subscriptions, and key bindings.
         _subscriptions.Clear();
+        _layoutSubscriptions.Clear();
         _keyBindings.Clear();
 
         // Deactivate layout (pause, don't dispose)
@@ -289,6 +347,7 @@ public abstract class ReactivePage<TViewModel> : IBindablePage, IDisposable
     {
         // Final cleanup when page is truly destroyed (not just navigated away)
         _subscriptions.Dispose();
+        _layoutSubscriptions.Dispose();
         _layoutRoot?.Dispose();
         _layoutRoot = null;
     }
