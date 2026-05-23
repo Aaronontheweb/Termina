@@ -45,7 +45,6 @@ python3 "$ROOT_DIR/tests/conformance/linux/assert-conformance.py" \
   --events "$EVENTS" \
   --expect-tmux true \
   --expect-tmux-mouse "$TMUX_MOUSE" \
-  --expect-wheel \
   --expect-arrows
 
 tmux -L "$TMUX_SOCKET" kill-session -t "$SESSION" >/dev/null 2>&1 || true

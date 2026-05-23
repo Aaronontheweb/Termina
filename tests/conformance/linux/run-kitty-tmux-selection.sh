@@ -98,9 +98,7 @@ END_X=$((CELL_W * 31))
 END_Y=$START_Y
 
 xdotool key --window "$WINDOW_ID" a b c Left Left
-xdotool key --window "$WINDOW_ID" --clearmodifiers Up
-xdotool key --window "$WINDOW_ID" --clearmodifiers Down
-xdotool key --window "$WINDOW_ID" Return
+kitty @ --to "$SOCKET" send --action copy_paste '"\x1b[A\x1b[B\r"'
 sleep 1
 
 xdotool mousemove --window "$WINDOW_ID" "$START_X" "$START_Y"
