@@ -22,6 +22,7 @@ public sealed class AnsiTerminal : IAnsiTerminal, IDisposable
     private readonly bool _useAlternateScreen;
     private bool _inAlternateScreen;
     private bool _mouseEnabled;
+    private bool _wheelScrollEnabled;
     private long _totalBytesWritten;
     private int _flushCount;
 
@@ -252,6 +253,31 @@ public sealed class AnsiTerminal : IAnsiTerminal, IDisposable
     }
 
     /// <inheritdoc />
+    public void EnableWheelScroll()
+    {
+        if (!_wheelScrollEnabled)
+        {
+            _buffer.Append(AnsiCodes.EnableAlternateScroll);
+            // DECCKM: keyboard arrows -> SS3 (ESC O A/B), wheel still sends CSI (ESC [ A/B).
+            // The EscapeSequenceParser uses this distinction to emit MouseScrollEvent for wheel
+            // ticks while leaving real keyboard arrows as plain KeyPressed(UpArrow/DownArrow).
+            _buffer.Append(AnsiCodes.EnableCursorKeyApplicationMode);
+            _wheelScrollEnabled = true;
+        }
+    }
+
+    /// <inheritdoc />
+    public void DisableWheelScroll()
+    {
+        if (_wheelScrollEnabled)
+        {
+            _buffer.Append(AnsiCodes.DisableCursorKeyApplicationMode);
+            _buffer.Append(AnsiCodes.DisableAlternateScroll);
+            _wheelScrollEnabled = false;
+        }
+    }
+
+    /// <inheritdoc />
     public void CopyToClipboard(string text)
     {
         var belSequence = AnsiCodes.Osc52Clipboard(text);
@@ -283,6 +309,11 @@ public sealed class AnsiTerminal : IAnsiTerminal, IDisposable
         if (_mouseEnabled)
         {
             DisableMouse();
+        }
+
+        if (_wheelScrollEnabled)
+        {
+            DisableWheelScroll();
         }
 
         if (_inAlternateScreen)

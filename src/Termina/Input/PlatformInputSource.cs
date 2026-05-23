@@ -36,7 +36,10 @@ public sealed class PlatformInputSource : IInputSource
     public PlatformInputSource(IPlatformConsole console)
     {
         _console = console ?? throw new ArgumentNullException(nameof(console));
-        _parser = new EscapeSequenceParser();
+        _parser = new EscapeSequenceParser
+        {
+            KittyKeyboardActive = _console.Capabilities.KittyKeyboardActive,
+        };
     }
 
     /// <inheritdoc />

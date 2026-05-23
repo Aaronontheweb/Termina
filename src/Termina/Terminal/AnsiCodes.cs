@@ -324,6 +324,37 @@ public static class AnsiCodes
     /// </summary>
     public const string DisableMouseSgr = $"{Csi}?1006l";
 
+    /// <summary>
+    /// Enable alternate scroll mode (xterm 1007). While the alternate screen buffer is active,
+    /// the terminal translates mouse wheel events into cursor up/down key sequences instead of
+    /// raw mouse events. This lets applications get wheel-driven scrolling without enabling any
+    /// mouse tracking mode — preserving the terminal's native click-drag text selection,
+    /// triple-click word selection, middle-click paste, and OS clipboard integration.
+    /// Supported by xterm (≥277), iTerm2, kitty, WezTerm, Alacritty, Windows Terminal, and
+    /// VTE-based terminals (GNOME Terminal ≥0.40). Legacy <c>conhost.exe</c> and a few embedded
+    /// terminals ignore this mode; in that case the wheel produces no events and PgUp/PgDn
+    /// remains the keyboard fallback. Format: CSI ?1007h
+    /// </summary>
+    public const string EnableAlternateScroll = $"{Csi}?1007h";
+
+    /// <summary>
+    /// Disable alternate scroll mode. Format: CSI ?1007l
+    /// </summary>
+    public const string DisableAlternateScroll = $"{Csi}?1007l";
+
+    /// <summary>
+    /// Enable DECCKM (cursor key application mode). Real keyboard arrow keys then send
+    /// <c>ESC O A/B/C/D</c> (SS3) instead of <c>ESC [ A/B/C/D</c> (CSI). When paired with
+    /// <see cref="EnableAlternateScroll"/>, this lets the input parser distinguish wheel-as-arrow
+    /// events (still CSI form) from real keyboard arrows (SS3 form). Format: CSI ?1h
+    /// </summary>
+    public const string EnableCursorKeyApplicationMode = $"{Csi}?1h";
+
+    /// <summary>
+    /// Disable DECCKM (cursor keys return to normal CSI form). Format: CSI ?1l
+    /// </summary>
+    public const string DisableCursorKeyApplicationMode = $"{Csi}?1l";
+
     // Alternate screen buffer
 
     /// <summary>

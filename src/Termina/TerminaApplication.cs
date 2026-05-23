@@ -60,6 +60,8 @@ public sealed class TerminaApplication
     private ReactiveViewModel? _currentViewModel;
     private ReactivePageRegistration? _currentRegistration;
     private CancellationTokenSource? _shutdownCts;
+    private DateTime? _firstCtrlCAt;
+    private static readonly TimeSpan CtrlCDoublePressWindow = TimeSpan.FromSeconds(2);
 
     /// <summary>
     /// Creates a new Termina application.
@@ -411,9 +413,12 @@ public sealed class TerminaApplication
             _terminal.Flush();
             TerminaTrace.Render.Debug(this, "Entered alternate screen, cursor hidden, flushed");
 
-            // Enable bracketed paste mode; enable mouse tracking for scroll wheel events.
-            // Use ?1000h (normal mode) + ?1006h (SGR encoding) - sufficient for scroll events
-            // without the noisy button/drag events that ?1002h generates in tmux.
+            // Enable bracketed paste mode and wheel-only scrolling. We use the terminal's
+            // alternate-scroll mode (CSI ?1007h) rather than SGR mouse tracking so that
+            // mouse-wheel events arrive as cursor up/down keypresses while the host terminal
+            // continues to own click-drag selection, triple-click word selection, and OS
+            // clipboard integration. Apps that need full mouse capture (clicks, drags) can
+            // still call IAnsiTerminal.EnableMouse() explicitly.
             Console.Write(AnsiCodes.EnableBracketedPaste);
 
             // Enable kitty keyboard protocol (flag 1 = disambiguate escape codes) so that
@@ -433,7 +438,7 @@ public sealed class TerminaApplication
                 Console.Write(AnsiCodes.TmuxPassthrough(AnsiCodes.EnableKittyKeyboard));
             }
 
-            _terminal.EnableMouse();
+            _terminal.EnableWheelScroll();
             _terminal.Flush();
 
             // Initial render
@@ -465,8 +470,10 @@ public sealed class TerminaApplication
                 Console.Write(AnsiCodes.TmuxPassthrough(AnsiCodes.DisableBracketedPaste));
             }
 
-            // Restore terminal state fully to avoid artifacts
-            // DisableMouse() handles ?1000h and ?1006h cleanup
+            // Restore terminal state fully to avoid artifacts.
+            // DisableWheelScroll() emits CSI ?1007l; DisableMouse() is a no-op unless an
+            // app explicitly opted into full mouse capture.
+            _terminal.DisableWheelScroll();
             _terminal.DisableMouse();
             _terminal.SetCursorVisible(true);
             _terminal.ResetColors();
@@ -505,6 +512,36 @@ public sealed class TerminaApplication
     private void ProcessEvent(object evt)
     {
         TerminaTrace.Input.Trace(this, "ProcessEvent: {0}", evt.GetType().Name);
+
+        // Framework-level Ctrl+C handling: first press shows a hint, second press
+        // within CtrlCDoublePressWindow shuts the app down. This sits above page /
+        // focus handling so users can always get out, even from a focus-trapping
+        // input control. Under cfmakeraw (UnixConsole) Ctrl+C arrives as a normal
+        // KeyPressed event because ISIG is cleared. On Windows in raw-VT mode
+        // (WindowsConsole opt-in via TERMINA_RAW_INPUT) ENABLE_PROCESSED_INPUT is
+        // cleared for the same reason and Ctrl+C arrives in-band as well. In
+        // Windows record mode the .NET Console.ReadKey path also surfaces Ctrl+C
+        // as a KeyPressed(Key=C, Control), so this handler runs uniformly.
+        if (evt is KeyPressed ctrlC
+            && ctrlC.KeyInfo.Key == ConsoleKey.C
+            && ctrlC.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Control))
+        {
+            var now = DateTime.UtcNow;
+            if (_firstCtrlCAt.HasValue && (now - _firstCtrlCAt.Value) <= CtrlCDoublePressWindow)
+            {
+                TerminaTrace.Page.Info(this, "Ctrl+C pressed twice — shutting down");
+                _firstCtrlCAt = null;
+                Shutdown();
+                return;
+            }
+
+            _firstCtrlCAt = now;
+            _toastService?.Show(
+                "Press Ctrl+C again to quit",
+                new ToastOptions(Duration: CtrlCDoublePressWindow, Position: ToastPosition.BottomCenter));
+            RequestRedraw();
+            return;
+        }
 
         // Handle system events
         switch (evt)

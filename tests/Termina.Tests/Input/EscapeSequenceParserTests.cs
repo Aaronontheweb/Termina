@@ -104,6 +104,52 @@ public class EscapeSequenceParserTests
     // --- Mouse click events silently consumed ---
 
     [Fact]
+    public void CsiArrowUp_EmitsMouseScrollEventPositive()
+    {
+        // Under ?1007h alternate-scroll mode, wheel-up arrives at the parser as ESC[A
+        // (real keyboard arrows in DECCKM/?1h mode use SS3 form ESC O A and are decoded
+        // directly by Console.ReadKey to ConsoleKey.UpArrow without entering the parser).
+        var parser = new EscapeSequenceParser();
+        var events = FeedSequence(parser, new[] { EscKey(), Key('['), Key('A') });
+
+        var scroll = Assert.Single(events);
+        var mse = Assert.IsType<MouseScrollEvent>(scroll);
+        Assert.Equal(+1, mse.Delta);
+    }
+
+    [Fact]
+    public void CsiArrowDown_EmitsMouseScrollEventNegative()
+    {
+        var parser = new EscapeSequenceParser();
+        var events = FeedSequence(parser, new[] { EscKey(), Key('['), Key('B') });
+
+        var scroll = Assert.Single(events);
+        var mse = Assert.IsType<MouseScrollEvent>(scroll);
+        Assert.Equal(-1, mse.Delta);
+    }
+
+    [Theory]
+    [InlineData('A', ConsoleKey.UpArrow)]
+    [InlineData('B', ConsoleKey.DownArrow)]
+    [InlineData('C', ConsoleKey.RightArrow)]
+    [InlineData('D', ConsoleKey.LeftArrow)]
+    [InlineData('H', ConsoleKey.Home)]
+    [InlineData('F', ConsoleKey.End)]
+    public void Ss3Arrow_EmitsKeyPressed_WithMatchingConsoleKey(char terminator, ConsoleKey expected)
+    {
+        // Under raw-stdin input (UnixConsole), real arrow keys arrive as the SS3 sequence
+        // ESC O A/B/C/D when the terminal is in cursor-key application mode (DECCKM, ?1h).
+        // The parser must turn them back into a single KeyPressed so existing keyboard
+        // handlers see a normal arrow keypress — NOT a MouseScrollEvent.
+        var parser = new EscapeSequenceParser();
+        var events = FeedSequence(parser, new[] { EscKey(), Key('O'), Key(terminator) });
+
+        var ev = Assert.Single(events);
+        var kp = Assert.IsType<KeyPressed>(ev);
+        Assert.Equal(expected, kp.KeyInfo.Key);
+    }
+
+    [Fact]
     public void SgrMouseClickPress_IsSilentlyConsumed()
     {
         var parser = new EscapeSequenceParser();

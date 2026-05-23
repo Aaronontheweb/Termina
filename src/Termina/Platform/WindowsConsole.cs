@@ -3,6 +3,8 @@
 
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using System.Text;
+using System.Threading.Channels;
 using R3;
 using Termina.Diagnostics;
 
@@ -13,12 +15,18 @@ namespace Termina.Platform;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This implementation provides:
+/// Two input strategies, chosen at construction time:
 /// </para>
 /// <list type="bullet">
-/// <item><description>VT100/ANSI escape sequence processing via ENABLE_VIRTUAL_TERMINAL_PROCESSING</description></item>
-/// <item><description>Event-driven input via ReadConsoleInputW (no polling)</description></item>
-/// <item><description>Window resize events via WINDOW_BUFFER_SIZE_EVENT</description></item>
+/// <item><description><b>Record mode (default)</b> — reads INPUT_RECORDs via <see cref="Console.ReadKey(bool)"/>.
+/// Keeps the Windows-native key/resize event shape; mouse-wheel and VT-protocol input are dropped or
+/// folded before the input pipeline sees them.</description></item>
+/// <item><description><b>Raw-VT mode (opt-in via the <c>TERMINA_RAW_INPUT</c> env var)</b> — sets
+/// <c>ENABLE_VIRTUAL_TERMINAL_INPUT</c>, clears <c>ENABLE_PROCESSED_INPUT</c>, switches the input
+/// code page to UTF-8, and reads raw bytes from the input handle via <c>ReadFile</c>. Bytes flow
+/// through <see cref="Input.EscapeSequenceParser"/> exactly the way they do on Unix, which lets the
+/// xterm alternate-scroll (<c>?1007h</c>) wheel path and the kitty keyboard protocol both work on
+/// Windows Terminal.</description></item>
 /// </list>
 /// <para>
 /// See: https://docs.microsoft.com/en-us/windows/console/console-functions
@@ -56,6 +64,9 @@ public sealed class WindowsConsole : IPlatformConsole
     private const uint WAIT_TIMEOUT = 0x00000102;
     private const uint WAIT_FAILED = 0xFFFFFFFF;
     private const uint INFINITE = 0xFFFFFFFF;
+
+    // UTF-8 code page (for SetConsoleCP under raw-VT mode)
+    private const uint CP_UTF8 = 65001;
 
     #endregion
 
@@ -148,12 +159,29 @@ public sealed class WindowsConsole : IPlatformConsole
         out uint lpNumberOfEventsRead);
 
     [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool ReadFile(
+        IntPtr hFile,
+        [Out] byte[] lpBuffer,
+        uint nNumberOfBytesToRead,
+        out uint lpNumberOfBytesRead,
+        IntPtr lpOverlapped);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool CancelIoEx(IntPtr hFile, IntPtr lpOverlapped);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
     private static extern uint WaitForSingleObject(IntPtr hHandle, uint dwMilliseconds);
 
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool GetNumberOfConsoleInputEvents(
         IntPtr hConsoleInput,
         out uint lpcNumberOfEvents);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern uint GetConsoleCP();
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool SetConsoleCP(uint wCodePageID);
 
     #endregion
 
@@ -167,15 +195,39 @@ public sealed class WindowsConsole : IPlatformConsole
 
     #endregion
 
+    private readonly bool _rawVtMode;
     private readonly Subject<ConsoleResizeEvent> _resized = new();
+    private readonly Channel<IConsoleInputEvent> _rawEvents =
+        Channel.CreateUnbounded<IConsoleInputEvent>(new UnboundedChannelOptions
+        {
+            SingleReader = true,
+            SingleWriter = true,
+        });
+
     private IntPtr _inputHandle;
     private IntPtr _outputHandle;
     private uint _originalInputMode;
     private uint _originalOutputMode;
+    private uint _originalInputCp;
+    private bool _restoredInputCp = true;
     private bool _initialized;
     private bool _disposed;
     private int _lastWidth;
     private int _lastHeight;
+
+    private CancellationTokenSource? _stopCts;
+    private Thread? _readerThread;
+    private bool _kittyKeyboardActive;
+
+    /// <summary>
+    /// Create a Windows console. <paramref name="rawVtMode"/> opts into the raw-byte input path
+    /// that matches the Unix pipeline (required for <c>?1007h</c> wheel events and the kitty
+    /// keyboard protocol to reach <see cref="Input.EscapeSequenceParser"/>).
+    /// </summary>
+    public WindowsConsole(bool rawVtMode = false)
+    {
+        _rawVtMode = rawVtMode;
+    }
 
     /// <summary>
     /// Check if a Windows console is available (not redirected/piped).
@@ -198,11 +250,14 @@ public sealed class WindowsConsole : IPlatformConsole
     public Observable<ConsoleResizeEvent> Resized => _resized;
 
     /// <inheritdoc />
+    public TerminalCapabilities Capabilities => new(KittyKeyboardActive: _kittyKeyboardActive);
+
+    /// <inheritdoc />
     public void Initialize()
     {
         if (_initialized) return;
 
-        TerminaTrace.Platform.Debug(this, "WindowsConsole.Initialize() starting");
+        TerminaTrace.Platform.Debug(this, "WindowsConsole.Initialize() starting (rawVtMode={0})", _rawVtMode);
 
         // Get console handles
         _inputHandle = GetStdHandle(STD_INPUT_HANDLE);
@@ -244,16 +299,31 @@ public sealed class WindowsConsole : IPlatformConsole
         // Log which flags are currently set on output
         LogOutputModeFlags("Original output flags", _originalOutputMode);
 
-        // Configure input mode:
-        // - Enable window input events (for resize)
-        // - Disable line input (get each key immediately)
-        // - Disable echo (we render ourselves)
-        // NOTE: Do NOT use ENABLE_VIRTUAL_TERMINAL_INPUT - it converts keys to VT sequences
-        // which interferes with ReadConsoleInputW that expects KEY_EVENT records
-        // NOTE: Keep ENABLE_PROCESSED_INPUT so Ctrl+C works as expected
+        // Configure input mode. Common bits: drop line/echo, keep window events.
         var newInputMode = (_originalInputMode | ENABLE_WINDOW_INPUT)
                           & ~ENABLE_LINE_INPUT
                           & ~ENABLE_ECHO_INPUT;
+
+        if (_rawVtMode)
+        {
+            // Raw-VT mode mirrors Unix cfmakeraw:
+            //   - ENABLE_VIRTUAL_TERMINAL_INPUT routes keys/mouse/focus through the VT byte
+            //     stream we read via ReadFile. Required for ?1007h wheel events and kitty
+            //     CSI-u sequences to actually reach EscapeSequenceParser.
+            //   - Clear ENABLE_PROCESSED_INPUT so Ctrl+C arrives in-band as \x03 (or the kitty
+            //     CSI-u equivalent under report_all_keys), matching how cfmakeraw clears ISIG
+            //     on Unix. TerminaApplication's double-Ctrl+C handler then sees the same
+            //     KeyPressed shape across platforms.
+            newInputMode = (newInputMode | ENABLE_VIRTUAL_TERMINAL_INPUT) & ~ENABLE_PROCESSED_INPUT;
+        }
+        else
+        {
+            // Record mode: keep ENABLE_PROCESSED_INPUT so .NET's Console.ReadKey can still
+            // intercept Ctrl+C via the cancel-key event. Do NOT set ENABLE_VIRTUAL_TERMINAL_INPUT
+            // — it would mangle the INPUT_RECORD stream Console.ReadKey expects.
+            // (Bit already cleared by mask above; spelled out for symmetry/readability.)
+            newInputMode &= ~ENABLE_VIRTUAL_TERMINAL_INPUT;
+        }
 
         TerminaTrace.Platform.Debug(this, "Setting input mode: 0x{0:X4} -> 0x{1:X4}",
             _originalInputMode, newInputMode);
@@ -314,11 +384,49 @@ public sealed class WindowsConsole : IPlatformConsole
         ConsoleEnvironment.EnsureUtf8Output();
         TerminaTrace.Platform.Debug(this, "Set Console.OutputEncoding to UTF-8");
 
+        if (_rawVtMode)
+        {
+            // The console input handle has its own code page for the cooked byte stream we read
+            // through ReadFile. If it stays on a SBCS / OEM page, multi-byte UTF-8 from kitty
+            // associated-text or pasted Unicode will be mangled before our Decoder sees it.
+            _originalInputCp = GetConsoleCP();
+            if (_originalInputCp != CP_UTF8)
+            {
+                if (SetConsoleCP(CP_UTF8))
+                {
+                    _restoredInputCp = false;
+                    TerminaTrace.Platform.Debug(this, "Switched console input CP {0} -> 65001 (UTF-8)", _originalInputCp);
+                }
+                else
+                {
+                    var error = Marshal.GetLastWin32Error();
+                    TerminaTrace.Platform.Warning(this, "SetConsoleCP(65001) failed: error={0}", error);
+                }
+            }
+            else
+            {
+                _restoredInputCp = true; // nothing to restore
+            }
+        }
+
         // Capture initial window size for resize event deduplication
         var initialSize = GetSize();
         _lastWidth = initialSize.Width;
         _lastHeight = initialSize.Height;
         TerminaTrace.Platform.Debug(this, "Initial window size: {0}x{1}", _lastWidth, _lastHeight);
+
+        if (_rawVtMode)
+        {
+            _kittyKeyboardActive = KittyKeyboardEnhancement.TryEnter(this);
+
+            _stopCts = new CancellationTokenSource();
+            _readerThread = new Thread(RawByteReaderLoop)
+            {
+                IsBackground = true,
+                Name = "Termina.WindowsConsole.RawReader",
+            };
+            _readerThread.Start();
+        }
 
         _initialized = true;
         TerminaTrace.Platform.Info(this, "WindowsConsole.Initialize() completed successfully");
@@ -339,6 +447,32 @@ public sealed class WindowsConsole : IPlatformConsole
     public void Restore()
     {
         if (!_initialized) return;
+
+        // Stop the raw reader thread first so we're not racing for the input handle.
+        if (_rawVtMode)
+        {
+            try { _stopCts?.Cancel(); } catch { /* ignore */ }
+            try
+            {
+                if (_inputHandle != IntPtr.Zero && _inputHandle != new IntPtr(-1))
+                    CancelIoEx(_inputHandle, IntPtr.Zero);
+            }
+            catch { /* ignore */ }
+            try { _readerThread?.Join(TimeSpan.FromMilliseconds(250)); } catch { /* ignore */ }
+
+            if (_kittyKeyboardActive)
+            {
+                KittyKeyboardEnhancement.TryLeave();
+                _kittyKeyboardActive = false;
+            }
+
+            if (!_restoredInputCp)
+            {
+                try { _ = SetConsoleCP(_originalInputCp); }
+                catch { /* ignore */ }
+                _restoredInputCp = true;
+            }
+        }
 
         // Restore original console modes
         if (_inputHandle != IntPtr.Zero && _inputHandle != new IntPtr(-1))
@@ -363,17 +497,22 @@ public sealed class WindowsConsole : IPlatformConsole
             throw new InvalidOperationException("Console not initialized. Call Initialize() first.");
         }
 
-        // Simple blocking approach using Console.ReadKey
-        // This is interrupt-driven - blocks until a key is available
-        // The input task is separate from the main loop via the channel architecture,
-        // so blocking here is correct behavior
+        if (_rawVtMode)
+        {
+            try
+            {
+                return await _rawEvents.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) { return null; }
+            catch (ChannelClosedException) { return null; }
+        }
 
+        // Record mode: poll Console.KeyAvailable. The input task is separate from the main
+        // loop via the channel architecture, so the short Task.Delay between polls is correct.
         while (!cancellationToken.IsCancellationRequested)
         {
-            // Check if a key is available without blocking
             if (Console.KeyAvailable)
             {
-                // Key is available - read it immediately (no blocking)
                 var key = Console.ReadKey(intercept: true);
                 TerminaTrace.Platform.Trace(this, "Key pressed: {0}", key.Key);
                 return new ConsoleKeyEvent(key);
@@ -391,8 +530,6 @@ public sealed class WindowsConsole : IPlatformConsole
                 return resizeEvent;
             }
 
-            // Brief yield to allow cancellation and other async work
-            // Using 1ms delay for minimal latency while still allowing cancellation
             try
             {
                 await Task.Delay(1, cancellationToken).ConfigureAwait(false);
@@ -425,62 +562,112 @@ public sealed class WindowsConsole : IPlatformConsole
         return (Console.WindowWidth, Console.WindowHeight);
     }
 
-    private static ConsoleKeyEvent? ConvertKeyEvent(KEY_EVENT_RECORD keyEvent)
+    /// <summary>
+    /// Raw-VT reader loop: blocks on the console input handle with a 100 ms poll cadence, reads
+    /// raw VT bytes via <c>ReadFile</c>, wraps each byte as a <see cref="ConsoleKeyEvent"/>, and
+    /// pushes to the channel. UTF-8 multi-byte sequences (kitty associated-text, pasted Unicode)
+    /// are reassembled before emission so they survive the <c>char</c> boundary.
+    /// </summary>
+    private void RawByteReaderLoop()
     {
-        var key = (ConsoleKey)keyEvent.wVirtualKeyCode;
-        var ch = keyEvent.UnicodeChar;
-        var state = keyEvent.dwControlKeyState;
+        var stopCt = _stopCts!.Token;
+        var buf = new byte[256];
+        var chars = new char[2];
+        var oneByte = new byte[1];
+        var decoder = Encoding.UTF8.GetDecoder();
 
-        // Build modifiers
-        var shift = (state & SHIFT_PRESSED) != 0;
-        var alt = (state & (LEFT_ALT_PRESSED | RIGHT_ALT_PRESSED)) != 0;
-        var control = (state & (LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED)) != 0;
+        while (!stopCt.IsCancellationRequested)
+        {
+            // Block on the input handle with a 100 ms cap so we can opportunistically poll for
+            // resize even when the user is idle. Mirrors UnixConsole's VMIN=0/VTIME=1 cadence.
+            var waitResult = WaitForSingleObject(_inputHandle, 100);
+            if (stopCt.IsCancellationRequested) break;
 
-        // Filter out modifier-only key presses and other non-character keys we don't care about
-        if (key is ConsoleKey.LeftWindows or ConsoleKey.RightWindows or
-            ConsoleKey.Applications or ConsoleKey.Sleep or
-            ConsoleKey.NoName)
-        {
-            return null;
-        }
-
-        // Handle pure modifier key presses (Shift, Ctrl, Alt alone)
-        if (key is ConsoleKey.LeftArrow or ConsoleKey.RightArrow or
-            ConsoleKey.UpArrow or ConsoleKey.DownArrow or
-            ConsoleKey.Home or ConsoleKey.End or
-            ConsoleKey.PageUp or ConsoleKey.PageDown or
-            ConsoleKey.Insert or ConsoleKey.Delete or
-            ConsoleKey.Enter or ConsoleKey.Tab or
-            ConsoleKey.Backspace or ConsoleKey.Escape or
-            ConsoleKey.Spacebar)
-        {
-            // Navigation and special keys - always include
-        }
-        else if (key >= ConsoleKey.F1 && key <= ConsoleKey.F24)
-        {
-            // Function keys - always include
-        }
-        else if (ch == '\0' && !control && !alt)
-        {
-            // No character and no modifiers - skip (modifier key by itself)
-            // Virtual key codes: VK_SHIFT=0x10, VK_CONTROL=0x11, VK_MENU(Alt)=0x12
-            var vk = keyEvent.wVirtualKeyCode;
-            if (vk is 0x10 or 0x11 or 0x12 or 0xA0 or 0xA1 or 0xA2 or 0xA3 or 0xA4 or 0xA5)
+            if (waitResult == WAIT_TIMEOUT)
             {
-                // Shift, Control, Alt, and their left/right variants
-                return null;
+                CheckResize();
+                continue;
             }
+
+            if (waitResult == WAIT_FAILED)
+            {
+                var error = Marshal.GetLastWin32Error();
+                TerminaTrace.Platform.Error(this, "WaitForSingleObject(input) failed: error={0}", error);
+                break;
+            }
+
+            if (waitResult != WAIT_OBJECT_0) continue;
+
+            bool ok;
+            uint bytesRead;
+            try
+            {
+                ok = ReadFile(_inputHandle, buf, (uint)buf.Length, out bytesRead, IntPtr.Zero);
+            }
+            catch (Exception ex)
+            {
+                TerminaTrace.Platform.Error(this, "ReadFile(input) threw: {0}", ex.Message);
+                break;
+            }
+
+            if (!ok)
+            {
+                var error = Marshal.GetLastWin32Error();
+                // ERROR_OPERATION_ABORTED (995) is expected on CancelIoEx during shutdown.
+                if (error == 995) break;
+                TerminaTrace.Platform.Error(this, "ReadFile(input) failed: error={0}", error);
+                break;
+            }
+
+            if (bytesRead == 0)
+            {
+                CheckResize();
+                continue;
+            }
+
+            for (var i = 0; i < (int)bytesRead; i++)
+            {
+                var b = buf[i];
+                if (b < 0x80)
+                {
+                    // ASCII / control / escape-sequence byte — emit verbatim, one event each.
+                    _rawEvents.Writer.TryWrite(new ConsoleKeyEvent(RawByteKeyMapper.ByteToKeyInfo(b)));
+                }
+                else
+                {
+                    // UTF-8 continuation/lead — feed decoder. Emits 0, 1, or 2 chars
+                    // (the latter for surrogate-pair codepoints).
+                    oneByte[0] = b;
+                    var charCount = decoder.GetChars(oneByte, 0, 1, chars, 0);
+                    for (var c = 0; c < charCount; c++)
+                    {
+                        _rawEvents.Writer.TryWrite(new ConsoleKeyEvent(
+                            new ConsoleKeyInfo(chars[c], ConsoleKey.None, false, false, false)));
+                    }
+                }
+            }
+
+            CheckResize();
         }
 
-        var keyInfo = new ConsoleKeyInfo(ch, key, shift, alt, control);
-        return new ConsoleKeyEvent(keyInfo);
+        try { _rawEvents.Writer.TryComplete(); } catch { /* ignore */ }
     }
 
-    private static ConsoleMouseEvent? ConvertMouseEvent(MOUSE_EVENT_RECORD mouseEvent)
+    private readonly object _resizeLock = new();
+
+    private void CheckResize()
     {
-        // For now, we don't handle mouse events extensively
-        // This can be expanded later if needed
-        return null;
+        var (w, h) = GetSize();
+        lock (_resizeLock)
+        {
+            if (w == _lastWidth && h == _lastHeight) return;
+            _lastWidth = w;
+            _lastHeight = h;
+        }
+
+        var evt = new ConsoleResizeEvent(w, h);
+        try { _resized.OnNext(evt); } catch { /* ignore */ }
+        _rawEvents.Writer.TryWrite(evt);
     }
 
     /// <inheritdoc />
@@ -498,6 +685,7 @@ public sealed class WindowsConsole : IPlatformConsole
             // Ignore errors during cleanup
         }
 
+        _stopCts?.Dispose();
         _resized.OnCompleted();
         _resized.Dispose();
     }
