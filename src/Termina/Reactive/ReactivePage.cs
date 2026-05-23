@@ -238,13 +238,9 @@ public abstract class ReactivePage<TViewModel> : IBindablePage, IDisposable
     /// may hold references to nodes used inside <see cref="BuildLayout"/>
     /// (e.g., a streaming text component initialized in <see cref="OnBound"/>
     /// and reused as panel content); disposing would destroy that state.
-    /// Known limitation: orphaned wrapper containers (panels, vertical/
-    /// horizontal layouts created inline in <see cref="BuildLayout"/>) keep
-    /// their <c>IInvalidatingNode</c> subscriptions to any user-held child
-    /// nodes until the page is disposed; repeated invalidation will
-    /// accumulate dead containers. Prefer reactive bindings inside
-    /// <see cref="BuildLayout"/> over frequent <see cref="InvalidateLayout"/>
-    /// calls when this matters.
+    /// Framework-owned invalidation subscriptions on abandoned wrapper nodes
+    /// are disconnected during the swap so those wrappers do not keep driving
+    /// redraws or stay retained through reused child nodes.
     /// </para>
     /// <para>
     /// <b>User subscriptions targeting BuildLayout-created nodes:</b>
@@ -296,28 +292,39 @@ public abstract class ReactivePage<TViewModel> : IBindablePage, IDisposable
         _isRebuilding = true;
         try
         {
+            var oldRoot = _layoutRoot;
+
             // Build new tree FIRST so a throwing BuildLayout leaves the page
             // with its existing layout intact (no clear/null commit yet).
             var newRoot = BuildLayout()
                 ?? throw new InvalidOperationException(
                     $"BuildLayout() returned null for page {GetType().FullName}.");
 
-            // Activate the new tree before swapping. The IInvalidatingNode
-            // subscription is wired after the swap so synchronous Invalidated
-            // emissions during activation don't trigger a redraw against a
-            // tree the framework hasn't observed yet (we publish one explicit
-            // RequestRedraw at the end instead).
-            if (newRoot is LayoutNode newNode)
-                newNode.OnActivate();
+            var newNodes = CollectLayoutNodes(newRoot);
+
+            // Tear down the old framework wiring before we touch the previous
+            // tree so any invalidation raised during deactivation doesn't
+            // schedule redraws against the outgoing layout.
+            _layoutSubscriptions.Clear();
+
+            // Deactivate the old tree before activating the new one. If the
+            // page reuses child node instances across rebuilds, this ensures
+            // those nodes finish in the active state after the new tree is
+            // activated rather than being shut back down by the old tree.
+            if (oldRoot is LayoutNode oldNode)
+                oldNode.OnDeactivate();
+
+            // Disconnect invalidation subscriptions on old nodes that won't
+            // survive the rebuild. This keeps abandoned wrappers from being
+            // retained through reused children once the swap completes.
+            DisconnectAbandonedNodes(oldRoot, newNodes);
 
             // Atomic swap: from here on, _layoutRoot points at the new tree
             // and the old tree is fully replaced.
-            var oldRoot = _layoutRoot;
             _layoutRoot = newRoot;
 
-            // Tear down the old framework wiring, then re-wire on the new
-            // tree. User-held _subscriptions stay untouched.
-            _layoutSubscriptions.Clear();
+            // Wire framework invalidation on the new tree before activation so
+            // synchronous Invalidated emissions during OnActivate are observed.
             if (newRoot is IInvalidatingNode invalidating)
             {
                 invalidating.Invalidated
@@ -325,11 +332,8 @@ public abstract class ReactivePage<TViewModel> : IBindablePage, IDisposable
                     .DisposeWith(_layoutSubscriptions);
             }
 
-            // Deactivate the old tree AFTER the swap so a brief read of
-            // IBindablePage.LayoutRoot during the transition sees a valid
-            // (active) tree, never null.
-            if (oldRoot is LayoutNode oldNode)
-                oldNode.OnDeactivate();
+            if (newRoot is LayoutNode newNode)
+                newNode.OnActivate();
 
             // Focus handling: preserve user focus if the focused node still
             // exists in the new tree (common case when BuildLayout reuses
@@ -406,6 +410,36 @@ public abstract class ReactivePage<TViewModel> : IBindablePage, IDisposable
         {
             ApplyFocusPolicy(_layoutRoot);
         }
+    }
+
+    private static HashSet<ILayoutNode> CollectLayoutNodes(ILayoutNode root)
+    {
+        var visited = new HashSet<ILayoutNode>();
+        var stack = new Stack<ILayoutNode>();
+        stack.Push(root);
+
+        while (stack.Count > 0)
+        {
+            var current = stack.Pop();
+            if (!visited.Add(current) || current is not LayoutNode layoutNode)
+                continue;
+
+            foreach (var child in layoutNode.GetChildNodes())
+                stack.Push(child);
+        }
+
+        return visited;
+    }
+
+    private static void DisconnectAbandonedNodes(ILayoutNode? root, HashSet<ILayoutNode> retainedNodes)
+    {
+        if (root is not LayoutNode layoutNode || retainedNodes.Contains(root))
+            return;
+
+        layoutNode.DisconnectChildInvalidationSubscriptions();
+
+        foreach (var child in layoutNode.GetChildNodes())
+            DisconnectAbandonedNodes(child, retainedNodes);
     }
 
     /// <summary>

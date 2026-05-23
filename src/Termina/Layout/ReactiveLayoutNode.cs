@@ -71,6 +71,13 @@ public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
     internal override IEnumerable<ILayoutNode> GetChildNodes() => [_currentChild];
 
     /// <inheritdoc />
+    internal override void DisconnectChildInvalidationSubscriptions()
+    {
+        _childInvalidationSubscription?.Dispose();
+        _childInvalidationSubscription = null;
+    }
+
+    /// <inheritdoc />
     public override Size Measure(Size available)
     {
         var childSize = _currentChild.Measure(available);
@@ -221,6 +228,13 @@ public sealed class ReactiveLayoutNode<T> : LayoutNode, IInvalidatingNode
 
     /// <inheritdoc />
     internal override IEnumerable<ILayoutNode> GetChildNodes() => [_currentChild];
+
+    /// <inheritdoc />
+    internal override void DisconnectChildInvalidationSubscriptions()
+    {
+        _childInvalidationSubscription?.Dispose();
+        _childInvalidationSubscription = null;
+    }
 
     /// <inheritdoc />
     public override Size Measure(Size available)

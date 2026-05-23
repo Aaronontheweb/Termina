@@ -619,6 +619,13 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
     }
 
     /// <inheritdoc />
+    internal override void DisconnectChildInvalidationSubscriptions()
+    {
+        _contentInvalidationSubscription?.Dispose();
+        _contentInvalidationSubscription = null;
+    }
+
+    /// <inheritdoc />
     public override void OnActivate()
     {
         _isActive = true;

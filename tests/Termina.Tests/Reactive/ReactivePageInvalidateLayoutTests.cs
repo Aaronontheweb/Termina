@@ -318,6 +318,79 @@ public class ReactivePageInvalidateLayoutTests
         Assert.Equal(baseline + 1, vm.RedrawRequestCount);
     }
 
+    [Fact]
+    public void InvalidateLayout_AbandonedWrapper_DoesNotReceiveReusedChildInvalidation()
+    {
+        var page = new ReusedChildInPanelPage();
+        page.BindForTest(new EmptyViewModel());
+        page.OnNavigatedTo();
+
+        var oldRoot = Assert.IsType<PanelNode>(((Pages.IBindablePage)page).LayoutRoot);
+        var oldRootInvalidations = 0;
+        oldRoot.Invalidated.Subscribe(_ => oldRootInvalidations++);
+
+        page.CallInvalidateLayout();
+
+        var newRoot = Assert.IsType<PanelNode>(((Pages.IBindablePage)page).LayoutRoot);
+        var newRootInvalidations = 0;
+        newRoot.Invalidated.Subscribe(_ => newRootInvalidations++);
+
+        page.SharedChild.RaiseInvalidated();
+
+        Assert.Equal(0, oldRootInvalidations);
+        Assert.Equal(1, newRootInvalidations);
+    }
+
+    [Fact]
+    public void InvalidateLayout_ReusedFocusedNode_RemainsActive()
+    {
+        using var focusManager = new FocusManager();
+
+        var page = new ReusedInputPage();
+        page.BindForTest(new EmptyViewModel());
+        page.WireFocusForTest(focusManager);
+        page.OnNavigatedTo();
+
+        focusManager.SetFocus(page.Input);
+        Assert.True(page.Input.IsAnimating);
+
+        page.CallInvalidateLayout();
+
+        Assert.True(page.Input.IsAnimating);
+        Assert.True(page.Input.HasFocus);
+
+        var handled = focusManager.RouteInput(new ConsoleKeyInfo('x', (ConsoleKey)0, false, false, false));
+
+        Assert.True(handled);
+        Assert.Equal("x", page.Input.Text);
+    }
+
+    [Fact]
+    public void InvalidateLayout_ReplacedFocusedNode_ClearsManualFocus()
+    {
+        using var focusManager = new FocusManager();
+
+        var page = new ReplacingInputPage();
+        page.BindForTest(new EmptyViewModel());
+        page.WireFocusForTest(focusManager);
+        page.OnNavigatedTo();
+
+        var firstInput = page.CurrentInput;
+        focusManager.SetFocus(firstInput);
+
+        page.CallInvalidateLayout();
+
+        var secondInput = page.CurrentInput;
+        Assert.NotSame(firstInput, secondInput);
+        Assert.Null(focusManager.CurrentFocus);
+
+        var handled = focusManager.RouteInput(new ConsoleKeyInfo('x', (ConsoleKey)0, false, false, false));
+
+        Assert.False(handled);
+        Assert.Equal(string.Empty, firstInput.Text);
+        Assert.Equal(string.Empty, secondInput.Text);
+    }
+
     private sealed class CountingPage : ReactivePage<EmptyViewModel>
     {
         public int BuildLayoutCallCount { get; private set; }
@@ -409,6 +482,42 @@ public class ReactivePageInvalidateLayoutTests
 
         public void BindForTest(TrackingViewModel vm) => Bind(vm);
         public void CallInvalidateLayout() => InvalidateLayout();
+    }
+
+    private sealed class ReusedChildInPanelPage : ReactivePage<EmptyViewModel>
+    {
+        public TestInvalidatingNode SharedChild { get; } = new();
+
+        public override ILayoutNode BuildLayout() => new PanelNode().WithContent(SharedChild);
+
+        public void BindForTest(EmptyViewModel vm) => Bind(vm);
+        public void CallInvalidateLayout() => InvalidateLayout();
+    }
+
+    private sealed class ReusedInputPage : ReactivePage<EmptyViewModel>
+    {
+        public TextInputNode Input { get; } = new();
+
+        public override ILayoutNode BuildLayout() => new PanelNode().WithContent(Input);
+
+        public void BindForTest(EmptyViewModel vm) => Bind(vm);
+        public void CallInvalidateLayout() => InvalidateLayout();
+        public void WireFocusForTest(IFocusManager focusManager) => ((Pages.IBindablePage)this).WireUpFocus(focusManager);
+    }
+
+    private sealed class ReplacingInputPage : ReactivePage<EmptyViewModel>
+    {
+        public TextInputNode CurrentInput { get; private set; } = null!;
+
+        public override ILayoutNode BuildLayout()
+        {
+            CurrentInput = new TextInputNode();
+            return CurrentInput;
+        }
+
+        public void BindForTest(EmptyViewModel vm) => Bind(vm);
+        public void CallInvalidateLayout() => InvalidateLayout();
+        public void WireFocusForTest(IFocusManager focusManager) => ((Pages.IBindablePage)this).WireUpFocus(focusManager);
     }
 
     private sealed class TestInvalidatingNode : LayoutNode, IInvalidatingNode
