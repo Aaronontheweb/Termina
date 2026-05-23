@@ -95,6 +95,27 @@ xdotool mouseup --window "$WINDOW_ID" 1
 sleep 1
 
 kitty @ --to "$SOCKET" get-text --extent selection >"$SELECTION_FILE"
+
+# Let the app exit cleanly so the capture includes kitty/alternate-scroll teardown.
+xdotool key --window "$WINDOW_ID" ctrl+q
+
+for _ in $(seq 1 30); do
+  if [[ -f "$CAPTURE" ]] && python3 - "$CAPTURE" <<'PY'
+import sys
+from pathlib import Path
+
+capture = Path(sys.argv[1]).read_bytes()
+sys.exit(0 if b"\x1b[<u" in capture and b"\x1b[?1007l" in capture else 1)
+PY
+  then
+    break
+  fi
+
+  sleep 1
+done
+
+rm -f "$SOCKET_PATH"
+
 cp "$CONFORMANCE_DIR/events.jsonl" "$EVENTS"
 
 python3 "$ROOT_DIR/tests/conformance/linux/assert-conformance.py" \
