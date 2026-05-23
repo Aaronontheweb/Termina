@@ -63,7 +63,7 @@ public static class TerminaServiceCollectionExtensions
         services.AddSingleton<TerminaApplication>(sp =>
         {
             var terminal = sp.GetRequiredService<IAnsiTerminal>();
-            var app = new TerminaApplication(terminal, sp);
+            var app = new TerminaApplication(terminal, builder.RuntimeOptions, sp);
 
             // Register all pages from the builder
             foreach (var descriptor in builder.PageDescriptors)

@@ -13,6 +13,7 @@ public sealed class TerminaBuilder
 {
     private readonly IServiceCollection _services;
     internal readonly List<ReactivePageRegistrationDescriptor> PageDescriptors = new();
+    internal TerminaRuntimeOptions RuntimeOptions { get; } = new();
 
     internal TerminaBuilder(IServiceCollection services)
     {
@@ -89,6 +90,16 @@ public sealed class TerminaBuilder
             sp => pageFactory(sp),
             sp => viewModelFactory(sp)));
 
+        return this;
+    }
+
+    /// <summary>
+    /// Configure runtime terminal/input behavior for the hosted Termina application.
+    /// </summary>
+    public TerminaBuilder ConfigureRuntime(Action<TerminaRuntimeOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        configure(RuntimeOptions);
         return this;
     }
 }

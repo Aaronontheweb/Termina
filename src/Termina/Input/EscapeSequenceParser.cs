@@ -72,7 +72,7 @@ internal sealed class EscapeSequenceParser
     /// bare-CSI-arrow shape to <see cref="KeyPressed"/> (treating any matching SS3 as the wheel
     /// path instead — handled in <see cref="State.InSs3Sequence"/>).
     /// </remarks>
-    public bool KittyKeyboardActive { get; set; }
+    public bool KittyReportAllKeysVisible { get; set; }
 
     /// <summary>
     /// Creates a parser using the system clock.
@@ -222,7 +222,7 @@ internal sealed class EscapeSequenceParser
                 //     CSI form is unambiguously a real key.
                 if (seq.Length == 2 && IsArrowOrFunctionalFinal(key.KeyChar))
                 {
-                    if (KittyKeyboardActive)
+                    if (KittyReportAllKeysVisible)
                     {
                         var ck = FunctionalFinalToKey(key.KeyChar);
                         if (ck != ConsoleKey.None)
@@ -280,7 +280,7 @@ internal sealed class EscapeSequenceParser
                 // arrive via the kitty CSI-u / second-form path instead, so any remaining
                 // SS3 OA/OB at this point must be the ?1007h wheel emission under DECCKM on.
                 // (SS3 OC/OD never come from the wheel — there is no horizontal wheel.)
-                if (KittyKeyboardActive && (key.KeyChar == 'A' || key.KeyChar == 'B'))
+                if (KittyReportAllKeysVisible && (key.KeyChar == 'A' || key.KeyChar == 'B'))
                 {
                     var delta = key.KeyChar == 'A' ? +1 : -1;
                     TerminaTrace.Input.Debug(this, "ESP: SS3 O{0} (kitty active) → MouseScrollEvent({1})", key.KeyChar, delta);

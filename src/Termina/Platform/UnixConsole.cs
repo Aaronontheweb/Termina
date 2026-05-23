@@ -85,10 +85,26 @@ public sealed class UnixConsole : IPlatformConsole
     private ConsoleCancelEventHandler? _cancelKeyPressHandler;
     private PosixSignalRegistration? _sigwinchRegistration;
 
-    private bool _kittyKeyboardActive;
-
     /// <inheritdoc />
-    public TerminalCapabilities Capabilities => new(KittyKeyboardActive: _kittyKeyboardActive);
+    public TerminalCapabilities Capabilities => new(RawInputActive: true);
+
+    /// <summary>
+    /// Returns true when stdin is an interactive TTY.
+    /// </summary>
+    public static bool IsInteractiveStdin()
+    {
+        if (Console.IsInputRedirected)
+            return false;
+
+        try
+        {
+            return isatty(StdInFd) == 1;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 
     /// <inheritdoc />
     public bool SupportsEventDrivenInput => true;
@@ -103,7 +119,6 @@ public sealed class UnixConsole : IPlatformConsole
 
         ConsoleEnvironment.EnsureUtf8Output();
         EnterRawMode();
-        TryEnterKittyKeyboard();
 
         try { _lastWidth = Console.WindowWidth; _lastHeight = Console.WindowHeight; }
         catch (IOException) { _lastWidth = 80; _lastHeight = 24; }
@@ -238,24 +253,11 @@ public sealed class UnixConsole : IPlatformConsole
     {
         if (_restored || !_rawModeEntered) return;
         _restored = true;
-        TryLeaveKittyKeyboard();
         var h = GCHandle.Alloc(_savedTermios, GCHandleType.Pinned);
         try { _ = tcsetattr(StdInFd, Tcsanow, h.AddrOfPinnedObject()); }
         catch { /* ignore */ }
         finally { h.Free(); }
         TerminaTrace.Platform.Debug(this, "UnixConsole termios restored");
-    }
-
-    private void TryEnterKittyKeyboard()
-    {
-        _kittyKeyboardActive = KittyKeyboardEnhancement.TryEnter(this);
-    }
-
-    private void TryLeaveKittyKeyboard()
-    {
-        if (!_kittyKeyboardActive) return;
-        KittyKeyboardEnhancement.TryLeave();
-        _kittyKeyboardActive = false;
     }
 
     private void ReaderLoop()
@@ -360,4 +362,7 @@ public sealed class UnixConsole : IPlatformConsole
 
     [DllImport(Libc, SetLastError = true)]
     private static extern nint read(int fd, IntPtr buf, nuint count);
+
+    [DllImport(Libc, SetLastError = true)]
+    private static extern int isatty(int fd);
 }

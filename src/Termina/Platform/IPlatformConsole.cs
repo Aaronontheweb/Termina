@@ -91,12 +91,11 @@ public interface IPlatformConsole : IDisposable
     bool SupportsEventDrivenInput { get; }
 
     /// <summary>
-    /// Capabilities the platform console negotiated with the host terminal during initialization.
+    /// Capabilities of the platform console's input transport after initialization.
     /// </summary>
     /// <remarks>
-    /// Default returns a zero-value <see cref="TerminalCapabilities"/> (no negotiation). Consoles
-    /// that push kitty / mouse / focus / etc. enhancements override this to reflect the active
-    /// state, which input plumbing reads to configure parsing accordingly.
+    /// Default returns a zero-value <see cref="TerminalCapabilities"/>. Consoles that provide
+    /// raw-byte input override this so input plumbing can configure parsing and fallbacks.
     /// </remarks>
     TerminalCapabilities Capabilities => default;
 }

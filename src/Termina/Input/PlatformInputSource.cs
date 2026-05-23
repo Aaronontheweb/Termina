@@ -33,12 +33,13 @@ public sealed class PlatformInputSource : IInputSource
     /// Create a new platform input source.
     /// </summary>
     /// <param name="console">The platform console to use for input.</param>
-    public PlatformInputSource(IPlatformConsole console)
+    /// <param name="configuration">Transport-level parser configuration.</param>
+    public PlatformInputSource(IPlatformConsole console, PlatformInputConfiguration configuration)
     {
         _console = console ?? throw new ArgumentNullException(nameof(console));
         _parser = new EscapeSequenceParser
         {
-            KittyKeyboardActive = _console.Capabilities.KittyKeyboardActive,
+            KittyReportAllKeysVisible = configuration.KittyReportAllKeysVisible,
         };
     }
 

@@ -3,6 +3,7 @@
 
 using System.Runtime.InteropServices;
 using Termina.Diagnostics;
+using Termina.Hosting;
 
 namespace Termina.Platform;
 
@@ -26,8 +27,10 @@ public static class PlatformConsoleFactory
     /// <item><description>Other: Falls back to polling-based implementation</description></item>
     /// </list>
     /// </remarks>
-    public static IPlatformConsole Create()
+    public static IPlatformConsole Create(TerminaRuntimeOptions runtimeOptions)
     {
+        ArgumentNullException.ThrowIfNull(runtimeOptions);
+
         TerminaTrace.Platform.Debug(TraceSource, "PlatformConsoleFactory.Create() called");
         TerminaTrace.Platform.Debug(TraceSource, "OS: {0}, Framework: {1}",
             RuntimeInformation.OSDescription, RuntimeInformation.FrameworkDescription);
@@ -42,7 +45,7 @@ public static class PlatformConsoleFactory
 
             if (isConsoleAvailable)
             {
-                var rawVt = IsRawInputOptedIn();
+                var rawVt = ShouldUseRawInput(runtimeOptions);
                 TerminaTrace.Platform.Info(TraceSource,
                     "Creating WindowsConsole (native P/Invoke, rawVtMode={0})", rawVt);
                 return new WindowsConsole(rawVtMode: rawVt);
@@ -59,10 +62,16 @@ public static class PlatformConsoleFactory
             // UnixConsole is opt-in until Phase 4 of the raw-stdin plan flips the default.
             // Set TERMINA_RAW_INPUT=1 to enable raw-byte stdin reads — required for ?1007h
             // wheel-scroll disambiguation from real arrow keys.
-            if (IsRawInputOptedIn())
+            if (ShouldUseRawInput(runtimeOptions))
             {
-                TerminaTrace.Platform.Info(TraceSource, "Creating UnixConsole (TERMINA_RAW_INPUT)");
-                return new UnixConsole();
+                if (UnixConsole.IsInteractiveStdin())
+                {
+                    TerminaTrace.Platform.Info(TraceSource, "Creating UnixConsole (raw input enabled)");
+                    return new UnixConsole();
+                }
+
+                TerminaTrace.Platform.Warning(TraceSource,
+                    "Raw input requested but stdin is not a TTY; falling back to FallbackConsole.");
             }
         }
 
@@ -75,8 +84,11 @@ public static class PlatformConsoleFactory
     /// <c>TERMINA_RAW_INPUT</c> (canonical) or the legacy <c>TERMINA_UNIX_RAW_INPUT</c> alias.
     /// Setting either variable to <c>1</c> or <c>true</c> (case-insensitive) opts in.
     /// </summary>
-    private static bool IsRawInputOptedIn()
+    private static bool ShouldUseRawInput(TerminaRuntimeOptions runtimeOptions)
     {
+        if (runtimeOptions.PreferRawInput)
+            return true;
+
         var canonical = Environment.GetEnvironmentVariable("TERMINA_RAW_INPUT");
         if (IsTruthy(canonical)) return true;
 
