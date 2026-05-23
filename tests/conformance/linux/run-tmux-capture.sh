@@ -29,7 +29,10 @@ tmux -L "$TMUX_SOCKET" set-option -g allow-passthrough on
 tmux -L "$TMUX_SOCKET" set-option -g mouse "$TMUX_MOUSE"
 
 sleep 4
-tmux -L "$TMUX_SOCKET" send-keys -t "$SESSION" a b c Left Left Up Down Enter
+tmux -L "$TMUX_SOCKET" send-keys -t "$SESSION" a b c Left Left
+tmux -L "$TMUX_SOCKET" send-keys -t "$SESSION" -H 1b5b41
+tmux -L "$TMUX_SOCKET" send-keys -t "$SESSION" -H 1b5b42
+tmux -L "$TMUX_SOCKET" send-keys -t "$SESSION" Enter
 sleep 1
 tmux -L "$TMUX_SOCKET" capture-pane -p -t "$SESSION" >"$CAPTURE"
 
