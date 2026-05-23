@@ -108,6 +108,7 @@ export default defineConfig({
         { text: 'Navigation', link: '/concepts/navigation' },
         { text: 'Input Handling', link: '/concepts/input-handling' },
         { text: 'Terminal Input Modes', link: '/concepts/terminal-input-modes' },
+        { text: 'tmux Configuration', link: '/concepts/tmux-configuration' },
         { text: 'Dynamic Layouts', link: '/concepts/dynamic-layouts' },
         { text: 'Focus Management', link: '/concepts/focus-management' },
         { text: 'Hosting & DI', link: '/concepts/hosting' }
