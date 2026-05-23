@@ -48,6 +48,12 @@ public abstract class ReactivePage<TViewModel> : IBindablePage, IDisposable
     private readonly PageKeyBindings _keyBindings = new();
     private ILayoutNode? _layoutRoot;
 
+    // Lifecycle state — guards InvalidateLayout against bad call patterns
+    // (before activation, after disposal, re-entrant from BuildLayout).
+    private bool _isActivated;
+    private bool _isDisposed;
+    private bool _isRebuilding;
+
     /// <summary>
     /// Determines how focus is automatically assigned when this page is navigated to.
     /// Set in the page constructor or <see cref="OnBound"/> method.
@@ -194,11 +200,21 @@ public abstract class ReactivePage<TViewModel> : IBindablePage, IDisposable
     /// </summary>
     public virtual void OnNavigatedTo()
     {
+        ObjectDisposedException.ThrowIf(_isDisposed, this);
+
+        // Idempotent: if the framework calls OnNavigatedTo twice without an
+        // intervening OnNavigatingFrom (or a user override calls base after
+        // already-activated state), skip the wiring so we don't double-subscribe
+        // or double-activate.
+        if (_isActivated)
+            return;
+
         BuildAndActivateLayout();
+        _isActivated = true;
     }
 
     /// <summary>
-    /// Discards the cached layout root so the next render rebuilds via
+    /// Discards the cached layout root and rebuilds it via
     /// <see cref="BuildLayout"/>. Use this when external state captured at
     /// <see cref="BuildLayout"/>-time has changed (e.g., terminal dimensions
     /// baked into a <c>HeightAuto</c> constraint, theme values frozen into
@@ -206,50 +222,167 @@ public abstract class ReactivePage<TViewModel> : IBindablePage, IDisposable
     /// </summary>
     /// <remarks>
     /// <para>
-    /// User subscriptions in <see cref="Subscriptions"/> and registered
-    /// <see cref="KeyBindings"/> are preserved. Framework-internal wiring
-    /// against the current layout (invalidation→redraw) is torn down and
-    /// re-created against the new tree.
+    /// <b>Preserved across invalidate:</b> user subscriptions in
+    /// <see cref="Subscriptions"/>, registered <see cref="KeyBindings"/>, and
+    /// the user's keyboard focus (when the focused node still exists in the
+    /// new tree). <see cref="FocusPolicy"/> is NOT re-applied unless the
+    /// previous focus target is gone (orphaned by the rebuild).
     /// </para>
     /// <para>
-    /// The old layout root is deactivated but NOT disposed — callers may
-    /// hold references to nodes used inside <see cref="BuildLayout"/> (e.g.,
-    /// a streaming text component initialized in <see cref="OnBound"/> and
-    /// reused as panel content); disposing would destroy that state. The
-    /// orphaned wrapper nodes built only inside <see cref="BuildLayout"/>
-    /// (panels, vertical/horizontal layouts) are garbage-collected.
+    /// <b>Build-then-swap exception safety:</b> the new tree is built and
+    /// activated before the old one is replaced. If <see cref="BuildLayout"/>
+    /// throws, the page keeps its existing layout — no half-state.
+    /// </para>
+    /// <para>
+    /// <b>The old layout root is deactivated but NOT disposed</b> — callers
+    /// may hold references to nodes used inside <see cref="BuildLayout"/>
+    /// (e.g., a streaming text component initialized in <see cref="OnBound"/>
+    /// and reused as panel content); disposing would destroy that state.
+    /// Known limitation: orphaned wrapper containers (panels, vertical/
+    /// horizontal layouts created inline in <see cref="BuildLayout"/>) keep
+    /// their <c>IInvalidatingNode</c> subscriptions to any user-held child
+    /// nodes until the page is disposed; repeated invalidation will
+    /// accumulate dead containers. Prefer reactive bindings inside
+    /// <see cref="BuildLayout"/> over frequent <see cref="InvalidateLayout"/>
+    /// calls when this matters.
+    /// </para>
+    /// <para>
+    /// <b>User subscriptions targeting BuildLayout-created nodes:</b>
+    /// subscriptions registered against nodes created inline in
+    /// <see cref="BuildLayout"/> will continue firing into the orphaned
+    /// old nodes after invalidate, NOT the new nodes. Either subscribe
+    /// against page-field nodes (initialized in <see cref="OnBound"/>) that
+    /// you reuse in <see cref="BuildLayout"/>, or re-subscribe at the start
+    /// of each <see cref="BuildLayout"/> call.
+    /// </para>
+    /// <para>
+    /// <b>Contract:</b> Throws <see cref="ObjectDisposedException"/> after
+    /// <see cref="Dispose"/>. Throws <see cref="InvalidOperationException"/>
+    /// if called re-entrantly (e.g., from inside <see cref="BuildLayout"/>
+    /// or a node lifecycle callback) or if <see cref="BuildLayout"/> returns
+    /// <see langword="null"/>. Silently no-ops if the page is not currently
+    /// active (between <see cref="OnNavigatingFrom"/> and the next
+    /// <see cref="OnNavigatedTo"/>, or before the first navigation) — in
+    /// that case the next navigation will rebuild fresh anyway.
+    /// </para>
+    /// <para>
+    /// <b>Thread affinity:</b> must be called on the same dispatcher
+    /// thread that drives navigation/rendering.
     /// </para>
     /// </remarks>
+    /// <exception cref="ObjectDisposedException">The page has been disposed.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// Called re-entrantly during another <see cref="InvalidateLayout"/> or
+    /// <see cref="BuildLayout"/> on the same page, or
+    /// <see cref="BuildLayout"/> returned <see langword="null"/>.
+    /// </exception>
     protected void InvalidateLayout()
     {
-        // Drop the layout-tied subscriptions so the new tree's invalidation
-        // events flow into a fresh subscription. User subscriptions are
-        // untouched.
-        _layoutSubscriptions.Clear();
+        ObjectDisposedException.ThrowIf(_isDisposed, this);
 
-        // Pause the old tree before replacing it. We do NOT Dispose() because
-        // user-held node references would be destroyed (see remarks).
-        if (_layoutRoot is LayoutNode oldNode)
+        if (_isRebuilding)
         {
-            oldNode.OnDeactivate();
+            throw new InvalidOperationException(
+                "InvalidateLayout cannot be called re-entrantly from BuildLayout " +
+                "or a layout node lifecycle callback.");
         }
 
-        _layoutRoot = null;
+        // No-op when inactive: the next OnNavigatedTo will build fresh anyway,
+        // so doing the work now would just resurrect an inactive page and
+        // cause double-subscribe + double-activate on the next navigation.
+        if (!_isActivated)
+            return;
 
-        BuildAndActivateLayout();
+        _isRebuilding = true;
+        try
+        {
+            // Build new tree FIRST so a throwing BuildLayout leaves the page
+            // with its existing layout intact (no clear/null commit yet).
+            var newRoot = BuildLayout()
+                ?? throw new InvalidOperationException(
+                    $"BuildLayout() returned null for page {GetType().FullName}.");
+
+            // Activate the new tree before swapping. The IInvalidatingNode
+            // subscription is wired after the swap so synchronous Invalidated
+            // emissions during activation don't trigger a redraw against a
+            // tree the framework hasn't observed yet (we publish one explicit
+            // RequestRedraw at the end instead).
+            if (newRoot is LayoutNode newNode)
+                newNode.OnActivate();
+
+            // Atomic swap: from here on, _layoutRoot points at the new tree
+            // and the old tree is fully replaced.
+            var oldRoot = _layoutRoot;
+            _layoutRoot = newRoot;
+
+            // Tear down the old framework wiring, then re-wire on the new
+            // tree. User-held _subscriptions stay untouched.
+            _layoutSubscriptions.Clear();
+            if (newRoot is IInvalidatingNode invalidating)
+            {
+                invalidating.Invalidated
+                    .Subscribe(_ => ViewModel.RequestRedraw())
+                    .DisposeWith(_layoutSubscriptions);
+            }
+
+            // Deactivate the old tree AFTER the swap so a brief read of
+            // IBindablePage.LayoutRoot during the transition sees a valid
+            // (active) tree, never null.
+            if (oldRoot is LayoutNode oldNode)
+                oldNode.OnDeactivate();
+
+            // Focus handling: preserve user focus if the focused node still
+            // exists in the new tree (common case when BuildLayout reuses
+            // page-field nodes). Otherwise the focused node is orphaned —
+            // clear focus and fall back to the policy default on the new
+            // tree so the user has somewhere to land.
+            if (Focus is not null && Focus.CurrentFocus is { } currentFocus)
+            {
+                var newFocusables = Focus.CollectFocusables(newRoot);
+                var stillPresent = false;
+                foreach (var f in newFocusables)
+                {
+                    if (ReferenceEquals(f, currentFocus))
+                    {
+                        stillPresent = true;
+                        break;
+                    }
+                }
+
+                if (!stillPresent)
+                {
+                    Focus.ClearFocus();
+                    if (FocusPolicy != FocusPolicy.Manual)
+                        ApplyFocusPolicy(newRoot);
+                }
+            }
+
+            // Request a redraw so the new tree actually renders. Without
+            // this, callers who invalidate in response to an event that
+            // doesn't otherwise touch a ReactiveProperty would see no visual
+            // change until the next unrelated reactive emission.
+            ViewModel.RequestRedraw();
+        }
+        finally
+        {
+            _isRebuilding = false;
+        }
     }
 
     /// <summary>
     /// Build (if needed) and activate the layout tree, wiring framework-level
-    /// subscriptions. Called from <see cref="OnNavigatedTo"/> and from
-    /// <see cref="InvalidateLayout"/>.
+    /// subscriptions. Called from <see cref="OnNavigatedTo"/> only;
+    /// <see cref="InvalidateLayout"/> takes its own build-then-swap path for
+    /// exception safety.
     /// </summary>
     private void BuildAndActivateLayout()
     {
         // Build layout once on first navigation, reactivate on subsequent visits.
         if (_layoutRoot == null)
         {
-            _layoutRoot = BuildLayout();
+            _layoutRoot = BuildLayout()
+                ?? throw new InvalidOperationException(
+                    $"BuildLayout() returned null for page {GetType().FullName}.");
         }
 
         // Subscribe to layout invalidation events to trigger redraws. Lives in
@@ -336,6 +469,10 @@ public abstract class ReactivePage<TViewModel> : IBindablePage, IDisposable
             node.OnDeactivate();
         }
 
+        // InvalidateLayout becomes a no-op until the next OnNavigatedTo —
+        // there's no point rebuilding a tree that isn't being rendered.
+        _isActivated = false;
+
         // Note: _layoutRoot is NOT disposed or nulled - it's preserved for reactivation
     }
 
@@ -345,7 +482,16 @@ public abstract class ReactivePage<TViewModel> : IBindablePage, IDisposable
     /// </summary>
     public virtual void Dispose()
     {
-        // Final cleanup when page is truly destroyed (not just navigated away)
+        if (_isDisposed)
+            return;
+
+        // Final cleanup when page is truly destroyed (not just navigated away).
+        // Set _isDisposed before the disposal cascade so any late callback that
+        // re-enters InvalidateLayout or OnNavigatedTo throws cleanly instead
+        // of resurrecting a dead page.
+        _isDisposed = true;
+        _isActivated = false;
+
         _subscriptions.Dispose();
         _layoutSubscriptions.Dispose();
         _layoutRoot?.Dispose();

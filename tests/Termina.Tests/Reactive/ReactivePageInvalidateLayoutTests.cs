@@ -5,6 +5,7 @@ using R3;
 using Termina.Input;
 using Termina.Layout;
 using Termina.Reactive;
+using Termina.Rendering;
 
 namespace Termina.Tests.Reactive;
 
@@ -106,7 +107,218 @@ public class ReactivePageInvalidateLayoutTests
         Assert.Equal(42, page.LastObservedValue);
     }
 
-    private class CountingPage : ReactivePage<EmptyViewModel>
+    // ----- Lifecycle guard tests -----
+
+    [Fact]
+    public void InvalidateLayout_BeforeOnNavigatedTo_IsNoOp()
+    {
+        // Calling InvalidateLayout before the first navigation must not
+        // build / activate / subscribe — otherwise the framework's eventual
+        // OnNavigatedTo would double-subscribe and double-activate.
+        var page = new CountingPage();
+        page.BindForTest(new EmptyViewModel());
+
+        page.CallInvalidateLayout();
+        Assert.Equal(0, page.BuildLayoutCallCount);
+
+        page.OnNavigatedTo();
+        Assert.Equal(1, page.BuildLayoutCallCount);
+    }
+
+    [Fact]
+    public void InvalidateLayout_AfterOnNavigatingFrom_IsNoOp()
+    {
+        // Between OnNavigatingFrom and the next OnNavigatedTo the page is
+        // "cached inactive" — _layoutRoot is preserved but deactivated.
+        // InvalidateLayout here must not resurrect the page.
+        var page = new CountingPage();
+        page.BindForTest(new EmptyViewModel());
+        page.OnNavigatedTo();
+        Assert.Equal(1, page.BuildLayoutCallCount);
+
+        page.OnNavigatingFrom();
+
+        page.CallInvalidateLayout();
+        Assert.Equal(1, page.BuildLayoutCallCount); // no rebuild while inactive
+
+        // Next navigation correctly reactivates the cached layout (no new build).
+        page.OnNavigatedTo();
+        Assert.Equal(1, page.BuildLayoutCallCount);
+    }
+
+    [Fact]
+    public void InvalidateLayout_AfterDispose_Throws()
+    {
+        var page = new CountingPage();
+        page.BindForTest(new EmptyViewModel());
+        page.OnNavigatedTo();
+        page.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(() => page.CallInvalidateLayout());
+    }
+
+    [Fact]
+    public void OnNavigatedTo_AfterDispose_Throws()
+    {
+        var page = new CountingPage();
+        page.BindForTest(new EmptyViewModel());
+        page.OnNavigatedTo();
+        page.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(() => page.OnNavigatedTo());
+    }
+
+    [Fact]
+    public void Dispose_IsIdempotent()
+    {
+        var page = new CountingPage();
+        page.BindForTest(new EmptyViewModel());
+        page.OnNavigatedTo();
+
+        page.Dispose();
+        page.Dispose(); // must not throw
+    }
+
+    [Fact]
+    public void InvalidateLayout_ReEntrant_Throws()
+    {
+        // BuildLayout calling InvalidateLayout would otherwise stack-overflow
+        // or leave _layoutRoot pointing at a leaked sub-tree.
+        var page = new ReEntrantPage();
+        page.BindForTest(new EmptyViewModel());
+        page.OnNavigatedTo();
+
+        page.ReEnterOnNextBuild = true;
+
+        Assert.Throws<InvalidOperationException>(() => page.CallInvalidateLayout());
+    }
+
+    [Fact]
+    public void InvalidateLayout_NullBuildLayout_Throws()
+    {
+        var page = new NullBuildPage();
+        page.BindForTest(new EmptyViewModel());
+
+        // First navigation: BuildLayout returns a real node so the page activates.
+        page.ReturnNullNext = false;
+        page.OnNavigatedTo();
+
+        // Now make BuildLayout return null and invalidate — should throw,
+        // leaving the existing layout intact.
+        page.ReturnNullNext = true;
+        var firstRoot = ((Pages.IBindablePage)page).LayoutRoot;
+
+        Assert.Throws<InvalidOperationException>(() => page.CallInvalidateLayout());
+
+        // Layout root unchanged after the failed rebuild — build-then-swap
+        // exception safety.
+        Assert.Same(firstRoot, ((Pages.IBindablePage)page).LayoutRoot);
+    }
+
+    [Fact]
+    public void InvalidateLayout_BuildLayoutThrows_LeavesLayoutIntact()
+    {
+        var page = new ThrowingBuildPage();
+        page.BindForTest(new EmptyViewModel());
+
+        page.ShouldThrowNext = false;
+        page.OnNavigatedTo();
+        var firstRoot = ((Pages.IBindablePage)page).LayoutRoot;
+        Assert.NotNull(firstRoot);
+
+        page.ShouldThrowNext = true;
+        Assert.Throws<InvalidOperationException>(() => page.CallInvalidateLayout());
+
+        // The page is still operational on the old tree.
+        Assert.Same(firstRoot, ((Pages.IBindablePage)page).LayoutRoot);
+
+        // Subsequent successful invalidate works.
+        page.ShouldThrowNext = false;
+        page.CallInvalidateLayout();
+        Assert.NotSame(firstRoot, ((Pages.IBindablePage)page).LayoutRoot);
+    }
+
+    [Fact]
+    public void InvalidateLayout_RequestsRedraw()
+    {
+        var vm = new TrackingViewModel();
+        var page = new CountingPage();
+        page.BindForTest(vm);
+        page.OnNavigatedTo();
+
+        var redrawsBefore = vm.RedrawRequestCount;
+        page.CallInvalidateLayout();
+
+        // The new tree won't necessarily emit Invalidated synchronously, so
+        // InvalidateLayout must explicitly request a redraw — otherwise the
+        // user-visible frame stays stale until the next unrelated reactive
+        // emission.
+        Assert.True(vm.RedrawRequestCount > redrawsBefore,
+            $"Expected RequestRedraw to be called by InvalidateLayout. " +
+            $"Before: {redrawsBefore}, After: {vm.RedrawRequestCount}");
+    }
+
+    // ----- IInvalidatingNode wiring tests -----
+
+    [Fact]
+    public void InvalidateLayout_OldInvalidatingNode_DoesNotDriveRedraws()
+    {
+        // After invalidate, the OLD layout's Invalidated emissions must NOT
+        // trigger RequestRedraw — otherwise _layoutSubscriptions accumulates
+        // dead subscriptions and every event fires N times.
+        var vm = new TrackingViewModel();
+        var page = new InvalidatingNodePage();
+        page.BindForTest(vm);
+        page.OnNavigatedTo();
+
+        var oldNode = page.LastBuilt!;
+        page.CallInvalidateLayout();
+        var redrawsAfterInvalidate = vm.RedrawRequestCount;
+
+        // Fire the old tree's Invalidated — no redraw should follow.
+        oldNode.RaiseInvalidated();
+        Assert.Equal(redrawsAfterInvalidate, vm.RedrawRequestCount);
+    }
+
+    [Fact]
+    public void InvalidateLayout_NewInvalidatingNode_DrivesRedraws()
+    {
+        var vm = new TrackingViewModel();
+        var page = new InvalidatingNodePage();
+        page.BindForTest(vm);
+        page.OnNavigatedTo();
+
+        page.CallInvalidateLayout();
+        var newNode = page.LastBuilt!;
+        var baselineRedraws = vm.RedrawRequestCount;
+
+        // Fire the new tree's Invalidated — exactly one redraw must follow.
+        newNode.RaiseInvalidated();
+        Assert.Equal(baselineRedraws + 1, vm.RedrawRequestCount);
+    }
+
+    [Fact]
+    public void InvalidateLayout_RepeatedCalls_DoNotAccumulateSubscriptions()
+    {
+        // Multiple invalidations in a row must not pile up subscriptions on
+        // the live tree (each invalidate replaces all _layoutSubscriptions).
+        var vm = new TrackingViewModel();
+        var page = new InvalidatingNodePage();
+        page.BindForTest(vm);
+        page.OnNavigatedTo();
+
+        page.CallInvalidateLayout();
+        page.CallInvalidateLayout();
+        page.CallInvalidateLayout();
+
+        var liveNode = page.LastBuilt!;
+        var baseline = vm.RedrawRequestCount;
+        liveNode.RaiseInvalidated();
+
+        Assert.Equal(baseline + 1, vm.RedrawRequestCount);
+    }
+
+    private sealed class CountingPage : ReactivePage<EmptyViewModel>
     {
         public int BuildLayoutCallCount { get; private set; }
 
@@ -116,7 +328,7 @@ public class ReactivePageInvalidateLayoutTests
             return new TextNode("test");
         }
 
-        public void BindForTest(EmptyViewModel vm) => Bind(vm);
+        public void BindForTest(ReactiveViewModel vm) => Bind((EmptyViewModel)vm);
         public void CallInvalidateLayout() => InvalidateLayout();
         public void AddUserSubscription(IDisposable d) => Subscriptions.Add(d);
         public new PageKeyBindings KeyBindings => base.KeyBindings;
@@ -137,7 +349,100 @@ public class ReactivePageInvalidateLayoutTests
         public void CallInvalidateLayout() => InvalidateLayout();
     }
 
+    private sealed class ReEntrantPage : ReactivePage<EmptyViewModel>
+    {
+        public bool ReEnterOnNextBuild { get; set; }
+
+        public override ILayoutNode BuildLayout()
+        {
+            if (ReEnterOnNextBuild)
+            {
+                ReEnterOnNextBuild = false; // arm only once to avoid runaway recursion if guard breaks
+                InvalidateLayout(); // must throw
+            }
+            return new TextNode("test");
+        }
+
+        public void BindForTest(EmptyViewModel vm) => Bind(vm);
+        public void CallInvalidateLayout() => InvalidateLayout();
+    }
+
+    private sealed class NullBuildPage : ReactivePage<EmptyViewModel>
+    {
+        public bool ReturnNullNext { get; set; }
+
+        public override ILayoutNode BuildLayout()
+        {
+            // Returning null is illegal per the contract; deliberately suppress
+            // the non-nullable warning for the test.
+            return ReturnNullNext ? null! : new TextNode("test");
+        }
+
+        public void BindForTest(EmptyViewModel vm) => Bind(vm);
+        public void CallInvalidateLayout() => InvalidateLayout();
+    }
+
+    private sealed class ThrowingBuildPage : ReactivePage<EmptyViewModel>
+    {
+        public bool ShouldThrowNext { get; set; }
+
+        public override ILayoutNode BuildLayout()
+        {
+            if (ShouldThrowNext)
+                throw new InvalidOperationException("simulated build failure");
+            return new TextNode("test");
+        }
+
+        public void BindForTest(EmptyViewModel vm) => Bind(vm);
+        public void CallInvalidateLayout() => InvalidateLayout();
+    }
+
+    private sealed class InvalidatingNodePage : ReactivePage<TrackingViewModel>
+    {
+        public TestInvalidatingNode? LastBuilt { get; private set; }
+
+        public override ILayoutNode BuildLayout()
+        {
+            LastBuilt = new TestInvalidatingNode();
+            return LastBuilt;
+        }
+
+        public void BindForTest(TrackingViewModel vm) => Bind(vm);
+        public void CallInvalidateLayout() => InvalidateLayout();
+    }
+
+    private sealed class TestInvalidatingNode : LayoutNode, IInvalidatingNode
+    {
+        private readonly Subject<Unit> _invalidated = new();
+
+        public Observable<Unit> Invalidated => _invalidated;
+
+        public void RaiseInvalidated() => _invalidated.OnNext(Unit.Default);
+
+        public override Size Measure(Size available) => new(0, 0);
+
+        public override void Render(IRenderContext context, Rect bounds)
+        {
+            // No-op for tests.
+        }
+    }
+
     private class EmptyViewModel : ReactiveViewModel
     {
+    }
+
+    private sealed class TrackingViewModel : EmptyViewModel
+    {
+        public int RedrawRequestCount { get; private set; }
+
+        public TrackingViewModel()
+        {
+            WireUp(
+                navigate: _ => { },
+                navigateWithParams: (_, _) => { },
+                shutdown: () => { },
+                requestRedraw: () => RedrawRequestCount++,
+                input: Observable.Empty<IInputEvent>());
+        }
     }
 }
