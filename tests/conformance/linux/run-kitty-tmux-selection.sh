@@ -98,7 +98,11 @@ END_X=$((CELL_W * 31))
 END_Y=$START_Y
 
 xdotool key --window "$WINDOW_ID" a b c Left Left
-kitty @ --to "$SOCKET" send --action copy_paste '"\x1b[A\x1b[B\r"'
+printf '\x1b[A' | tmux -L "$TMUX_SOCKET" load-buffer -
+tmux -L "$TMUX_SOCKET" paste-buffer -t "$TMUX_SESSION" -d
+printf '\x1b[B' | tmux -L "$TMUX_SOCKET" load-buffer -
+tmux -L "$TMUX_SOCKET" paste-buffer -t "$TMUX_SESSION" -d
+xdotool key --window "$WINDOW_ID" Return
 sleep 1
 
 xdotool mousemove --window "$WINDOW_ID" "$START_X" "$START_Y"

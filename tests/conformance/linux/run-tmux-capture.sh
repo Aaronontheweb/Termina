@@ -30,8 +30,10 @@ tmux -L "$TMUX_SOCKET" set-option -g mouse "$TMUX_MOUSE"
 
 sleep 4
 tmux -L "$TMUX_SOCKET" send-keys -t "$SESSION" a b c Left Left
-tmux -L "$TMUX_SOCKET" send-keys -t "$SESSION" -H 1b5b41
-tmux -L "$TMUX_SOCKET" send-keys -t "$SESSION" -H 1b5b42
+printf '\x1b[A' | tmux -L "$TMUX_SOCKET" load-buffer -
+tmux -L "$TMUX_SOCKET" paste-buffer -t "$SESSION" -d
+printf '\x1b[B' | tmux -L "$TMUX_SOCKET" load-buffer -
+tmux -L "$TMUX_SOCKET" paste-buffer -t "$SESSION" -d
 tmux -L "$TMUX_SOCKET" send-keys -t "$SESSION" Enter
 sleep 1
 tmux -L "$TMUX_SOCKET" capture-pane -p -t "$SESSION" >"$CAPTURE"
