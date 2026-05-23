@@ -1,0 +1,97 @@
+name: terminal_conformance
+
+on:
+  push:
+    branches:
+      - feature/terminal-conformance-matrix
+  pull_request:
+    paths:
+      - '.github/workflows/terminal_conformance.yml'
+      - 'demos/Termina.Demo.Conformance/**'
+      - 'tests/conformance/**'
+      - 'src/Termina/**'
+
+jobs:
+  linux-baseline:
+    name: Linux-Baseline-Capture
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@v5.2.0
+        with:
+          global-json-file: ./global.json
+
+      - name: Build conformance demo
+        run: dotnet build demos/Termina.Demo.Conformance/Termina.Demo.Conformance.csproj -c Release
+
+      - name: Run baseline PTY capture
+        run: bash tests/conformance/linux/run-baseline-capture.sh "$RUNNER_TEMP/conformance-baseline"
+
+      - name: Upload baseline artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: conformance-baseline
+          path: ${{ runner.temp }}/conformance-baseline
+
+  linux-kitty:
+    name: Linux-Kitty-Selection
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@v5.2.0
+        with:
+          global-json-file: ./global.json
+
+      - name: Install Linux terminal harness deps
+        run: sudo apt-get update && sudo apt-get install -y kitty xdotool xsel xvfb jq python3
+
+      - name: Build conformance demo
+        run: dotnet build demos/Termina.Demo.Conformance/Termina.Demo.Conformance.csproj -c Release
+
+      - name: Run kitty conformance harness
+        run: bash tests/conformance/linux/run-kitty-selection.sh "$RUNNER_TEMP/conformance-kitty"
+
+      - name: Upload kitty artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: conformance-kitty
+          path: ${{ runner.temp }}/conformance-kitty
+
+  linux-tmux:
+    name: Linux-Tmux-Conformance
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@v5.2.0
+        with:
+          global-json-file: ./global.json
+
+      - name: Install tmux harness deps
+        run: sudo apt-get update && sudo apt-get install -y tmux python3
+
+      - name: Build conformance demo
+        run: dotnet build demos/Termina.Demo.Conformance/Termina.Demo.Conformance.csproj -c Release
+
+      - name: Run tmux conformance harness
+        run: bash tests/conformance/linux/run-tmux-capture.sh "$RUNNER_TEMP/conformance-tmux"
+
+      - name: Upload tmux artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: conformance-tmux
+          path: ${{ runner.temp }}/conformance-tmux
