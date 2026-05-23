@@ -33,12 +33,51 @@ def main():
     parser.add_argument("--require-no-mouse-tracking", action="store_true")
     parser.add_argument("--require-legacy-mouse-tracking", action="store_true")
     parser.add_argument("--require-kitty-sequence")
+    parser.add_argument("--expect-tmux")
+    parser.add_argument("--expect-tmux-mouse")
+    parser.add_argument("--expect-submitted")
     args = parser.parse_args()
 
     events = load_events(Path(args.events))
     require(
         any(evt.get("phase") == "startup" for evt in events), "missing startup event"
     )
+
+    startup = next(evt for evt in events if evt.get("phase") == "startup")
+
+    if args.expect_tmux is not None:
+        expected = args.expect_tmux.lower()
+        require(
+            expected in ("true", "false"),
+            "--expect-tmux must be true or false",
+        )
+        require(
+            startup.get("tmux") == expected,
+            f"expected startup tmux={expected}, got {startup.get('tmux')}",
+        )
+
+    if args.expect_tmux_mouse is not None:
+        tmux_mouse = startup.get("tmuxMouse")
+        require(
+            tmux_mouse is not None,
+            f"missing tmuxMouse in startup event (expected '{args.expect_tmux_mouse}')",
+        )
+        require(
+            tmux_mouse.lower() == args.expect_tmux_mouse.lower(),
+            f"expected tmuxMouse={args.expect_tmux_mouse}, got {tmux_mouse}",
+        )
+
+    if args.expect_submitted is not None:
+        submits = [evt for evt in events if evt.get("phase") == "submit"]
+        require(
+            len(submits) > 0,
+            "no submit events found",
+        )
+        last_text = submits[-1].get("text", "")
+        require(
+            args.expect_submitted in last_text,
+            f"submitted text did not contain '{args.expect_submitted}', got '{last_text}'",
+        )
 
     if args.expect_wheel:
         require(
