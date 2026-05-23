@@ -73,6 +73,14 @@ public abstract class LayoutNode : ILayoutNode
     internal virtual IEnumerable<ILayoutNode> GetChildNodes() => [];
 
     /// <summary>
+    /// Disconnect subscriptions from this node to its children without
+    /// disposing or mutating the children themselves.
+    /// </summary>
+    internal virtual void DisconnectChildInvalidationSubscriptions()
+    {
+    }
+
+    /// <summary>
     /// Set width to a fixed value.
     /// </summary>
     public LayoutNode Width(int value)
@@ -216,6 +224,17 @@ public abstract class ContainerNode : LayoutNode, IContainerNode, IInvalidatingN
             child.Dispose();
         }
         base.Dispose();
+    }
+
+    /// <inheritdoc />
+    internal override void DisconnectChildInvalidationSubscriptions()
+    {
+        foreach (var subscription in _childInvalidationSubscriptions)
+        {
+            subscription.Dispose();
+        }
+
+        _childInvalidationSubscriptions.Clear();
     }
 
     /// <summary>

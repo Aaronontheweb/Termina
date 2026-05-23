@@ -103,6 +103,15 @@ public sealed class GridNode : LayoutNode, IFocusable, IInvalidatingNode
     /// <inheritdoc />
     public Observable<Unit> Invalidated => _invalidated.AsObservable();
 
+    /// <inheritdoc />
+    internal override void DisconnectChildInvalidationSubscriptions()
+    {
+        foreach (var sub in _cellSubscriptions)
+            sub.Dispose();
+
+        _cellSubscriptions.Clear();
+    }
+
     /// <summary>
     /// Observable that emits when the focused cell changes.
     /// </summary>

@@ -100,6 +100,13 @@ public sealed class DynamicLayoutNode : LayoutNode, IInvalidatingNode
     internal override IEnumerable<ILayoutNode> GetChildNodes() => [_currentChild];
 
     /// <inheritdoc />
+    internal override void DisconnectChildInvalidationSubscriptions()
+    {
+        _childInvalidationSubscription?.Dispose();
+        _childInvalidationSubscription = null;
+    }
+
+    /// <inheritdoc />
     public override Size Measure(Size available)
     {
         EvaluateFactory();
