@@ -9,7 +9,7 @@ namespace Termina.Tests.Input;
 /// Tests for the kitty-keyboard-protocol additions to <see cref="EscapeSequenceParser"/>:
 /// CSI second-form arrow / function keys (<c>CSI 1;&lt;mods&gt; [ABCDFHPQRS]</c>), event-type
 /// subfield handling, kitty PUA functional keycodes in CSI-u form, modifier-alone swallowing,
-/// and the <see cref="EscapeSequenceParser.KittyKeyboardActive"/> mode-flag interaction with
+    /// and the <see cref="EscapeSequenceParser.KittyReportAllKeysVisible"/> mode-flag interaction with
 /// bare <c>CSI A/B</c> / <c>SS3 OA/B</c> wheel routing.
 /// </summary>
 public class EscapeSequenceParserKittyTests
@@ -25,12 +25,12 @@ public class EscapeSequenceParserKittyTests
         return all;
     }
 
-    // --- Bare CSI arrow routing depends on KittyKeyboardActive ---
+    // --- Bare CSI arrow routing depends on KittyReportAllKeysVisible ---
 
     [Fact]
     public void BareCsiUp_WhenKittyInactive_EmitsMouseScrollUp()
     {
-        var parser = new EscapeSequenceParser { KittyKeyboardActive = false };
+        var parser = new EscapeSequenceParser { KittyReportAllKeysVisible = false };
         var events = FeedString(parser, "\x1b[A");
         Assert.Single(events);
         var scroll = Assert.IsType<MouseScrollEvent>(events[0]);
@@ -40,7 +40,7 @@ public class EscapeSequenceParserKittyTests
     [Fact]
     public void BareCsiUp_WhenKittyActive_EmitsKeyPressedUpArrow()
     {
-        var parser = new EscapeSequenceParser { KittyKeyboardActive = true };
+        var parser = new EscapeSequenceParser { KittyReportAllKeysVisible = true };
         var events = FeedString(parser, "\x1b[A");
         Assert.Single(events);
         var press = Assert.IsType<KeyPressed>(events[0]);
@@ -50,7 +50,7 @@ public class EscapeSequenceParserKittyTests
     [Fact]
     public void BareCsiDown_WhenKittyActive_EmitsKeyPressedDownArrow()
     {
-        var parser = new EscapeSequenceParser { KittyKeyboardActive = true };
+        var parser = new EscapeSequenceParser { KittyReportAllKeysVisible = true };
         var events = FeedString(parser, "\x1b[B");
         Assert.Single(events);
         var press = Assert.IsType<KeyPressed>(events[0]);
@@ -68,7 +68,7 @@ public class EscapeSequenceParserKittyTests
     [InlineData('S', ConsoleKey.F4)]
     public void BareCsi_KittyActive_AllFunctionalFinals(char final, ConsoleKey expected)
     {
-        var parser = new EscapeSequenceParser { KittyKeyboardActive = true };
+        var parser = new EscapeSequenceParser { KittyReportAllKeysVisible = true };
         var events = FeedString(parser, $"\x1b[{final}");
         Assert.Single(events);
         var press = Assert.IsType<KeyPressed>(events[0]);
@@ -80,7 +80,7 @@ public class EscapeSequenceParserKittyTests
     [Fact]
     public void Ss3OA_WhenKittyInactive_EmitsKeyPressedUpArrow()
     {
-        var parser = new EscapeSequenceParser { KittyKeyboardActive = false };
+        var parser = new EscapeSequenceParser { KittyReportAllKeysVisible = false };
         var events = FeedString(parser, "\x1bOA");
         Assert.Single(events);
         var press = Assert.IsType<KeyPressed>(events[0]);
@@ -90,7 +90,7 @@ public class EscapeSequenceParserKittyTests
     [Fact]
     public void Ss3OA_WhenKittyActive_EmitsMouseScrollUp()
     {
-        var parser = new EscapeSequenceParser { KittyKeyboardActive = true };
+        var parser = new EscapeSequenceParser { KittyReportAllKeysVisible = true };
         var events = FeedString(parser, "\x1bOA");
         Assert.Single(events);
         var scroll = Assert.IsType<MouseScrollEvent>(events[0]);
@@ -100,7 +100,7 @@ public class EscapeSequenceParserKittyTests
     [Fact]
     public void Ss3OB_WhenKittyActive_EmitsMouseScrollDown()
     {
-        var parser = new EscapeSequenceParser { KittyKeyboardActive = true };
+        var parser = new EscapeSequenceParser { KittyReportAllKeysVisible = true };
         var events = FeedString(parser, "\x1bOB");
         Assert.Single(events);
         var scroll = Assert.IsType<MouseScrollEvent>(events[0]);
@@ -111,7 +111,7 @@ public class EscapeSequenceParserKittyTests
     public void Ss3OC_WhenKittyActive_StillEmitsRightArrow()
     {
         // Wheel has no horizontal axis — SS3 OC/OD remain real arrows even with kitty active.
-        var parser = new EscapeSequenceParser { KittyKeyboardActive = true };
+        var parser = new EscapeSequenceParser { KittyReportAllKeysVisible = true };
         var events = FeedString(parser, "\x1bOC");
         Assert.Single(events);
         var press = Assert.IsType<KeyPressed>(events[0]);
@@ -123,7 +123,7 @@ public class EscapeSequenceParserKittyTests
     [Fact]
     public void SecondForm_ShiftUp_EmitsUpArrowWithShift()
     {
-        var parser = new EscapeSequenceParser { KittyKeyboardActive = true };
+        var parser = new EscapeSequenceParser { KittyReportAllKeysVisible = true };
         var events = FeedString(parser, "\x1b[1;2A");
         Assert.Single(events);
         var press = Assert.IsType<KeyPressed>(events[0]);
@@ -135,7 +135,7 @@ public class EscapeSequenceParserKittyTests
     [Fact]
     public void SecondForm_CtrlDown_EmitsDownArrowWithControl()
     {
-        var parser = new EscapeSequenceParser { KittyKeyboardActive = true };
+        var parser = new EscapeSequenceParser { KittyReportAllKeysVisible = true };
         var events = FeedString(parser, "\x1b[1;5B");
         Assert.Single(events);
         var press = Assert.IsType<KeyPressed>(events[0]);
@@ -147,7 +147,7 @@ public class EscapeSequenceParserKittyTests
     public void SecondForm_AltShiftCtrl_AllModifiersCombined()
     {
         // 1 + shift(1) + alt(2) + ctrl(4) = 8
-        var parser = new EscapeSequenceParser { KittyKeyboardActive = true };
+        var parser = new EscapeSequenceParser { KittyReportAllKeysVisible = true };
         var events = FeedString(parser, "\x1b[1;8A");
         Assert.Single(events);
         var press = Assert.IsType<KeyPressed>(events[0]);
@@ -161,7 +161,7 @@ public class EscapeSequenceParserKittyTests
     public void SecondForm_ReleaseEvent_IsSwallowed()
     {
         // CSI 1;<mods>:3 X  — event type 3 = release
-        var parser = new EscapeSequenceParser { KittyKeyboardActive = true };
+        var parser = new EscapeSequenceParser { KittyReportAllKeysVisible = true };
         var events = FeedString(parser, "\x1b[1;1:3A");
         Assert.Empty(events);
     }
@@ -169,7 +169,7 @@ public class EscapeSequenceParserKittyTests
     [Fact]
     public void SecondForm_RepeatEvent_IsSwallowed()
     {
-        var parser = new EscapeSequenceParser { KittyKeyboardActive = true };
+        var parser = new EscapeSequenceParser { KittyReportAllKeysVisible = true };
         var events = FeedString(parser, "\x1b[1;1:2A");
         Assert.Empty(events);
     }
@@ -177,7 +177,7 @@ public class EscapeSequenceParserKittyTests
     [Fact]
     public void SecondForm_ExplicitPressEvent_IsEmitted()
     {
-        var parser = new EscapeSequenceParser { KittyKeyboardActive = true };
+        var parser = new EscapeSequenceParser { KittyReportAllKeysVisible = true };
         var events = FeedString(parser, "\x1b[1;1:1A");
         Assert.Single(events);
         var press = Assert.IsType<KeyPressed>(events[0]);
@@ -189,7 +189,7 @@ public class EscapeSequenceParserKittyTests
     [Fact]
     public void CsiU_PuaUpArrow_NoMods_EmitsUpArrow()
     {
-        var parser = new EscapeSequenceParser { KittyKeyboardActive = true };
+        var parser = new EscapeSequenceParser { KittyReportAllKeysVisible = true };
         var events = FeedString(parser, "\x1b[57352u");
         Assert.Single(events);
         var press = Assert.IsType<KeyPressed>(events[0]);
@@ -199,7 +199,7 @@ public class EscapeSequenceParserKittyTests
     [Fact]
     public void CsiU_PuaUpArrow_WithShift_EmitsUpArrowShift()
     {
-        var parser = new EscapeSequenceParser { KittyKeyboardActive = true };
+        var parser = new EscapeSequenceParser { KittyReportAllKeysVisible = true };
         var events = FeedString(parser, "\x1b[57352;2u");
         Assert.Single(events);
         var press = Assert.IsType<KeyPressed>(events[0]);
@@ -210,7 +210,7 @@ public class EscapeSequenceParserKittyTests
     [Fact]
     public void CsiU_PuaF5_EmitsF5()
     {
-        var parser = new EscapeSequenceParser { KittyKeyboardActive = true };
+        var parser = new EscapeSequenceParser { KittyReportAllKeysVisible = true };
         var events = FeedString(parser, "\x1b[57368u"); // 57364 + 4 = F5
         Assert.Single(events);
         var press = Assert.IsType<KeyPressed>(events[0]);
@@ -221,7 +221,7 @@ public class EscapeSequenceParserKittyTests
     public void CsiU_PuaModifierAlone_LeftShift_IsSwallowed()
     {
         // Kitty emits 57441 for the Left Shift key when report_all_keys is on.
-        var parser = new EscapeSequenceParser { KittyKeyboardActive = true };
+        var parser = new EscapeSequenceParser { KittyReportAllKeysVisible = true };
         var events = FeedString(parser, "\x1b[57441u");
         Assert.Empty(events);
     }
@@ -229,7 +229,7 @@ public class EscapeSequenceParserKittyTests
     [Fact]
     public void CsiU_PuaModifierAlone_RightControl_IsSwallowed()
     {
-        var parser = new EscapeSequenceParser { KittyKeyboardActive = true };
+        var parser = new EscapeSequenceParser { KittyReportAllKeysVisible = true };
         var events = FeedString(parser, "\x1b[57448u");
         Assert.Empty(events);
     }
@@ -239,7 +239,7 @@ public class EscapeSequenceParserKittyTests
     {
         // 57441 release with event type 3 — exercises both the modifier-alone and
         // release-event swallowing paths.
-        var parser = new EscapeSequenceParser { KittyKeyboardActive = true };
+        var parser = new EscapeSequenceParser { KittyReportAllKeysVisible = true };
         var events = FeedString(parser, "\x1b[57441;1:3u");
         Assert.Empty(events);
     }
@@ -248,7 +248,7 @@ public class EscapeSequenceParserKittyTests
     public void CsiU_AsciiKey_ReleaseEvent_IsSwallowed()
     {
         // CSI 97;1:3 u → 'a' release. Should NOT emit.
-        var parser = new EscapeSequenceParser { KittyKeyboardActive = true };
+        var parser = new EscapeSequenceParser { KittyReportAllKeysVisible = true };
         var events = FeedString(parser, "\x1b[97;1:3u");
         Assert.Empty(events);
     }
@@ -257,7 +257,7 @@ public class EscapeSequenceParserKittyTests
     public void CsiU_AsciiKey_WithTextSubfield_IsParsed()
     {
         // CSI 97;2;65 u → 'A' (shift+a, associated text 65='A').
-        var parser = new EscapeSequenceParser { KittyKeyboardActive = true };
+        var parser = new EscapeSequenceParser { KittyReportAllKeysVisible = true };
         var events = FeedString(parser, "\x1b[97;2;65u");
         Assert.Single(events);
         var press = Assert.IsType<KeyPressed>(events[0]);
@@ -270,7 +270,7 @@ public class EscapeSequenceParserKittyTests
     [Fact]
     public void ExistingBehavior_BareCsiB_KittyInactive_StillEmitsScrollDown()
     {
-        var parser = new EscapeSequenceParser { KittyKeyboardActive = false };
+        var parser = new EscapeSequenceParser { KittyReportAllKeysVisible = false };
         var events = FeedString(parser, "\x1b[B");
         var scroll = Assert.IsType<MouseScrollEvent>(events[0]);
         Assert.Equal(-1, scroll.Delta);

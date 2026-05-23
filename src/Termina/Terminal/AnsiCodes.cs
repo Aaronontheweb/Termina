@@ -232,13 +232,10 @@ public static class AnsiCodes
     // Supported by: kitty, WezTerm, Ghostty, Alacritty, foot, and others.
 
     /// <summary>
-    /// Push kitty keyboard protocol flags onto the terminal's flag stack.
+    /// Build a kitty keyboard protocol flag-push sequence.
     /// Format: CSI &gt; flags u
-    /// Flag 1 = "disambiguate escape codes" — makes Ctrl+Enter, Shift+Enter, etc.
-    /// send distinct CSI u sequences (e.g. <c>ESC[13;5u</c> for Ctrl+Enter).
-    /// See <see href="https://sw.kovidgoyal.net/kitty/keyboard-protocol/"/> for the full specification.
     /// </summary>
-    public const string EnableKittyKeyboard = $"{Csi}>1u";
+    public static string EnableKittyKeyboard(int flags) => $"{Csi}>{flags}u";
 
     /// <summary>
     /// Pop the kitty keyboard protocol flag stack, restoring the terminal's

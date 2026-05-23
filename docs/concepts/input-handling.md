@@ -332,7 +332,7 @@ Input.OfType<ResizeEvent>()
 
 ## Mouse Wheel Scrolling
 
-Mouse wheel events are detected via SGR mouse escape sequences and emitted as `MouseScrollEvent`:
+By default, mouse wheel events are detected via SGR mouse escape sequences and emitted as `MouseScrollEvent`:
 
 ```csharp
 Input.OfType<MouseScrollEvent>()
@@ -350,6 +350,18 @@ Input.OfType<MouseScrollEvent>()
 ::: tip Automatic Routing
 If the focused component implements `IScrollable` (like `StreamingTextNode`), mouse scroll events are routed directly to it — each tick scrolls 3 lines. The event only reaches `ViewModel.Input` if no `IScrollable` component has focus.
 :::
+
+### Alternate-Scroll Mode
+
+Apps that want to preserve native terminal selection can opt into raw input plus alternate-scroll mode via `ConfigureRuntime()`.
+
+In that configuration:
+
+- wheel ticks arrive through the terminal's alternate-scroll path
+- arrow keys remain keyboard input
+- kitty keyboard reporting can further improve disambiguation on supported terminals
+
+See [Terminal Input Modes](/concepts/terminal-input-modes) for the supported configuration and fallback behavior.
 
 ## Paste Events
 

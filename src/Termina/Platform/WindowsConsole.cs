@@ -217,8 +217,6 @@ public sealed class WindowsConsole : IPlatformConsole
 
     private CancellationTokenSource? _stopCts;
     private Thread? _readerThread;
-    private bool _kittyKeyboardActive;
-
     /// <summary>
     /// Create a Windows console. <paramref name="rawVtMode"/> opts into the raw-byte input path
     /// that matches the Unix pipeline (required for <c>?1007h</c> wheel events and the kitty
@@ -250,7 +248,7 @@ public sealed class WindowsConsole : IPlatformConsole
     public Observable<ConsoleResizeEvent> Resized => _resized;
 
     /// <inheritdoc />
-    public TerminalCapabilities Capabilities => new(KittyKeyboardActive: _kittyKeyboardActive);
+    public TerminalCapabilities Capabilities => new(RawInputActive: _rawVtMode);
 
     /// <inheritdoc />
     public void Initialize()
@@ -417,8 +415,6 @@ public sealed class WindowsConsole : IPlatformConsole
 
         if (_rawVtMode)
         {
-            _kittyKeyboardActive = KittyKeyboardEnhancement.TryEnter(this);
-
             _stopCts = new CancellationTokenSource();
             _readerThread = new Thread(RawByteReaderLoop)
             {
@@ -459,12 +455,6 @@ public sealed class WindowsConsole : IPlatformConsole
             }
             catch { /* ignore */ }
             try { _readerThread?.Join(TimeSpan.FromMilliseconds(250)); } catch { /* ignore */ }
-
-            if (_kittyKeyboardActive)
-            {
-                KittyKeyboardEnhancement.TryLeave();
-                _kittyKeyboardActive = false;
-            }
 
             if (!_restoredInputCp)
             {

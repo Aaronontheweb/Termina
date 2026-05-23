@@ -41,6 +41,7 @@ public sealed class TerminaApplication
 {
     private readonly IAnsiTerminal _terminal;
     private readonly DiffingTerminal? _diffingTerminal;
+    private readonly TerminaRuntimeOptions _runtimeOptions;
     private readonly IServiceProvider? _serviceProvider;
     private readonly Channel<object> _eventChannel;
     private readonly Subject<IInputEvent> _inputSubject = new();
@@ -62,13 +63,39 @@ public sealed class TerminaApplication
     private CancellationTokenSource? _shutdownCts;
     private DateTime? _firstCtrlCAt;
     private static readonly TimeSpan CtrlCDoublePressWindow = TimeSpan.FromSeconds(2);
+    private bool _rawInputActive;
+    private bool _kittyKeyboardPushed;
+    private bool _wheelScrollEnabledByApp;
+
+    /// <summary>
+    /// Creates a new Termina application.
+    /// </summary>
+    /// <param name="terminal">The ANSI terminal for rendering.</param>
+    public TerminaApplication(IAnsiTerminal terminal)
+        : this(terminal, runtimeOptions: null, serviceProvider: null)
+    {
+    }
 
     /// <summary>
     /// Creates a new Termina application.
     /// </summary>
     /// <param name="terminal">The ANSI terminal for rendering.</param>
     /// <param name="serviceProvider">Optional service provider for resolving ViewModels and input sources.</param>
-    public TerminaApplication(IAnsiTerminal terminal, IServiceProvider? serviceProvider = null)
+    public TerminaApplication(IAnsiTerminal terminal, IServiceProvider? serviceProvider)
+        : this(terminal, runtimeOptions: null, serviceProvider: serviceProvider)
+    {
+    }
+
+    /// <summary>
+    /// Creates a new Termina application.
+    /// </summary>
+    /// <param name="terminal">The ANSI terminal for rendering.</param>
+    /// <param name="runtimeOptions">Runtime terminal/input options.</param>
+    /// <param name="serviceProvider">Optional service provider for resolving ViewModels and input sources.</param>
+    public TerminaApplication(
+        IAnsiTerminal terminal,
+        TerminaRuntimeOptions? runtimeOptions = null,
+        IServiceProvider? serviceProvider = null)
     {
         ObservableSystem.RegisterUnhandledExceptionHandler(ex =>
         {
@@ -94,6 +121,7 @@ public sealed class TerminaApplication
             _terminal = _diffingTerminal;
         }
 
+        _runtimeOptions = runtimeOptions ?? new TerminaRuntimeOptions();
         _serviceProvider = serviceProvider;
         _eventChannel = Channel.CreateUnbounded<object>();
         _toastService = serviceProvider?.GetService<IToastService>();
@@ -384,9 +412,16 @@ public sealed class TerminaApplication
         if (_inputSources.Count == 0)
         {
             // Use platform-specific console for event-driven input (no polling on Windows)
-            platformConsole = PlatformConsoleFactory.Create();
+            platformConsole = PlatformConsoleFactory.Create(_runtimeOptions);
             platformConsole.Initialize();
-            _inputSources.Add(new PlatformInputSource(platformConsole));
+            _rawInputActive = platformConsole.Capabilities.RawInputActive;
+
+            var kittyFlags = GetKittyKeyboardFlags();
+            var kittyReportAllKeysVisible = _rawInputActive && (kittyFlags & 8) != 0;
+
+            _inputSources.Add(new PlatformInputSource(
+                platformConsole,
+                new PlatformInputConfiguration(_rawInputActive, kittyReportAllKeysVisible)));
             TerminaTrace.Input.Debug(this, "Added PlatformInputSource");
         }
 
@@ -413,32 +448,35 @@ public sealed class TerminaApplication
             _terminal.Flush();
             TerminaTrace.Render.Debug(this, "Entered alternate screen, cursor hidden, flushed");
 
-            // Enable bracketed paste mode and wheel-only scrolling. We use the terminal's
-            // alternate-scroll mode (CSI ?1007h) rather than SGR mouse tracking so that
-            // mouse-wheel events arrive as cursor up/down keypresses while the host terminal
-            // continues to own click-drag selection, triple-click word selection, and OS
-            // clipboard integration. Apps that need full mouse capture (clicks, drags) can
-            // still call IAnsiTerminal.EnableMouse() explicitly.
+            var inTmux = Environment.GetEnvironmentVariable("TMUX") is not null;
             Console.Write(AnsiCodes.EnableBracketedPaste);
-
-            // Enable kitty keyboard protocol (flag 1 = disambiguate escape codes) so that
-            // Ctrl+Enter, Shift+Enter, etc. produce distinct CSI u escape sequences.
-            // Without this, Ctrl+Enter is indistinguishable from bare Enter on Linux terminals.
-            // See: https://sw.kovidgoyal.net/kitty/keyboard-protocol/
-            Console.Write(AnsiCodes.EnableKittyKeyboard);
 
             // When running inside tmux, the inner-pane ESC[?2004h above is intercepted by tmux
             // and never reaches the outer terminal. The outer terminal therefore does not know
             // to wrap Ctrl+Shift+V pastes with ESC[200~...ESC[201~. Use a DCS passthrough to
             // also enable bracketed paste in the outer terminal.
             // Requires: set -g allow-passthrough on  in ~/.tmux.conf (tmux 3.3+).
-            if (Environment.GetEnvironmentVariable("TMUX") is not null)
+            if (inTmux)
             {
                 Console.Write(AnsiCodes.TmuxPassthrough(AnsiCodes.EnableBracketedPaste));
-                Console.Write(AnsiCodes.TmuxPassthrough(AnsiCodes.EnableKittyKeyboard));
             }
 
-            _terminal.EnableWheelScroll();
+            var kittyFlags = GetKittyKeyboardFlags();
+            _kittyKeyboardPushed = KittyKeyboardEnhancement.TryEnter(this, kittyFlags, inTmux);
+
+            if (_runtimeOptions.ScrollInputMode == ScrollInputMode.AlternateScroll && _rawInputActive)
+            {
+                // Alternate-scroll preserves native selection/clipboard behavior but only works
+                // correctly when the input parser sees raw byte sequences.
+                _terminal.EnableWheelScroll();
+                _wheelScrollEnabledByApp = true;
+            }
+            else
+            {
+                _terminal.EnableMouse();
+                _wheelScrollEnabledByApp = false;
+            }
+
             _terminal.Flush();
 
             // Initial render
@@ -461,20 +499,26 @@ public sealed class TerminaApplication
         }
         finally
         {
+            var inTmux = Environment.GetEnvironmentVariable("TMUX") is not null;
+
             // Disable bracketed paste and kitty keyboard protocol before restoring terminal
-            Console.Write(AnsiCodes.DisableKittyKeyboard);
-            Console.Write(AnsiCodes.DisableBracketedPaste);
-            if (Environment.GetEnvironmentVariable("TMUX") is not null)
+            if (_kittyKeyboardPushed)
             {
-                Console.Write(AnsiCodes.TmuxPassthrough(AnsiCodes.DisableKittyKeyboard));
+                KittyKeyboardEnhancement.TryLeave(inTmux);
+                _kittyKeyboardPushed = false;
+            }
+
+            Console.Write(AnsiCodes.DisableBracketedPaste);
+            if (inTmux)
+            {
                 Console.Write(AnsiCodes.TmuxPassthrough(AnsiCodes.DisableBracketedPaste));
             }
 
-            // Restore terminal state fully to avoid artifacts.
-            // DisableWheelScroll() emits CSI ?1007l; DisableMouse() is a no-op unless an
-            // app explicitly opted into full mouse capture.
-            _terminal.DisableWheelScroll();
-            _terminal.DisableMouse();
+            if (_wheelScrollEnabledByApp)
+                _terminal.DisableWheelScroll();
+            else
+                _terminal.DisableMouse();
+
             _terminal.SetCursorVisible(true);
             _terminal.ResetColors();
             _terminal.ExitAlternateScreen();
@@ -514,15 +558,10 @@ public sealed class TerminaApplication
         TerminaTrace.Input.Trace(this, "ProcessEvent: {0}", evt.GetType().Name);
 
         // Framework-level Ctrl+C handling: first press shows a hint, second press
-        // within CtrlCDoublePressWindow shuts the app down. This sits above page /
-        // focus handling so users can always get out, even from a focus-trapping
-        // input control. Under cfmakeraw (UnixConsole) Ctrl+C arrives as a normal
-        // KeyPressed event because ISIG is cleared. On Windows in raw-VT mode
-        // (WindowsConsole opt-in via TERMINA_RAW_INPUT) ENABLE_PROCESSED_INPUT is
-        // cleared for the same reason and Ctrl+C arrives in-band as well. In
-        // Windows record mode the .NET Console.ReadKey path also surfaces Ctrl+C
-        // as a KeyPressed(Key=C, Control), so this handler runs uniformly.
-        if (evt is KeyPressed ctrlC
+        // within CtrlCDoublePressWindow shuts the app down. We scope this to raw-input
+        // mode by default so regular Console.ReadKey apps keep their existing behavior.
+        if (ShouldInterceptCtrlC()
+            && evt is KeyPressed ctrlC
             && ctrlC.KeyInfo.Key == ConsoleKey.C
             && ctrlC.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Control))
         {
@@ -541,6 +580,13 @@ public sealed class TerminaApplication
                 new ToastOptions(Duration: CtrlCDoublePressWindow, Position: ToastPosition.BottomCenter));
             RequestRedraw();
             return;
+        }
+
+        if (evt is KeyPressed keyPressedEvent
+            && !(keyPressedEvent.KeyInfo.Key == ConsoleKey.C
+                 && keyPressedEvent.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Control)))
+        {
+            _firstCtrlCAt = null;
         }
 
         // Handle system events
@@ -656,6 +702,16 @@ public sealed class TerminaApplication
         }
         return null;
     }
+
+    private int GetKittyKeyboardFlags() => (int)_runtimeOptions.KittyKeyboardMode;
+
+    private bool ShouldInterceptCtrlC() => _runtimeOptions.CtrlCHandlingMode switch
+    {
+        CtrlCHandlingMode.Disabled => false,
+        CtrlCHandlingMode.DoublePressWhenRawInput => _rawInputActive,
+        CtrlCHandlingMode.DoublePressAlways => true,
+        _ => false,
+    };
 
     /// <summary>
     /// Renders the current page directly to the terminal.
