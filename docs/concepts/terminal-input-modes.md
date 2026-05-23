@@ -111,11 +111,13 @@ If the app runs inside tmux, Termina forwards bracketed-paste and kitty setup se
 
 Enable this in tmux:
 
-```tmux
+```bash
 set -g allow-passthrough on
 ```
 
 Without that setting, tmux silently drops the forwarded setup sequences.
+
+See [tmux Configuration](/concepts/tmux-configuration) for complete setup instructions, mouse mode considerations, and troubleshooting.
 
 ## Terminal Support Expectations
 
