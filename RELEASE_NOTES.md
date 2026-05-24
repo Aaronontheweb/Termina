@@ -1,3 +1,27 @@
+#### 0.10.1 May 24th 2026 ####
+
+**Bug Fixes** — `StreamingTextNode` thread-safety and disposal hardening:
+
+- **`RebuildBuffer` correctly inserts a newline before block segments after `Clear()`** ([#224](https://github.com/Aaronontheweb/termina/pull/224))
+  - Pre-fix, after `Clear()` reset `HasContentOnCurrentLine`, the first re-added block segment skipped its leading newline during rebuild, causing block content to collide with prior content on the same line.
+  - Moves the block-newline check inline, evaluated *after* prior elements are re-appended so the buffer state reflects the in-progress reconstruction.
+
+- **Animation callbacks now hold `_contentLock`** ([#225](https://github.com/Aaronontheweb/termina/pull/225))
+  - Animation `Invalidated` callbacks from `IAnimatedTextSegment` (e.g. `SpinnerSegment` on the R3 timer thread) previously called `RebuildBuffer` without locking, racing with public mutators (`Append`/`AppendTracked`/`Remove`/`Replace`/`Clear`/`Dispose`) that all hold the lock. Symptoms ranged from `InvalidOperationException` ("Collection was modified") on the `foreach` inside `RebuildBuffer` to torn buffer state and `ObjectDisposedException` if `Dispose()` ran while a callback was queued behind the lock.
+  - Funnels both callback sites through a single `OnAnimationInvalidated()` helper that takes `_contentLock`, checks a new volatile `_disposed` flag, then runs `RebuildBuffer` + notification safely.
+  - `Dispose()` is now idempotent and sets `_disposed = true` first so in-flight callbacks bail before touching `_invalidated`.
+
+- **`NotifyChanged` hardened against post-Dispose race** ([#227](https://github.com/Aaronontheweb/termina/pull/227))
+  - Every public mutator released `_contentLock` before calling `NotifyChanged()`, so a racing `Dispose()` could complete `_invalidated.OnCompleted()/Dispose()` in the gap and the mutator's `OnNext` would throw `ObjectDisposedException`. Same shape applied to deliberate use-after-dispose calls.
+  - `NotifyChanged` now reads `_disposed` and try/catches `ObjectDisposedException`. `OnAnimationInvalidated` routes through `NotifyChanged` so the animation path inherits the same hardening.
+
+**Test improvements** ([#226](https://github.com/Aaronontheweb/termina/pull/226)):
+
+- Restructured the `Replace` thread-safety stress test so the ticker always fires on a live, permanently-tracked spinner (was mostly hitting an already-disposed segment after each `Replace`).
+- Added a reflection-based test that directly exercises the `_disposed` belt-and-suspenders guard inside `OnAnimationInvalidated` (the original `AfterDispose` test was passing for the wrong reason because subscription teardown was hiding the in-flight-callback path).
+
+---
+
 #### 0.10.0 May 24th 2026 ####
 
 **New Features**:
