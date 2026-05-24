@@ -287,6 +287,79 @@ public class StreamingTextNodeThreadSafetyTests
     }
 
     /// <summary>
+    /// Public mutators must not throw when called after <see cref="StreamingTextNode.Dispose"/>.
+    /// Pre-fix, every mutator ended with <c>NotifyChanged()</c> → <c>_invalidated.OnNext(...)</c>
+    /// with no disposed check, which threw <see cref="ObjectDisposedException"/> from R3's
+    /// <c>Subject&lt;T&gt;.OnNext</c> on the disposed Subject. The race window: a mutator on
+    /// thread A releases <c>_contentLock</c> before calling NotifyChanged; thread B's
+    /// <c>Dispose()</c> can run the OnCompleted/Dispose on <c>_invalidated</c> in that gap.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(PublicMutatorActions))]
+    public void PublicMutator_AfterDispose_DoesNotThrow(string name, Action<StreamingTextNode> mutate)
+    {
+        _ = name; // theory parameter for clearer test names
+        var node = StreamingTextNode.Create();
+        node.Dispose();
+
+        var ex = Record.Exception(() => mutate(node));
+        Assert.Null(ex);
+    }
+
+    public static IEnumerable<object[]> PublicMutatorActions()
+    {
+        yield return ["Append(string)", new Action<StreamingTextNode>(n => n.Append("x"))];
+        yield return ["Append(string, color)", new Action<StreamingTextNode>(n => n.Append("x", Color.Red))];
+        yield return ["Append(StyledSegment)", new Action<StreamingTextNode>(n => n.Append(new StyledSegment("x", TextStyle.Default)))];
+        yield return ["AppendLine(string)", new Action<StreamingTextNode>(n => n.AppendLine("x"))];
+        yield return ["AppendLine(string, color)", new Action<StreamingTextNode>(n => n.AppendLine("x", Color.Red))];
+        yield return ["AppendTracked", new Action<StreamingTextNode>(n => n.AppendTracked(new SegmentId(42), new StaticTextSegment("x", TextStyle.Default)))];
+        yield return ["Remove", new Action<StreamingTextNode>(n => n.Remove(new SegmentId(42)))];
+        yield return ["Replace", new Action<StreamingTextNode>(n => n.Replace(new SegmentId(42), new StaticTextSegment("y", TextStyle.Default)))];
+        yield return ["Clear", new Action<StreamingTextNode>(n => n.Clear())];
+        yield return ["ScrollUp", new Action<StreamingTextNode>(n => n.ScrollUp())];
+        yield return ["ScrollDown", new Action<StreamingTextNode>(n => n.ScrollDown())];
+        yield return ["ScrollToBottom", new Action<StreamingTextNode>(n => n.ScrollToBottom())];
+    }
+
+    /// <summary>
+    /// Stress test: <c>StreamingTextNode.Append</c> hammered on a background thread
+    /// while the main thread disposes the node. The fix in <c>NotifyChanged</c> must
+    /// prevent <see cref="ObjectDisposedException"/> from leaking out of the in-flight
+    /// mutator after Dispose() has completed <c>_invalidated.Dispose()</c>.
+    /// </summary>
+    [Fact]
+    public async Task Append_ConcurrentWithDispose_DoesNotThrow()
+    {
+        var node = StreamingTextNode.Create();
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(250));
+        Exception? appenderException = null;
+
+        var appender = Task.Run(() =>
+        {
+            try
+            {
+                while (!cts.IsCancellationRequested)
+                {
+                    node.Append("x");
+                }
+            }
+            catch (Exception ex)
+            {
+                appenderException = ex;
+            }
+        });
+
+        // Give the appender a head start, then dispose mid-flight to exercise the race.
+        await Task.Delay(50);
+        node.Dispose();
+        await appender;
+
+        Assert.Null(appenderException);
+    }
+
+    /// <summary>
     /// Test-only <see cref="IAnimatedTextSegment"/> whose invalidation is driven by
     /// the test (not a timer), so race tests can fire on a background thread with
     /// no scheduler dependency.

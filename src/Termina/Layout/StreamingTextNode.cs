@@ -369,11 +369,12 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode, IScrollab
                 return;
 
             RebuildBuffer();
-            // Fire under the lock: _disposed is guaranteed false here, so _invalidated
-            // is still alive. Subscribers should be lightweight (queue a render) — if a
-            // subscriber re-enters one of this node's public methods on the same thread,
-            // the lock is reentrant and behaves correctly.
-            _invalidated.OnNext(Unit.Default);
+            // Route through NotifyChanged so the animation path inherits the same
+            // disposal-race hardening (and so any future cross-cutting hooks at
+            // NotifyChanged also see animation invalidations). NotifyChanged's
+            // disposed re-check is redundant here (we just checked it 3 lines up
+            // while holding the lock) but is cheap.
+            NotifyChanged();
         }
     }
 
@@ -540,7 +541,23 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode, IScrollab
 
     private void NotifyChanged()
     {
-        _invalidated.OnNext(Unit.Default);
+        // Fast bail when the node has been disposed. Public mutators release _contentLock
+        // before calling NotifyChanged, so Dispose() can race with us — between the
+        // _disposed-write inside Dispose's lock and our OnNext below, Dispose can also
+        // run _invalidated.OnCompleted()/Dispose() (which happen outside the lock).
+        // Without this guard, R3.Subject<T>.OnNext throws ObjectDisposedException on a
+        // disposed Subject (verified empirically). The try/catch handles the narrow
+        // window where _disposed reads as false but the Subject is disposed before
+        // OnNext returns — also harmless because a disposed node has no live observers.
+        if (_disposed) return;
+        try
+        {
+            _invalidated.OnNext(Unit.Default);
+        }
+        catch (ObjectDisposedException)
+        {
+            // Lost the disposal race — expected.
+        }
     }
 
     /// <summary>
