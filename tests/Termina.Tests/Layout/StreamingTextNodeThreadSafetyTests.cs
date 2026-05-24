@@ -1,6 +1,7 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
+using System.Reflection;
 using R3;
 using Termina.Components.Streaming;
 using Termina.Layout;
@@ -143,33 +144,40 @@ public class StreamingTextNodeThreadSafetyTests
     }
 
     /// <summary>
-    /// Stress test: Replace swaps the animation subscription while the old segment
-    /// might still be firing on a different thread. The lock + subscription disposal
-    /// must coordinate cleanly.
+    /// Stress test: <see cref="StreamingTextNode.Replace"/> mutates a tracked element
+    /// concurrently with animation invalidations firing on a SEPARATE, permanently-tracked
+    /// spinner. The ticker thread is always firing on a live subscription, so its
+    /// <c>OnAnimationInvalidated</c> race-condition target is real — it competes with
+    /// Replace for <c>_contentLock</c> while Replace disposes the old element, mutates
+    /// <c>_content</c>, and rebuilds the buffer.
     /// </summary>
     [Fact]
     public async Task AnimationInvalidation_ConcurrentWithReplace_DoesNotThrow()
     {
         var node = StreamingTextNode.Create();
-        var id = new SegmentId(1);
-        var initial = new ControllableAnimatedSegment();
-        node.AppendTracked(id, initial);
+        var tickerSpinnerId = new SegmentId(1);
+        var replaceTargetId = new SegmentId(2);
+
+        // Permanently-tracked spinner: the ticker thread always fires on this live
+        // subscription, so OnAnimationInvalidated is always reachable.
+        var tickerSpinner = new ControllableAnimatedSegment();
+        node.AppendTracked(tickerSpinnerId, tickerSpinner);
+
+        // Separate tracked element that Replace swaps repeatedly. The ticker doesn't
+        // touch this element; it just exists to exercise Replace's mutation path.
+        node.AppendTracked(replaceTargetId, new StaticTextSegment("initial", TextStyle.Default));
 
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
         Exception? tickerException = null;
-        var current = initial;
 
         var ticker = Task.Run(() =>
         {
             try
             {
+                var i = 0;
                 while (!cts.IsCancellationRequested)
                 {
-                    // Volatile-ish read: the test only needs to call a live segment's
-                    // OnNext. Even if `current` is replaced mid-call, the old segment's
-                    // disposed-state guard makes TriggerInvalidation safe.
-                    var snapshot = Volatile.Read(ref current!);
-                    snapshot.TriggerInvalidation("frame");
+                    tickerSpinner.TriggerInvalidation("frame" + (++i));
                 }
             }
             catch (Exception ex)
@@ -181,14 +189,12 @@ public class StreamingTextNodeThreadSafetyTests
         Exception? mainException = null;
         try
         {
+            var i = 0;
             while (!cts.IsCancellationRequested)
             {
-                var next = new ControllableAnimatedSegment();
-                node.Replace(id, next);
-                var old = Interlocked.Exchange(ref current!, next);
-                // The old segment is now disposed by Replace; ticker reads from `current`
-                // and won't touch it again.
-                _ = old;
+                node.Replace(
+                    replaceTargetId,
+                    new StaticTextSegment("replacement" + (++i), TextStyle.Default));
             }
         }
         catch (Exception ex)
@@ -207,14 +213,14 @@ public class StreamingTextNodeThreadSafetyTests
     }
 
     /// <summary>
-    /// After <see cref="StreamingTextNode.Dispose"/>, a late animation invalidation
-    /// must not throw and must not call OnNext on the disposed <c>_invalidated</c>
-    /// Subject. (Subscription disposal in Dispose handles the common case; the
-    /// _disposed flag in the callback is the belt-and-suspenders guard for in-flight
-    /// callbacks that already passed the subject's observer list.)
+    /// After <see cref="StreamingTextNode.Dispose"/>, a late <c>OnNext</c> on the
+    /// segment's <see cref="IAnimatedTextSegment.Invalidated"/> stream must not reach
+    /// the node's callback at all — Dispose disposes the R3 subscription, which
+    /// unhooks the observer. This covers the common case where the subscription's
+    /// disposal beats the late emission.
     /// </summary>
     [Fact]
-    public void AnimationInvalidation_AfterDispose_DoesNotThrow()
+    public void AnimationInvalidation_AfterDispose_SubscriptionDisposalUnhooksCallback()
     {
         var node = StreamingTextNode.Create();
         var spinner = new ControllableAnimatedSegment();
@@ -222,8 +228,45 @@ public class StreamingTextNodeThreadSafetyTests
 
         node.Dispose();
 
+        // The R3 subscription was disposed inside node.Dispose(), so the node's
+        // OnAnimationInvalidated is no longer on the spinner's observer list.
+        // TriggerInvalidation fires OnNext on a subject with zero relevant observers.
         var ex = Record.Exception(() => spinner.TriggerInvalidation("late"));
         Assert.Null(ex);
+
+        spinner.Dispose();
+    }
+
+    /// <summary>
+    /// Belt-and-suspenders test for the <c>_disposed</c> flag inside
+    /// <c>OnAnimationInvalidated</c>: simulates a callback that already passed the
+    /// subject's observer-list dispatch (so subscription disposal can't unhook it)
+    /// and is just about to enter the lock when <see cref="StreamingTextNode.Dispose"/>
+    /// completes. Without the <c>_disposed</c> guard, the callback would call
+    /// <c>_invalidated.OnNext</c> on the now-disposed Subject and throw
+    /// <see cref="ObjectDisposedException"/>.
+    /// Uses reflection to invoke the private callback directly because there is no
+    /// public API that lets the test schedule an in-flight observer dispatch across
+    /// the dispose boundary.
+    /// </summary>
+    [Fact]
+    public void OnAnimationInvalidated_AfterDispose_BailsOutViaDisposedFlag()
+    {
+        var node = StreamingTextNode.Create();
+        var spinner = new ControllableAnimatedSegment();
+        node.AppendTracked(new SegmentId(1), spinner);
+
+        node.Dispose();
+
+        var callback = typeof(StreamingTextNode).GetMethod(
+            "OnAnimationInvalidated",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(callback);
+
+        var ex = Record.Exception(() => callback!.Invoke(node, null));
+        // Reflection wraps target exceptions in TargetInvocationException; unwrap.
+        var inner = ex is TargetInvocationException tie ? tie.InnerException : ex;
+        Assert.Null(inner);
 
         spinner.Dispose();
     }
