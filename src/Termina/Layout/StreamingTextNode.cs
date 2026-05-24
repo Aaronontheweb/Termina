@@ -372,8 +372,15 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode, IScrollab
                     _buffer.Append(s.Segment);
                     break;
                 case TrackedElement t:
-                    // Handle block segments in rebuild
-                    EnsureBlockNewLine(t.Segment);
+                    // Block segments always start on a new line if current line has content.
+                    // We check after appending the previous element (not before), because
+                    // after Clear() the buffer is empty and EnsureBlockNewLine would skip
+                    // the newline incorrectly.
+                    if (t.Segment is BlockSegment && _buffer.HasContentOnCurrentLine)
+                    {
+                        _buffer.AppendLine(string.Empty);
+                    }
+
                     var inner = UnwrapBlock(t.Segment);
                     _buffer.Append(inner.GetCurrentSegment());
                     break;
