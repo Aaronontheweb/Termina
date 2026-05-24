@@ -1,6 +1,7 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
+using Microsoft.Extensions.Time.Testing;
 using R3;
 using Termina.Components.Streaming;
 using Termina.Layout;
@@ -128,12 +129,18 @@ public class StreamingTextNodeBlockSegmentTests
     }
 
     [Fact]
-    public async Task AppendTracked_BlockWithAnimatedSegment_UpdatesInPlace()
+    public void AppendTracked_BlockWithAnimatedSegment_UpdatesInPlace()
     {
+        // Deterministic timing via FakeTimeProvider (per CLAUDE.md convention) —
+        // no Thread.Sleep, no real timer, no async/await flakiness.
+        var timeProvider = new FakeTimeProvider();
         var node = StreamingTextNode.Create();
         node.Append("Static line");
 
-        var spinner = new SpinnerSegment(Termina.Components.Streaming.SpinnerStyle.Dots, intervalMs: 10);
+        var spinner = new SpinnerSegment(
+            Termina.Components.Streaming.SpinnerStyle.Dots,
+            intervalMs: 80,
+            timeProvider: timeProvider);
         var blockSpinner = spinner.AsBlock();
 
         var id = new SegmentId(2);
@@ -141,8 +148,8 @@ public class StreamingTextNodeBlockSegmentTests
 
         var frame1 = node.Buffer.GetAllStyledLines()[1].ToPlainText();
 
-        // Wait for animation frame
-        await spinner.Invalidated.FirstAsync().WaitAsync(TimeSpan.FromSeconds(1));
+        // Deterministically trigger the next animation frame.
+        timeProvider.Advance(TimeSpan.FromMilliseconds(80));
 
         var frame2 = node.Buffer.GetAllStyledLines()[1].ToPlainText();
 

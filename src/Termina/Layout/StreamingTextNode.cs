@@ -32,6 +32,9 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode, IScrollab
     private readonly Dictionary<SegmentId, int> _segmentIndices = new();  // ID -> index in _content
     private readonly Dictionary<SegmentId, IDisposable> _subscriptions = new();  // Animation subscriptions
     private readonly object _contentLock = new();  // Thread safety for content mutations
+    // Set inside _contentLock at the start of Dispose() so in-flight animation
+    // callbacks bail before touching the about-to-be-disposed Subject.
+    private volatile bool _disposed;
 
     // Content element types for tracking
     private abstract record ContentElement;
@@ -225,15 +228,14 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode, IScrollab
             _segmentIndices[id] = index;
             _buffer.Append(innerSegment.GetCurrentSegment());
 
-            // Subscribe to animation invalidation if this is an animated segment
+            // Subscribe to animation invalidation if this is an animated segment.
+            // The callback fires on whatever scheduler the segment's Invalidated
+            // observable uses (e.g. the R3 timer thread for SpinnerSegment), so it
+            // must take _contentLock before touching _content/_buffer to avoid
+            // racing with mutations from Append*/Remove/Replace/Clear/Dispose.
             if (innerSegment is IAnimatedTextSegment animated)
             {
-                var subscription = animated.Invalidated.Subscribe(_ =>
-                {
-                    // On animation frame change, rebuild buffer to show new frame
-                    RebuildBuffer();
-                    NotifyChanged();
-                });
+                var subscription = animated.Invalidated.Subscribe(_ => OnAnimationInvalidated());
                 _subscriptions[id] = subscription;
             }
 
@@ -318,14 +320,11 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode, IScrollab
                 // Replace with new tracked segment
                 _content[index] = new TrackedElement(id, newSegment);
 
-                // Subscribe to new animation if applicable
+                // Subscribe to new animation if applicable. See note in AppendTracked
+                // for why the callback is funneled through OnAnimationInvalidated().
                 if (newSegment is IAnimatedTextSegment animated)
                 {
-                    var subscription = animated.Invalidated.Subscribe(_ =>
-                    {
-                        RebuildBuffer();
-                        NotifyChanged();
-                    });
+                    var subscription = animated.Invalidated.Subscribe(_ => OnAnimationInvalidated());
                     _subscriptions[id] = subscription;
                 }
             }
@@ -353,6 +352,28 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode, IScrollab
             RebuildBuffer();
             NotifyChanged();
             return true;
+        }
+    }
+
+    /// <summary>
+    /// Handles an animation frame invalidation from a tracked <see cref="IAnimatedTextSegment"/>.
+    /// Rebuilds the buffer and notifies subscribers under <see cref="_contentLock"/>, bailing
+    /// out if the node has been disposed (an in-flight callback can be queued behind the lock
+    /// while <see cref="Dispose"/> runs).
+    /// </summary>
+    private void OnAnimationInvalidated()
+    {
+        lock (_contentLock)
+        {
+            if (_disposed)
+                return;
+
+            RebuildBuffer();
+            // Fire under the lock: _disposed is guaranteed false here, so _invalidated
+            // is still alive. Subscribers should be lightweight (queue a render) — if a
+            // subscriber re-enters one of this node's public methods on the same thread,
+            // the lock is reentrant and behaves correctly.
+            _invalidated.OnNext(Unit.Default);
         }
     }
 
@@ -740,6 +761,13 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode, IScrollab
     {
         lock (_contentLock)
         {
+            if (_disposed)
+                return;
+
+            // Set the flag first so any animation callback that wakes after we release
+            // the lock will see _disposed == true and bail before touching _invalidated.
+            _disposed = true;
+
             // Dispose all subscriptions
             foreach (var subscription in _subscriptions.Values)
             {
