@@ -362,6 +362,13 @@ internal sealed class EscapeSequenceParser
         if (seq.Length <= pasteStart.Length && pasteStart.StartsWith(seq, StringComparison.Ordinal))
             return true;
 
+        // Complete but unrecognized CSI tilde-terminated sequences (e.g. [5~ for PgUp,
+        // [6~ for PgDn, [3~ for Delete, [1~ for Home, [4~ for End). These are not
+        // handled by our parser — flush them as raw KeyPressed events so applications
+        // can process them rather than keeping the parser stuck in InBracketSequence.
+        if (seq.Length >= 3 && seq[^1] == '~')
+            return false;
+
         // Could be a CSI u sequence "[keycode;modifiersu" — digits, semicolons, colons, up to ~32 chars
         if (seq.Length >= 2 && seq.Length <= 32 && (char.IsDigit(seq[1]) || seq[1] == ';' || seq[1] == ':'))
             return true;
