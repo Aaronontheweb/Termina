@@ -101,6 +101,13 @@ public sealed class TextInputNode : TextInputBaseNode
 
         var inputContext = context.CreateSubContext(bounds);
 
+        if (Background.HasValue)
+        {
+            inputContext.SetBackground(Background.Value);
+            inputContext.Fill(0, 0, bounds.Width, bounds.Height, ' ');
+            inputContext.ResetColors();
+        }
+
         var prefix = CommittedDisplayPrefix;
         var prefixWidth = prefix.Length;
         var activeText = _text;
@@ -116,6 +123,8 @@ public sealed class TextInputNode : TextInputBaseNode
         if (fullDisplayText.Length == 0 && !string.IsNullOrEmpty(Placeholder))
         {
             inputContext.SetForeground(PlaceholderColor);
+            if (Background.HasValue)
+                inputContext.SetBackground(Background.Value);
             var placeholder = Placeholder.Length > bounds.Width
                 ? Placeholder[..bounds.Width]
                 : Placeholder;
