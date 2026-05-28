@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
 using System.Globalization;
+using System.Text;
 using System.Threading.Channels;
 
 namespace Termina.Diagnostics;
@@ -45,7 +46,7 @@ public sealed class FileTraceListener : ITerminaTraceListener, IAsyncDisposable,
         TerminaTraceCategory categories = TerminaTraceCategory.All,
         TerminaTraceLevel minimumLevel = TerminaTraceLevel.Debug)
     {
-        _writer = new StreamWriter(filePath, append: false) { AutoFlush = true };
+        _writer = new StreamWriter(filePath, append: false, encoding: Encoding.UTF8) { AutoFlush = true };
         _ownsWriter = true;
         _enabledCategories = categories;
         _minimumLevel = minimumLevel;
@@ -170,9 +171,9 @@ public sealed class FileTraceListener : ITerminaTraceListener, IAsyncDisposable,
         if (_disposed)
             return;
 
-        _disposed = true;
-
         // Signal completion and wait for consumer to drain
+        // NOTE: _disposed is set AFTER the drain so IsEnabled() still returns true
+        // during draining — otherwise the consumer sees disposed=true and skips all events.
         _channel.Writer.Complete();
 
         try
@@ -190,6 +191,7 @@ public sealed class FileTraceListener : ITerminaTraceListener, IAsyncDisposable,
             // Consumer task may have faulted
         }
 
+        _disposed = true;
         _cts.Cancel();
         _cts.Dispose();
 
