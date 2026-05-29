@@ -1,6 +1,7 @@
 // Copyright (c) Petabridge, LLC. All rights reserved.
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
+using Microsoft.Extensions.Time.Testing;
 using R3;
 using Termina.Components.Streaming;
 using Termina.Layout;
@@ -146,17 +147,20 @@ public class SelectionItemContentTests
     }
 
     [Fact]
-    public async Task Invalidated_EmitsOnAnimationChange()
+    public void Invalidated_EmitsOnAnimationChange()
     {
+        var timeProvider = new FakeTimeProvider();
         using var content = new SelectionItemContent()
-            .AddLine(new SpinnerSegment(Streaming.SpinnerStyle.Line, intervalMs: 10));
+            .AddLine(new SpinnerSegment(Streaming.SpinnerStyle.Line, intervalMs: 10, timeProvider: timeProvider));
 
-        // Wait for invalidation
-        await content.Invalidated
-            .FirstAsync()
-            .WaitAsync(TimeSpan.FromSeconds(1));
+        var invalidationCount = 0;
+        using var subscription = content.Invalidated.Subscribe(_ => invalidationCount++);
 
-        Assert.True(true); // Got here means invalidation was received
+        timeProvider.Advance(TimeSpan.FromMilliseconds(10));
+        Assert.Equal(1, invalidationCount);
+
+        timeProvider.Advance(TimeSpan.FromMilliseconds(10));
+        Assert.Equal(2, invalidationCount);
     }
 
     [Fact]
