@@ -465,4 +465,80 @@ public class EscapeSequenceParserTests
         var single = Assert.Single(events);
         Assert.Equal('a', ((KeyPressed)single).KeyInfo.KeyChar);
     }
+
+    // --- Unrecognized CSI tilde sequences are flushed, not buffered forever ---
+
+    [Theory]
+    [InlineData("[1~")] // Home
+    [InlineData("[3~")] // Delete
+    [InlineData("[4~")] // End
+    [InlineData("[5~")] // PgUp
+    [InlineData("[6~")] // PgDn
+    public void UnrecognizedCsiTilde_FlushesAsRawKeys_AndUnsticksParser(string seq)
+    {
+        // Regression: these complete-but-unrecognized tilde sequences have a digit second
+        // char, so the CSI-u length check used to return true and leave the parser stuck in
+        // InBracketSequence — silently swallowing all subsequent input.
+        var parser = new EscapeSequenceParser();
+        var events = new List<IInputEvent>();
+
+        events.AddRange(parser.Process(EscKey()));
+        events.AddRange(FeedString(parser, seq));
+
+        // Parser must not remain stuck buffering the bracket sequence.
+        Assert.False(parser.IsBufferingEscape);
+
+        // Flushed as raw KeyPressed events (ESC + each buffered char) rather than consumed.
+        Assert.NotEmpty(events);
+        Assert.All(events, e => Assert.IsType<KeyPressed>(e));
+    }
+
+    [Fact]
+    public void MouseWheel_AfterUnrecognizedCsiTilde_StillParses()
+    {
+        // The reported symptom: a complete-but-unrecognized [5~ (PgUp) left the parser stuck,
+        // so subsequent mouse wheel events were swallowed. After the flush fix, wheel works.
+        var parser = new EscapeSequenceParser();
+
+        parser.Process(EscKey());
+        FeedString(parser, "[5~");
+        Assert.False(parser.IsBufferingEscape);
+
+        var events = FeedSequence(parser, SgrMouseSequence(64, 5, 10));
+        var scroll = Assert.Single(events);
+        Assert.Equal(+1, Assert.IsType<MouseScrollEvent>(scroll).Delta);
+    }
+
+    [Fact]
+    public void ModifiedCsiTilde_FlushesAndUnsticksParser()
+    {
+        // e.g. [5;3~ (PgUp with a modifier) is also unrecognized and must not get stuck.
+        var parser = new EscapeSequenceParser();
+
+        parser.Process(EscKey());
+        FeedString(parser, "[5;3~");
+        Assert.False(parser.IsBufferingEscape);
+
+        // A regular key afterward is processed normally.
+        var events = parser.Process(Key('a', ConsoleKey.A));
+        Assert.Equal('a', ((KeyPressed)Assert.Single(events)).KeyInfo.KeyChar);
+    }
+
+    [Fact]
+    public void BracketedPaste_StillWorks_WithTildeFlushGuard()
+    {
+        // Guards against the tilde-flush returning false for the paste start "[200~" or end
+        // "[201~": paste must still round-trip into a single PasteEvent.
+        var parser = new EscapeSequenceParser();
+        var events = new List<IInputEvent>();
+
+        events.AddRange(parser.Process(EscKey()));
+        events.AddRange(FeedString(parser, "[200~"));
+        events.AddRange(FeedString(parser, "pasted!"));
+        events.AddRange(parser.Process(EscKey()));
+        events.AddRange(FeedString(parser, "[201~"));
+
+        var pe = Assert.IsType<PasteEvent>(Assert.Single(events));
+        Assert.Equal("pasted!", pe.Content);
+    }
 }
