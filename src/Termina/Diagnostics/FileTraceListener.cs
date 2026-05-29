@@ -34,6 +34,10 @@ public sealed class FileTraceListener : ITerminaTraceListener, IAsyncDisposable,
     private readonly TerminaTraceCategory _enabledCategories;
     private readonly TerminaTraceLevel _minimumLevel;
     private volatile bool _disposed;
+    private int _disposeStarted;
+
+    // UTF-8 encoding that does not emit a byte-order mark.
+    private static readonly Encoding Utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
 
     /// <summary>
     /// Create a file trace listener that writes to a file.
@@ -46,7 +50,9 @@ public sealed class FileTraceListener : ITerminaTraceListener, IAsyncDisposable,
         TerminaTraceCategory categories = TerminaTraceCategory.All,
         TerminaTraceLevel minimumLevel = TerminaTraceLevel.Debug)
     {
-        _writer = new StreamWriter(filePath, append: false, encoding: Encoding.UTF8) { AutoFlush = true };
+        // UTF-8 without a BOM: trace files are read by line-oriented tools (tail/grep/log
+        // shippers) that would otherwise surface the 3-byte preamble as garbage on line 1.
+        _writer = new StreamWriter(filePath, append: false, encoding: Utf8NoBom) { AutoFlush = true };
         _ownsWriter = true;
         _enabledCategories = categories;
         _minimumLevel = minimumLevel;
@@ -168,7 +174,11 @@ public sealed class FileTraceListener : ITerminaTraceListener, IAsyncDisposable,
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        if (_disposed)
+        // Single-shot guard: only the first caller proceeds. Set BEFORE doing any work so a
+        // concurrent Dispose()/DisposeAsync() can't call _channel.Writer.Complete() twice
+        // (which throws). This is separate from _disposed, which gates IsEnabled() and is
+        // deliberately set only AFTER the drain below.
+        if (Interlocked.Exchange(ref _disposeStarted, 1) != 0)
             return;
 
         // Signal completion and wait for consumer to drain
@@ -204,13 +214,13 @@ public sealed class FileTraceListener : ITerminaTraceListener, IAsyncDisposable,
     /// <inheritdoc />
     public void Dispose()
     {
-        if (_disposed)
+        // Single-shot guard (see DisposeAsync). Set before any work.
+        if (Interlocked.Exchange(ref _disposeStarted, 1) != 0)
             return;
 
-        _disposed = true;
-
+        // Complete first, then drain. As in DisposeAsync, _disposed is set AFTER the drain so
+        // the consumer keeps writing buffered events instead of skipping them via IsEnabled().
         _channel.Writer.Complete();
-        _cts.Cancel();
 
         // Synchronously wait for consumer with timeout
         try
@@ -222,6 +232,8 @@ public sealed class FileTraceListener : ITerminaTraceListener, IAsyncDisposable,
             // Ignore - best effort
         }
 
+        _disposed = true;
+        _cts.Cancel();
         _cts.Dispose();
 
         if (_ownsWriter)
