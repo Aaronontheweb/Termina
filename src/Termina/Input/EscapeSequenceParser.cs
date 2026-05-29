@@ -22,6 +22,7 @@ namespace Termina.Input;
 ///   <item><description>SGR mouse scroll down: <c>ESC[&lt;65;x;yM</c> → <see cref="MouseScrollEvent"/>(<c>-1</c>)</description></item>
 ///   <item><description>Other SGR mouse events (clicks, releases): silently consumed — prevents spurious <c>ESC</c> keypresses.</description></item>
 ///   <item><description>CSI u (kitty keyboard protocol): <c>ESC[keycode;modifiersu</c> → <see cref="KeyPressed"/> with correct modifiers.</description></item>
+///   <item><description>Legacy CSI tilde keys: <c>ESC[5~</c> / <c>ESC[5;5~</c> → <see cref="KeyPressed"/> (PgUp/PgDn/etc. with modifiers).</description></item>
 ///   <item><description>CSI arrow under xterm alternate-scroll mode: <c>ESC[A</c> / <c>ESC[B</c> → <see cref="MouseScrollEvent"/>.</description></item>
 ///   <item><description>SS3 arrow / function key: <c>ESC O A/B/C/D/H/F/P-S</c> → <see cref="KeyPressed"/> (arrows, Home/End, F1-F4).</description></item>
 ///   <item><description>Alt+Enter: <c>ESC</c> followed by <c>\r</c>/<c>\n</c> → <see cref="KeyPressed"/> with Alt modifier set.</description></item>
@@ -187,6 +188,19 @@ internal sealed class EscapeSequenceParser
                     _pendingEndSeqPos = 0;
                     _state = State.PasteBuffering;
                     TerminaTrace.Input.Debug(this, "ESP: Paste start detected → PasteBuffering");
+                    break;
+                }
+
+                // Legacy xterm/VT function-key form: ESC[<num>~ or ESC[<num>;<mods>~.
+                // Keep this after bracketed paste so ESC[200~ remains the paste sentinel.
+                if (key.KeyChar == '~'
+                    && TryParseLegacyCsiTilde(seq, out var legacyKeyEvent)
+                    && legacyKeyEvent is not null)
+                {
+                    TerminaTrace.Input.Debug(this, "ESP: legacy CSI tilde {0} → {1}", seq, legacyKeyEvent);
+                    results.Add(legacyKeyEvent);
+                    _seqBuffer.Clear();
+                    _state = State.Normal;
                     break;
                 }
 
@@ -362,10 +376,8 @@ internal sealed class EscapeSequenceParser
         if (seq.Length <= pasteStart.Length && pasteStart.StartsWith(seq, StringComparison.Ordinal))
             return true;
 
-        // Complete but unrecognized CSI tilde-terminated sequences (e.g. [5~ for PgUp,
-        // [6~ for PgDn, [3~ for Delete, [1~ for Home, [4~ for End). These are not
-        // handled by our parser — flush them as raw KeyPressed events so applications
-        // can process them rather than keeping the parser stuck in InBracketSequence.
+        // Complete but still-unrecognized CSI tilde-terminated sequences flush as raw
+        // KeyPressed events rather than keeping the parser stuck in InBracketSequence.
         if (seq.Length >= 3 && seq[^1] == '~')
             return false;
 
@@ -411,6 +423,62 @@ internal sealed class EscapeSequenceParser
         'Q' => ConsoleKey.F2,
         'R' => ConsoleKey.F3,
         'S' => ConsoleKey.F4,
+        _ => ConsoleKey.None,
+    };
+
+    /// <summary>
+    /// Attempts to parse the legacy xterm/VT tilde-terminated key form:
+    /// <c>[num~</c> or <c>[num;modifiers~</c>.
+    /// </summary>
+    private static bool TryParseLegacyCsiTilde(string seq, out KeyPressed? result)
+    {
+        result = null;
+        if (seq.Length < 3 || seq[0] != '[' || seq[^1] != '~') return false;
+
+        var inner = seq[1..^1];
+        var semicolon = inner.IndexOf(';');
+        var keyPart = semicolon < 0 ? inner : inner[..semicolon];
+        if (!int.TryParse(keyPart, out var keyCode)) return false;
+
+        var consoleKey = LegacyTildeCodeToKey(keyCode);
+        if (consoleKey == ConsoleKey.None) return false;
+
+        var modValue = 1;
+        if (semicolon >= 0)
+        {
+            var modPart = inner[(semicolon + 1)..];
+            if (!int.TryParse(modPart, out modValue) || modValue < 1) return false;
+        }
+
+        var modBits = modValue - 1;
+        var shift = (modBits & 1) != 0;
+        var alt = (modBits & 2) != 0;
+        var ctrl = (modBits & 4) != 0;
+
+        result = new KeyPressed(new ConsoleKeyInfo('\0', consoleKey, shift, alt, ctrl));
+        return true;
+    }
+
+    private static ConsoleKey LegacyTildeCodeToKey(int code) => code switch
+    {
+        1 or 7 => ConsoleKey.Home,
+        2 => ConsoleKey.Insert,
+        3 => ConsoleKey.Delete,
+        4 or 8 => ConsoleKey.End,
+        5 => ConsoleKey.PageUp,
+        6 => ConsoleKey.PageDown,
+        11 => ConsoleKey.F1,
+        12 => ConsoleKey.F2,
+        13 => ConsoleKey.F3,
+        14 => ConsoleKey.F4,
+        15 => ConsoleKey.F5,
+        17 => ConsoleKey.F6,
+        18 => ConsoleKey.F7,
+        19 => ConsoleKey.F8,
+        20 => ConsoleKey.F9,
+        21 => ConsoleKey.F10,
+        23 => ConsoleKey.F11,
+        24 => ConsoleKey.F12,
         _ => ConsoleKey.None,
     };
 
