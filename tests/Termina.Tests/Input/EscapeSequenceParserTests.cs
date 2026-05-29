@@ -466,62 +466,104 @@ public class EscapeSequenceParserTests
         Assert.Equal('a', ((KeyPressed)single).KeyInfo.KeyChar);
     }
 
-    // --- Unrecognized CSI tilde sequences are flushed, not buffered forever ---
+    // --- Legacy CSI tilde key sequences ---
 
     [Theory]
-    [InlineData("[1~")] // Home
-    [InlineData("[3~")] // Delete
-    [InlineData("[4~")] // End
-    [InlineData("[5~")] // PgUp
-    [InlineData("[6~")] // PgDn
-    public void UnrecognizedCsiTilde_FlushesAsRawKeys_AndUnsticksParser(string seq)
+    [InlineData("[1~", ConsoleKey.Home)]
+    [InlineData("[2~", ConsoleKey.Insert)]
+    [InlineData("[3~", ConsoleKey.Delete)]
+    [InlineData("[4~", ConsoleKey.End)]
+    [InlineData("[5~", ConsoleKey.PageUp)]
+    [InlineData("[6~", ConsoleKey.PageDown)]
+    [InlineData("[7~", ConsoleKey.Home)]
+    [InlineData("[8~", ConsoleKey.End)]
+    [InlineData("[11~", ConsoleKey.F1)]
+    [InlineData("[12~", ConsoleKey.F2)]
+    [InlineData("[13~", ConsoleKey.F3)]
+    [InlineData("[14~", ConsoleKey.F4)]
+    [InlineData("[15~", ConsoleKey.F5)]
+    [InlineData("[17~", ConsoleKey.F6)]
+    [InlineData("[18~", ConsoleKey.F7)]
+    [InlineData("[19~", ConsoleKey.F8)]
+    [InlineData("[20~", ConsoleKey.F9)]
+    [InlineData("[21~", ConsoleKey.F10)]
+    [InlineData("[23~", ConsoleKey.F11)]
+    [InlineData("[24~", ConsoleKey.F12)]
+    public void LegacyCsiTilde_EmitsSemanticKeyPressed(string seq, ConsoleKey expected)
     {
-        // Regression: these complete-but-unrecognized tilde sequences have a digit second
-        // char, so the CSI-u length check used to return true and leave the parser stuck in
-        // InBracketSequence — silently swallowing all subsequent input.
         var parser = new EscapeSequenceParser();
         var events = new List<IInputEvent>();
 
         events.AddRange(parser.Process(EscKey()));
         events.AddRange(FeedString(parser, seq));
 
-        // Parser must not remain stuck buffering the bracket sequence.
         Assert.False(parser.IsBufferingEscape);
 
-        // Flushed as raw KeyPressed events (ESC + each buffered char) rather than consumed.
+        var press = Assert.IsType<KeyPressed>(Assert.Single(events));
+        Assert.Equal(expected, press.KeyInfo.Key);
+        Assert.Equal('\0', press.KeyInfo.KeyChar);
+        Assert.Equal((ConsoleModifiers)0, press.KeyInfo.Modifiers);
+    }
+
+    [Theory]
+    [InlineData("[5;2~", true, false, false)]
+    [InlineData("[5;3~", false, true, false)]
+    [InlineData("[5;5~", false, false, true)]
+    [InlineData("[5;8~", true, true, true)]
+    public void LegacyCsiTilde_WithModifiers_EmitsSemanticKeyPressed(string seq, bool shift, bool alt, bool ctrl)
+    {
+        var parser = new EscapeSequenceParser();
+        var events = new List<IInputEvent>();
+
+        events.AddRange(parser.Process(EscKey()));
+        events.AddRange(FeedString(parser, seq));
+
+        Assert.False(parser.IsBufferingEscape);
+
+        var press = Assert.IsType<KeyPressed>(Assert.Single(events));
+        Assert.Equal(ConsoleKey.PageUp, press.KeyInfo.Key);
+        Assert.Equal(shift, press.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Shift));
+        Assert.Equal(alt, press.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Alt));
+        Assert.Equal(ctrl, press.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Control));
+    }
+
+    [Theory]
+    [InlineData("[9~")]
+    [InlineData("[25;5~")]
+    public void UnknownCsiTilde_FlushesAsRawKeys_AndUnsticksParser(string seq)
+    {
+        // Regression from #232: complete-but-unknown tilde sequences must not leave the parser
+        // stuck in InBracketSequence and swallowing subsequent input.
+        var parser = new EscapeSequenceParser();
+        var events = new List<IInputEvent>();
+
+        events.AddRange(parser.Process(EscKey()));
+        events.AddRange(FeedString(parser, seq));
+
+        Assert.False(parser.IsBufferingEscape);
         Assert.NotEmpty(events);
         Assert.All(events, e => Assert.IsType<KeyPressed>(e));
+        var keyChars = events.Select(e => ((KeyPressed)e).KeyInfo.KeyChar).ToArray();
+        Assert.Equal($"\x1b{seq}".ToCharArray(), keyChars);
     }
 
     [Fact]
-    public void MouseWheel_AfterUnrecognizedCsiTilde_StillParses()
+    public void MouseWheel_AfterLegacyCsiTilde_StillParses()
     {
-        // The reported symptom: a complete-but-unrecognized [5~ (PgUp) left the parser stuck,
-        // so subsequent mouse wheel events were swallowed. After the flush fix, wheel works.
+        // The reported #232 symptom: [5~ used to leave the parser stuck, causing later mouse
+        // wheel events to be swallowed. Semantic decoding must keep the parser unstuck too.
         var parser = new EscapeSequenceParser();
 
-        parser.Process(EscKey());
-        FeedString(parser, "[5~");
+        var keyEvents = new List<IInputEvent>();
+        keyEvents.AddRange(parser.Process(EscKey()));
+        keyEvents.AddRange(FeedString(parser, "[5~"));
+
         Assert.False(parser.IsBufferingEscape);
+        Assert.Equal(ConsoleKey.PageUp, Assert.IsType<KeyPressed>(Assert.Single(keyEvents)).KeyInfo.Key);
 
         var events = FeedSequence(parser, SgrMouseSequence(64, 5, 10));
         var scroll = Assert.Single(events);
         Assert.Equal(+1, Assert.IsType<MouseScrollEvent>(scroll).Delta);
-    }
-
-    [Fact]
-    public void ModifiedCsiTilde_FlushesAndUnsticksParser()
-    {
-        // e.g. [5;3~ (PgUp with a modifier) is also unrecognized and must not get stuck.
-        var parser = new EscapeSequenceParser();
-
-        parser.Process(EscKey());
-        FeedString(parser, "[5;3~");
-        Assert.False(parser.IsBufferingEscape);
-
-        // A regular key afterward is processed normally.
-        var events = parser.Process(Key('a', ConsoleKey.A));
-        Assert.Equal('a', ((KeyPressed)Assert.Single(events)).KeyInfo.KeyChar);
     }
 
     [Fact]
