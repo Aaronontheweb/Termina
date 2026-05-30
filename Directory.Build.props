@@ -10,7 +10,7 @@
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <VersionPrefix>0.10.1</VersionPrefix>
+    <VersionPrefix>0.10.2</VersionPrefix>
     <PackageReleaseNotes>**Bug Fixes** — `StreamingTextNode` thread-safety and disposal hardening:
 
 - **`RebuildBuffer` correctly inserts a newline before block segments after `Clear()`** ([#224](https://github.com/Aaronontheweb/termina/pull/224))
