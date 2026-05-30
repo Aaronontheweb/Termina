@@ -33,7 +33,7 @@ jobs:
         run: bash tests/conformance/linux/run-baseline-capture.sh "$RUNNER_TEMP/conformance-baseline"
 
       - name: Upload baseline artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: conformance-baseline
@@ -62,7 +62,7 @@ jobs:
         run: bash tests/conformance/linux/run-kitty-selection.sh "$RUNNER_TEMP/conformance-kitty"
 
       - name: Upload kitty artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: conformance-kitty
@@ -97,7 +97,7 @@ jobs:
         run: bash tests/conformance/linux/run-tmux-capture.sh "$RUNNER_TEMP/conformance-tmux-${{ matrix.tmux_mouse }}"
 
       - name: Upload tmux artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: conformance-tmux-${{ matrix.tmux_mouse }}
@@ -126,7 +126,7 @@ jobs:
         run: bash tests/conformance/linux/run-kitty-tmux-selection.sh "$RUNNER_TEMP/conformance-kitty-tmux"
 
       - name: Upload kitty+tmux artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: conformance-kitty-tmux
