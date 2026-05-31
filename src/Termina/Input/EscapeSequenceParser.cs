@@ -220,7 +220,9 @@ internal sealed class EscapeSequenceParser
                 // SGR mouse event: ESC[<button;x;yM (press) or ESC[<button;x;ym (release)
                 if (seq.Length >= 2 && seq[1] == '<' && (key.KeyChar == 'M' || key.KeyChar == 'm'))
                 {
-                    EmitMouseSgrEvent(seq, results);
+                    if (SgrMouseDecoder.TryDecode(seq, out var mouseEvent) && mouseEvent is not null)
+                        results.Add(mouseEvent);
+
                     _seqBuffer.Clear();
                     _state = State.Normal;
                     break;
@@ -653,29 +655,4 @@ internal sealed class EscapeSequenceParser
         ' ' => ConsoleKey.Spacebar,
         _ => ConsoleKey.None
     };
-
-    /// <summary>
-    /// Parses an SGR mouse sequence and appends a <see cref="MouseScrollEvent"/> to <paramref name="results"/>
-    /// when the button code indicates a scroll event (64 = up, 65 = down).
-    /// Other mouse events (clicks, releases) are silently consumed — no event is appended.
-    /// </summary>
-    /// <param name="seq">The buffered sequence string, e.g. <c>[&lt;64;5;10M</c>.</param>
-    /// <param name="results">List to append events into.</param>
-    private static void EmitMouseSgrEvent(string seq, List<IInputEvent> results)
-    {
-        // seq = "[<button;x;yM" or "[<button;x;ym"
-        // Strip leading "[<" and trailing terminator char
-        if (seq.Length < 3) return;
-        var inner = seq[2..^1]; // "button;x;y"
-        var semicolon = inner.IndexOf(';');
-        if (semicolon < 0) return;
-        if (!int.TryParse(inner[..semicolon], out var button)) return;
-
-        // SGR button 64 = wheel up, 65 = wheel down
-        if (button == 64)
-            results.Add(new MouseScrollEvent(+1));
-        else if (button == 65)
-            results.Add(new MouseScrollEvent(-1));
-        // All other buttons (clicks, releases, drags) are silently consumed
-    }
 }
