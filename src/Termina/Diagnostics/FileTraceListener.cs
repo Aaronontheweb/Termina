@@ -181,20 +181,13 @@ public sealed class FileTraceListener : ITerminaTraceListener, IAsyncDisposable,
         if (Interlocked.Exchange(ref _disposeStarted, 1) != 0)
             return;
 
-        // Signal completion and wait for consumer to drain
-        // NOTE: _disposed is set AFTER the drain so IsEnabled() still returns true
-        // during draining — otherwise the consumer sees disposed=true and skips all events.
+        // Signal completion and wait for the consumer to drain. _disposed is set AFTER the
+        // drain so IsEnabled() still returns true while buffered events are being written.
         _channel.Writer.Complete();
 
         try
         {
-            // Give consumer time to drain remaining events
-            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            await _consumerTask.WaitAsync(timeoutCts.Token).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
-        {
-            // Timeout - some events may be lost
+            await _consumerTask.ConfigureAwait(false);
         }
         catch (Exception)
         {
@@ -222,10 +215,9 @@ public sealed class FileTraceListener : ITerminaTraceListener, IAsyncDisposable,
         // the consumer keeps writing buffered events instead of skipping them via IsEnabled().
         _channel.Writer.Complete();
 
-        // Synchronously wait for consumer with timeout
         try
         {
-            _consumerTask.Wait(TimeSpan.FromSeconds(2));
+            _consumerTask.GetAwaiter().GetResult();
         }
         catch
         {
