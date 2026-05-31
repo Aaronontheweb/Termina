@@ -19,14 +19,14 @@ namespace Termina.Input;
 /// </para>
 /// <para>
 /// Escape sequences (mouse events, bracketed paste) are transparently decoded by
-/// <see cref="EscapeSequenceParser"/> before being emitted as application events.
+/// <see cref="TerminalInputPipeline"/> before being emitted as application events.
 /// This prevents terminal mouse click sequences from appearing as spurious ESC keypresses.
 /// </para>
 /// </remarks>
 public sealed class PlatformInputSource : IInputSource
 {
     private readonly IPlatformConsole _console;
-    private readonly EscapeSequenceParser _parser;
+    private readonly TerminalInputPipeline _pipeline;
     private IDisposable? _resizeSubscription;
 
     /// <summary>
@@ -37,10 +37,8 @@ public sealed class PlatformInputSource : IInputSource
     public PlatformInputSource(IPlatformConsole console, PlatformInputConfiguration configuration)
     {
         _console = console ?? throw new ArgumentNullException(nameof(console));
-        _parser = new EscapeSequenceParser
-        {
-            KittyReportAllKeysVisible = configuration.KittyReportAllKeysVisible,
-        };
+        _pipeline = new TerminalInputPipeline(
+            kittyReportAllKeysVisible: configuration.KittyReportAllKeysVisible);
     }
 
     /// <inheritdoc />
@@ -64,7 +62,7 @@ public sealed class PlatformInputSource : IInputSource
 
                 // When buffering an incomplete escape sequence, use a short timeout so a
                 // standalone ESC key (e.g., user pressing Esc) can be flushed after 50 ms.
-                if (_parser.IsBufferingEscape)
+                if (_pipeline.IsBufferingEscape)
                 {
                     inputEvent = await ReadInputWithTimeoutAsync(50, cancellationToken);
                     if (inputEvent is null)
@@ -72,7 +70,7 @@ public sealed class PlatformInputSource : IInputSource
                         if (cancellationToken.IsCancellationRequested) break;
 
                         // Timed out — check if the buffered ESC should be flushed
-                        var escEvent = _parser.CheckEscapeTimeout();
+                        var escEvent = _pipeline.CheckEscapeTimeout();
                         if (escEvent is not null)
                             await writer.WriteAsync(escEvent, cancellationToken);
                         continue;
@@ -94,7 +92,7 @@ public sealed class PlatformInputSource : IInputSource
                 {
                     case ConsoleKeyEvent keyEvent:
                         TerminaTrace.Input.Trace(this, "KeyEvent: {0}", keyEvent.KeyInfo.Key);
-                        var events = _parser.Process(keyEvent.KeyInfo);
+                        var events = _pipeline.Process(keyEvent.KeyInfo);
                         foreach (var e in events)
                         {
                             if (e is PasteEvent pe)
@@ -112,7 +110,7 @@ public sealed class PlatformInputSource : IInputSource
 
                     case ConsoleMouseEvent:
                         // Silently consume raw platform mouse events (Windows).
-                        // On Unix, mouse events arrive as SGR escape sequences handled by EscapeSequenceParser.
+                        // On Unix, mouse events arrive as SGR escape sequences handled by the input pipeline.
                         break;
                 }
             }
