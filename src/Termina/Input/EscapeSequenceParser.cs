@@ -288,7 +288,7 @@ internal sealed class EscapeSequenceParser
 
             case State.InSs3Sequence:
             {
-                // ESC O A/B/C/D → arrow keys delivered by the terminal under DECCKM (?1h).
+                // ESC O A/B/C/D -> arrow keys delivered by the terminal under DECCKM (?1h).
                 // We re-emit these as the same ConsoleKeyInfo shape Console.ReadKey used to
                 // produce for arrow keys, so existing focus/scroll handlers see no difference.
                 //
@@ -296,32 +296,11 @@ internal sealed class EscapeSequenceParser
                 // arrive via the kitty CSI-u / second-form path instead, so any remaining
                 // SS3 OA/OB at this point must be the ?1007h wheel emission under DECCKM on.
                 // (SS3 OC/OD never come from the wheel — there is no horizontal wheel.)
-                if (KittyReportAllKeysVisible && (key.KeyChar == 'A' || key.KeyChar == 'B'))
+                if (Ss3KeyboardDecoder.TryDecode(key.KeyChar, KittyReportAllKeysVisible, out var ss3Event))
                 {
-                    var delta = key.KeyChar == 'A' ? +1 : -1;
-                    TerminaTrace.Input.Debug(this, "ESP: SS3 O{0} (kitty active) → MouseScrollEvent({1})", key.KeyChar, delta);
-                    results.Add(new MouseScrollEvent(delta));
-                    _state = State.Normal;
-                    break;
-                }
-
-                var ck = key.KeyChar switch
-                {
-                    'A' => ConsoleKey.UpArrow,
-                    'B' => ConsoleKey.DownArrow,
-                    'C' => ConsoleKey.RightArrow,
-                    'D' => ConsoleKey.LeftArrow,
-                    'H' => ConsoleKey.Home,
-                    'F' => ConsoleKey.End,
-                    'P' => ConsoleKey.F1,
-                    'Q' => ConsoleKey.F2,
-                    'R' => ConsoleKey.F3,
-                    'S' => ConsoleKey.F4,
-                    _ => ConsoleKey.None,
-                };
-                if (ck != ConsoleKey.None)
-                {
-                    results.Add(new KeyPressed(new ConsoleKeyInfo('\0', ck, false, false, false)));
+                    TerminaTrace.Input.Debug(this, "ESP: SS3 O{0} → {1}", key.KeyChar, ss3Event);
+                    if (ss3Event is not null)
+                        results.Add(ss3Event);
                 }
                 else
                 {
