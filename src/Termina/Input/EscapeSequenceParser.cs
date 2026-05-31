@@ -194,7 +194,7 @@ internal sealed class EscapeSequenceParser
                 // Legacy xterm/VT function-key form: ESC[<num>~ or ESC[<num>;<mods>~.
                 // Keep this after bracketed paste so ESC[200~ remains the paste sentinel.
                 if (key.KeyChar == '~'
-                    && TryParseLegacyCsiTilde(seq, out var legacyKeyEvent)
+                    && LegacyCsiKeyboardDecoder.TryDecode(seq, out var legacyKeyEvent)
                     && legacyKeyEvent is not null)
                 {
                     TerminaTrace.Input.Debug(this, "ESP: legacy CSI tilde {0} → {1}", seq, legacyKeyEvent);
@@ -404,62 +404,6 @@ internal sealed class EscapeSequenceParser
         'Q' => ConsoleKey.F2,
         'R' => ConsoleKey.F3,
         'S' => ConsoleKey.F4,
-        _ => ConsoleKey.None,
-    };
-
-    /// <summary>
-    /// Attempts to parse the legacy xterm/VT tilde-terminated key form:
-    /// <c>[num~</c> or <c>[num;modifiers~</c>.
-    /// </summary>
-    private static bool TryParseLegacyCsiTilde(string seq, out KeyPressed? result)
-    {
-        result = null;
-        if (seq.Length < 3 || seq[0] != '[' || seq[^1] != '~') return false;
-
-        var inner = seq[1..^1];
-        var semicolon = inner.IndexOf(';');
-        var keyPart = semicolon < 0 ? inner : inner[..semicolon];
-        if (!int.TryParse(keyPart, out var keyCode)) return false;
-
-        var consoleKey = LegacyTildeCodeToKey(keyCode);
-        if (consoleKey == ConsoleKey.None) return false;
-
-        var modValue = 1;
-        if (semicolon >= 0)
-        {
-            var modPart = inner[(semicolon + 1)..];
-            if (!int.TryParse(modPart, out modValue) || modValue < 1) return false;
-        }
-
-        var modBits = modValue - 1;
-        var shift = (modBits & 1) != 0;
-        var alt = (modBits & 2) != 0;
-        var ctrl = (modBits & 4) != 0;
-
-        result = new KeyPressed(new ConsoleKeyInfo('\0', consoleKey, shift, alt, ctrl));
-        return true;
-    }
-
-    private static ConsoleKey LegacyTildeCodeToKey(int code) => code switch
-    {
-        1 or 7 => ConsoleKey.Home,
-        2 => ConsoleKey.Insert,
-        3 => ConsoleKey.Delete,
-        4 or 8 => ConsoleKey.End,
-        5 => ConsoleKey.PageUp,
-        6 => ConsoleKey.PageDown,
-        11 => ConsoleKey.F1,
-        12 => ConsoleKey.F2,
-        13 => ConsoleKey.F3,
-        14 => ConsoleKey.F4,
-        15 => ConsoleKey.F5,
-        17 => ConsoleKey.F6,
-        18 => ConsoleKey.F7,
-        19 => ConsoleKey.F8,
-        20 => ConsoleKey.F9,
-        21 => ConsoleKey.F10,
-        23 => ConsoleKey.F11,
-        24 => ConsoleKey.F12,
         _ => ConsoleKey.None,
     };
 
