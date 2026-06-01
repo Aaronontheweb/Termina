@@ -262,13 +262,9 @@ internal sealed class EscapeSequenceParser
                 }
 
                 // If this sequence can no longer match any recognized pattern, flush as raw keys
-                if (!CouldLeadToRecognizedSequence(seq))
+                if (!UnknownSequenceFallbackDecoder.CouldLeadToRecognizedSequence(seq))
                 {
-                    results.Add(new KeyPressed(new ConsoleKeyInfo('\x1b', ConsoleKey.Escape, false, false, false)));
-                    foreach (var c in seq)
-                    {
-                        results.Add(new KeyPressed(new ConsoleKeyInfo(c, ConsoleKey.None, false, false, false)));
-                    }
+                    UnknownSequenceFallbackDecoder.AppendRawKeyEvents(seq, results);
                     _seqBuffer.Clear();
                     _state = State.Normal;
                 }
@@ -310,35 +306,6 @@ internal sealed class EscapeSequenceParser
                 }
                 break;
         }
-    }
-
-    /// <summary>
-    /// Returns <c>true</c> if the accumulated bracket sequence could still lead to a recognized
-    /// escape sequence. Used to decide whether to keep buffering or flush the sequence as raw keys.
-    /// </summary>
-    private static bool CouldLeadToRecognizedSequence(string seq)
-    {
-        if (BracketedPasteDecoder.CouldBeStartSequence(seq))
-            return true;
-
-        // Complete but still-unrecognized CSI tilde-terminated sequences flush as raw
-        // KeyPressed events rather than keeping the parser stuck in InBracketSequence.
-        if (seq.Length >= 3 && seq[^1] == '~')
-            return false;
-
-        // Could be a CSI u sequence "[keycode;modifiersu" — digits, semicolons, colons, up to ~32 chars
-        if (seq.Length >= 2 && seq.Length <= 32 && (char.IsDigit(seq[1]) || seq[1] == ';' || seq[1] == ':'))
-            return true;
-
-        // Could be an SGR mouse event "[<button;x;yM" — open-ended length up to ~30 chars
-        if (seq.Length >= 2 && seq[1] == '<' && seq.Length <= 30)
-            return true;
-
-        // Could be wheel-as-CSI-arrow under ?1007h: "[A" or "[B" / kitty second-form "[1;NA"
-        if (seq == "[")
-            return true;
-
-        return false;
     }
 
 }
