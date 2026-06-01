@@ -22,7 +22,7 @@ public class Ss3KeyboardDecoderTests
     {
         var decoded = Ss3KeyboardDecoder.TryDecode(
             final,
-            kittyReportAllKeysVisible: false,
+            Context(kittyReportAllKeysVisible: false),
             out var inputEvent);
 
         Assert.True(decoded);
@@ -38,7 +38,7 @@ public class Ss3KeyboardDecoderTests
     {
         var decoded = Ss3KeyboardDecoder.TryDecode(
             final,
-            kittyReportAllKeysVisible: true,
+            Context(kittyReportAllKeysVisible: true),
             out var inputEvent);
 
         Assert.True(decoded);
@@ -53,7 +53,7 @@ public class Ss3KeyboardDecoderTests
     {
         var decoded = Ss3KeyboardDecoder.TryDecode(
             final,
-            kittyReportAllKeysVisible: true,
+            Context(kittyReportAllKeysVisible: true),
             out var inputEvent);
 
         Assert.True(decoded);
@@ -68,10 +68,13 @@ public class Ss3KeyboardDecoderTests
     {
         var decoded = Ss3KeyboardDecoder.TryDecode(
             final,
-            kittyReportAllKeysVisible: false,
+            Context(kittyReportAllKeysVisible: false),
             out var inputEvent);
 
         Assert.False(decoded);
         Assert.Null(inputEvent);
     }
+
+    private static TerminalModeContext Context(bool kittyReportAllKeysVisible) =>
+        new(kittyReportAllKeysVisible);
 }

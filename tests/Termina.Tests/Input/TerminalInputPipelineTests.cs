@@ -43,6 +43,17 @@ public class TerminalInputPipelineTests
     }
 
     [Fact]
+    public void TerminalModeContext_RoutesBareCsiArrowAsKey()
+    {
+        var pipeline = new TerminalInputPipeline(new TerminalModeContext(KittyReportAllKeysVisible: true));
+
+        var events = FeedString(pipeline, "\x1b[A");
+
+        var pressed = Assert.IsType<KeyPressed>(Assert.Single(events));
+        Assert.Equal(ConsoleKey.UpArrow, pressed.KeyInfo.Key);
+    }
+
+    [Fact]
     public void CheckEscapeTimeout_FlushesStandaloneEscape()
     {
         var tick = 0L;

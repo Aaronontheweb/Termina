@@ -49,6 +49,7 @@ internal sealed class EscapeSequenceParser
     private State _state = State.Normal;
     private readonly StringBuilder _seqBuffer = new();
     private readonly BracketedPasteDecoder _pasteDecoder = new();
+    private TerminalModeContext _modeContext = TerminalModeContext.Default;
     private long _escapeReceivedAt;
 
     // Injected clock for testing; defaults to Environment.TickCount64
@@ -70,7 +71,11 @@ internal sealed class EscapeSequenceParser
     /// bare-CSI-arrow shape to <see cref="KeyPressed"/> (treating any matching SS3 as the wheel
     /// path instead — handled in <see cref="State.InSs3Sequence"/>).
     /// </remarks>
-    public bool KittyReportAllKeysVisible { get; set; }
+    public bool KittyReportAllKeysVisible
+    {
+        get => _modeContext.KittyReportAllKeysVisible;
+        set => _modeContext = _modeContext with { KittyReportAllKeysVisible = value };
+    }
 
     /// <summary>
     /// Creates a parser using the system clock.
@@ -236,7 +241,7 @@ internal sealed class EscapeSequenceParser
                 {
                     if (CsiFunctionalDecoder.TryDecodeBareFinal(
                             key.KeyChar,
-                            KittyReportAllKeysVisible,
+                            _modeContext,
                             out var functionalEvent)
                         && functionalEvent is not null)
                         results.Add(functionalEvent);
@@ -280,7 +285,7 @@ internal sealed class EscapeSequenceParser
                 // arrive via the kitty CSI-u / second-form path instead, so any remaining
                 // SS3 OA/OB at this point must be the ?1007h wheel emission under DECCKM on.
                 // (SS3 OC/OD never come from the wheel — there is no horizontal wheel.)
-                if (Ss3KeyboardDecoder.TryDecode(key.KeyChar, KittyReportAllKeysVisible, out var ss3Event))
+                if (Ss3KeyboardDecoder.TryDecode(key.KeyChar, _modeContext, out var ss3Event))
                 {
                     TerminaTrace.Input.Debug(this, "ESP: SS3 O{0} → {1}", key.KeyChar, ss3Event);
                     if (ss3Event is not null)

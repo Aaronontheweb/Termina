@@ -11,11 +11,11 @@ internal static class Ss3KeyboardDecoder
     /// <summary>
     /// Attempts to decode the final byte from an SS3 sequence.
     /// </summary>
-    public static bool TryDecode(char final, bool kittyReportAllKeysVisible, out IInputEvent? result)
+    public static bool TryDecode(char final, TerminalModeContext context, out IInputEvent? result)
     {
         result = null;
 
-        if (kittyReportAllKeysVisible && final is 'A' or 'B')
+        if (context.KittyReportAllKeysVisible && final is 'A' or 'B')
         {
             result = new MouseScrollEvent(final == 'A' ? +1 : -1);
             return true;

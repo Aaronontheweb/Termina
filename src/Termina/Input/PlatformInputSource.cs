@@ -38,7 +38,7 @@ public sealed class PlatformInputSource : IInputSource
     {
         _console = console ?? throw new ArgumentNullException(nameof(console));
         _pipeline = new TerminalInputPipeline(
-            kittyReportAllKeysVisible: configuration.KittyReportAllKeysVisible);
+            new TerminalModeContext(configuration.KittyReportAllKeysVisible));
     }
 
     /// <inheritdoc />

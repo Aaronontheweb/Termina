@@ -22,7 +22,7 @@ public class CsiFunctionalDecoderTests
     {
         var decoded = CsiFunctionalDecoder.TryDecodeBareFinal(
             final,
-            kittyReportAllKeysVisible: true,
+            Context(kittyReportAllKeysVisible: true),
             out var inputEvent);
 
         Assert.True(decoded);
@@ -36,7 +36,7 @@ public class CsiFunctionalDecoderTests
     {
         var decoded = CsiFunctionalDecoder.TryDecodeBareFinal(
             'E',
-            kittyReportAllKeysVisible: true,
+            Context(kittyReportAllKeysVisible: true),
             out var inputEvent);
 
         Assert.True(decoded);
@@ -50,7 +50,7 @@ public class CsiFunctionalDecoderTests
     {
         var decoded = CsiFunctionalDecoder.TryDecodeBareFinal(
             final,
-            kittyReportAllKeysVisible: false,
+            Context(kittyReportAllKeysVisible: false),
             out var inputEvent);
 
         Assert.True(decoded);
@@ -72,7 +72,7 @@ public class CsiFunctionalDecoderTests
     {
         var decoded = CsiFunctionalDecoder.TryDecodeBareFinal(
             final,
-            kittyReportAllKeysVisible: false,
+            Context(kittyReportAllKeysVisible: false),
             out var inputEvent);
 
         Assert.True(decoded);
@@ -87,10 +87,13 @@ public class CsiFunctionalDecoderTests
     {
         var decoded = CsiFunctionalDecoder.TryDecodeBareFinal(
             final,
-            kittyReportAllKeysVisible: true,
+            Context(kittyReportAllKeysVisible: true),
             out var inputEvent);
 
         Assert.False(decoded);
         Assert.Null(inputEvent);
     }
+
+    private static TerminalModeContext Context(bool kittyReportAllKeysVisible) =>
+        new(kittyReportAllKeysVisible);
 }
