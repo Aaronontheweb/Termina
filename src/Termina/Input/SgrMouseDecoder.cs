@@ -15,18 +15,19 @@ internal static class SgrMouseDecoder
     /// <c>true</c> when the sequence is a recognized SGR mouse sequence. Scroll sequences produce
     /// a <see cref="MouseScrollEvent"/>; click, release, and drag sequences are consumed with no event.
     /// </returns>
-    public static bool TryDecode(string sequence, out MouseScrollEvent? result)
+    public static bool TryDecode(InputSequence sequence, out MouseScrollEvent? result)
     {
         result = null;
+        var text = sequence.Text;
 
-        if (sequence.Length < 4 || sequence[0] != '[' || sequence[1] != '<')
+        if (text.Length < 4 || text[0] != '[' || text[1] != '<')
             return false;
 
-        var terminator = sequence[^1];
+        var terminator = text[^1];
         if (terminator is not ('M' or 'm'))
             return false;
 
-        var inner = sequence[2..^1];
+        var inner = text[2..^1];
         var semicolon = inner.IndexOf(';');
         if (semicolon < 0)
             return false;

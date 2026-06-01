@@ -181,7 +181,7 @@ internal sealed class EscapeSequenceParser
 
             case State.InBracketSequence:
                 _seqBuffer.Append(key.KeyChar);
-                var seq = _seqBuffer.ToString();
+                var seq = new InputSequence(_seqBuffer.ToString());
 
                 // Bracketed paste start: ESC[200~
                 if (BracketedPasteDecoder.IsStartSequence(seq))
@@ -198,7 +198,7 @@ internal sealed class EscapeSequenceParser
                     && LegacyCsiKeyboardDecoder.TryDecode(seq, out var legacyKeyEvent)
                     && legacyKeyEvent is not null)
                 {
-                    TerminaTrace.Input.Debug(this, "ESP: legacy CSI tilde {0} → {1}", seq, legacyKeyEvent);
+                    TerminaTrace.Input.Debug(this, "ESP: legacy CSI tilde {0} → {1}", seq.Text, legacyKeyEvent);
                     results.Add(legacyKeyEvent);
                     _seqBuffer.Clear();
                     _state = State.Normal;
@@ -210,7 +210,7 @@ internal sealed class EscapeSequenceParser
                 {
                     if (KittyCsiUKeyboardDecoder.TryDecode(seq, out var csiEvent) && csiEvent is not null)
                     {
-                        TerminaTrace.Input.Debug(this, "ESP: CSI u detected: {0}", seq);
+                        TerminaTrace.Input.Debug(this, "ESP: CSI u detected: {0}", seq.Text);
                         results.Add(csiEvent);
                     }
                     _seqBuffer.Clear();
@@ -258,7 +258,7 @@ internal sealed class EscapeSequenceParser
                 {
                     if (KittySecondFormKeyboardDecoder.TryDecode(seq, out var keyEvent) && keyEvent is not null)
                     {
-                        TerminaTrace.Input.Debug(this, "ESP: kitty second-form {0} → {1}", seq, keyEvent);
+                        TerminaTrace.Input.Debug(this, "ESP: kitty second-form {0} → {1}", seq.Text, keyEvent);
                         results.Add(keyEvent);
                     }
                     _seqBuffer.Clear();
@@ -269,7 +269,7 @@ internal sealed class EscapeSequenceParser
                 // If this sequence can no longer match any recognized pattern, flush as raw keys
                 if (!UnknownSequenceFallbackDecoder.CouldLeadToRecognizedSequence(seq))
                 {
-                    UnknownSequenceFallbackDecoder.AppendRawKeyEvents(seq, results);
+                    UnknownSequenceFallbackDecoder.AppendRawKeyEvents(seq.Text, results);
                     _seqBuffer.Clear();
                     _state = State.Normal;
                 }

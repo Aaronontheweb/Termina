@@ -11,17 +11,18 @@ internal static class KittyCsiUKeyboardDecoder
     /// <summary>
     /// Attempts to parse <c>[keycode[;modifiers[:event][;text...]]u</c>.
     /// </summary>
-    /// <param name="sequence">The buffered sequence string, e.g. <c>[13;5u</c>.</param>
+    /// <param name="sequence">The buffered sequence, e.g. <c>[13;5u</c>.</param>
     /// <param name="result">The resulting <see cref="KeyPressed"/> event, if one should be emitted.</param>
     /// <returns><c>true</c> if the sequence was parsed, whether or not an event is produced.</returns>
-    public static bool TryDecode(string sequence, out KeyPressed? result)
+    public static bool TryDecode(InputSequence sequence, out KeyPressed? result)
     {
         result = null;
+        var text = sequence.Text;
 
-        if (sequence.Length < 3 || sequence[0] != '[' || sequence[^1] != 'u')
+        if (text.Length < 3 || text[0] != '[' || text[^1] != 'u')
             return false;
 
-        var inner = sequence[1..^1];
+        var inner = text[1..^1];
         var semicolon = inner.IndexOf(';');
 
         int keycode;
