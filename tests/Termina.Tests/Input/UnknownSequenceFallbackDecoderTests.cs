@@ -57,6 +57,19 @@ public class UnknownSequenceFallbackDecoderTests
         AssertKey(events[3], ConsoleKey.None, 'x');
     }
 
+    [Fact]
+    public void AppendRawSs3KeyEvents_FlushesEscapeOAndFinal()
+    {
+        var events = new List<IInputEvent>();
+
+        UnknownSequenceFallbackDecoder.AppendRawSs3KeyEvents('Z', events);
+
+        Assert.Equal(3, events.Count);
+        AssertKey(events[0], ConsoleKey.Escape, '\x1b');
+        AssertKey(events[1], ConsoleKey.O, 'O');
+        AssertKey(events[2], ConsoleKey.None, 'Z');
+    }
+
     private static void AssertKey(IInputEvent inputEvent, ConsoleKey key, char keyChar)
     {
         var pressed = Assert.IsType<KeyPressed>(inputEvent);

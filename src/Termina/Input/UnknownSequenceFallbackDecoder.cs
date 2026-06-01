@@ -52,4 +52,11 @@ internal static class UnknownSequenceFallbackDecoder
         foreach (var c in sequence)
             results.Add(new KeyPressed(new ConsoleKeyInfo(c, ConsoleKey.None, false, false, false)));
     }
+
+    public static void AppendRawSs3KeyEvents(char final, List<IInputEvent> results)
+    {
+        results.Add(new KeyPressed(new ConsoleKeyInfo('\x1b', ConsoleKey.Escape, false, false, false)));
+        results.Add(new KeyPressed(new ConsoleKeyInfo('O', ConsoleKey.O, false, false, false)));
+        results.Add(new KeyPressed(new ConsoleKeyInfo(final, ConsoleKey.None, false, false, false)));
+    }
 }

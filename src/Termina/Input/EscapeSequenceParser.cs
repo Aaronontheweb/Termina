@@ -289,9 +289,7 @@ internal sealed class EscapeSequenceParser
                 else
                 {
                     // Unknown SS3 sequence — flush ESC + 'O' + this char as raw keys.
-                    results.Add(new KeyPressed(new ConsoleKeyInfo('\x1b', ConsoleKey.Escape, false, false, false)));
-                    results.Add(new KeyPressed(new ConsoleKeyInfo('O', ConsoleKey.O, false, false, false)));
-                    results.Add(new KeyPressed(new ConsoleKeyInfo(key.KeyChar, ConsoleKey.None, false, false, false)));
+                    UnknownSequenceFallbackDecoder.AppendRawSs3KeyEvents(key.KeyChar, results);
                 }
                 _state = State.Normal;
                 break;
