@@ -14,7 +14,7 @@ internal static class CsiFunctionalDecoder
     public static bool TryDecodeBareFinal(
         char final,
         TerminalModeContext context,
-        out IInputEvent? result)
+        out TerminaInputEvent? result)
     {
         result = null;
 
@@ -23,15 +23,21 @@ internal static class CsiFunctionalDecoder
 
         if (context.KittyReportAllKeysVisible)
         {
-            var key = FinalToKey(final);
-            if (key != ConsoleKey.None)
-                result = new KeyPressed(new ConsoleKeyInfo('\0', key, false, false, false));
+            var key = FinalToTerminaKey(final);
+            if (key != TerminaKey.None)
+                result = new KeyStroke(key);
 
             return true;
         }
 
         if (final is 'A' or 'B')
-            result = new MouseScrollEvent(final == 'A' ? +1 : -1);
+        {
+            result = new PointerInput(
+                PointerAction.Wheel,
+                X: 0,
+                Y: 0,
+                final == 'A' ? MouseButton.WheelUp : MouseButton.WheelDown);
+        }
 
         return true;
     }
@@ -60,5 +66,20 @@ internal static class CsiFunctionalDecoder
         'R' => ConsoleKey.F3,
         'S' => ConsoleKey.F4,
         _ => ConsoleKey.None,
+    };
+
+    private static TerminaKey FinalToTerminaKey(char c) => c switch
+    {
+        'A' => TerminaKey.UpArrow,
+        'B' => TerminaKey.DownArrow,
+        'C' => TerminaKey.RightArrow,
+        'D' => TerminaKey.LeftArrow,
+        'H' => TerminaKey.Home,
+        'F' => TerminaKey.End,
+        'P' => TerminaKey.F1,
+        'Q' => TerminaKey.F2,
+        'R' => TerminaKey.F3,
+        'S' => TerminaKey.F4,
+        _ => TerminaKey.None,
     };
 }
