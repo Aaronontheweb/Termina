@@ -150,6 +150,18 @@ public class EscapeSequenceParserTests
     }
 
     [Fact]
+    public void UnknownSs3Sequence_FlushesAsRawKeys_AndUnsticksParser()
+    {
+        var parser = new EscapeSequenceParser();
+
+        var events = FeedSequence(parser, new[] { EscKey(), Key('O'), Key('Z') });
+
+        Assert.False(parser.IsBufferingEscape);
+        Assert.Equal(3, events.Count);
+        Assert.Equal("\x1bOZ", new string(events.Select(e => ((KeyPressed)e).KeyInfo.KeyChar).ToArray()));
+    }
+
+    [Fact]
     public void SgrMouseClickPress_IsSilentlyConsumed()
     {
         var parser = new EscapeSequenceParser();
