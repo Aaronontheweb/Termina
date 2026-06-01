@@ -16,10 +16,10 @@ internal sealed class BracketedPasteDecoder
     private readonly StringBuilder _buffer = new();
     private int _pendingEndSequencePosition;
 
-    public static bool IsStartSequence(string sequence) => sequence == StartSequence;
+    public static bool IsStartSequence(InputSequence sequence) => sequence.Text == StartSequence;
 
-    public static bool CouldBeStartSequence(string sequence) =>
-        sequence.Length <= StartSequence.Length && StartSequence.StartsWith(sequence, StringComparison.Ordinal);
+    public static bool CouldBeStartSequence(InputSequence sequence) =>
+        sequence.Length <= StartSequence.Length && StartSequence.StartsWith(sequence.Text, StringComparison.Ordinal);
 
     public void Begin()
     {

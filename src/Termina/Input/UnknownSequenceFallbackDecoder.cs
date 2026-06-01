@@ -12,28 +12,30 @@ internal static class UnknownSequenceFallbackDecoder
     /// Returns <c>true</c> if the accumulated bracket sequence could still lead to a recognized
     /// escape sequence.
     /// </summary>
-    public static bool CouldLeadToRecognizedSequence(string sequence)
+    public static bool CouldLeadToRecognizedSequence(InputSequence sequence)
     {
+        var text = sequence.Text;
+
         if (BracketedPasteDecoder.CouldBeStartSequence(sequence))
             return true;
 
         // Complete but still-unrecognized CSI tilde-terminated sequences flush as raw
         // KeyPressed events rather than keeping the parser stuck in InBracketSequence.
-        if (sequence.Length >= 3 && sequence[^1] == '~')
+        if (text.Length >= 3 && text[^1] == '~')
             return false;
 
         // Could be a CSI u sequence "[keycode;modifiersu".
-        if (sequence.Length >= 2
-            && sequence.Length <= 32
-            && (char.IsDigit(sequence[1]) || sequence[1] == ';' || sequence[1] == ':'))
+        if (text.Length >= 2
+            && text.Length <= 32
+            && (char.IsDigit(text[1]) || text[1] == ';' || text[1] == ':'))
             return true;
 
         // Could be an SGR mouse event "[<button;x;yM".
-        if (sequence.Length >= 2 && sequence[1] == '<' && sequence.Length <= 30)
+        if (text.Length >= 2 && text[1] == '<' && text.Length <= 30)
             return true;
 
         // Could still become a bare CSI functional final: "[A" / "[B" etc.
-        if (sequence == "[")
+        if (text == "[")
             return true;
 
         return false;

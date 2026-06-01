@@ -11,13 +11,14 @@ internal static class LegacyCsiKeyboardDecoder
     /// <summary>
     /// Attempts to decode <c>[num~</c> or <c>[num;modifiers~</c> into a keyboard event.
     /// </summary>
-    public static bool TryDecode(string sequence, out KeyPressed? result)
+    public static bool TryDecode(InputSequence sequence, out KeyPressed? result)
     {
         result = null;
-        if (sequence.Length < 3 || sequence[0] != '[' || sequence[^1] != '~')
+        var text = sequence.Text;
+        if (text.Length < 3 || text[0] != '[' || text[^1] != '~')
             return false;
 
-        var inner = sequence[1..^1];
+        var inner = text[1..^1];
         var semicolon = inner.IndexOf(';');
         var keyPart = semicolon < 0 ? inner : inner[..semicolon];
         if (!int.TryParse(keyPart, out var keyCode))
