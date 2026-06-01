@@ -27,9 +27,9 @@ internal sealed class BracketedPasteDecoder
         _pendingEndSequencePosition = 0;
     }
 
-    public bool TryConsume(ConsoleKeyInfo key, out PasteEvent? pasteEvent)
+    public bool TryConsume(ConsoleKeyInfo key, out PasteInput? pasteInput)
     {
-        pasteEvent = null;
+        pasteInput = null;
 
         var expectedChar = _pendingEndSequencePosition == 0
             ? '\x1b'
@@ -44,7 +44,7 @@ internal sealed class BracketedPasteDecoder
             _pendingEndSequencePosition++;
             if (_pendingEndSequencePosition == EndSequence.Length)
             {
-                pasteEvent = new PasteEvent(_buffer.ToString());
+                pasteInput = new PasteInput(_buffer.ToString());
                 Begin();
                 return true;
             }

@@ -301,10 +301,10 @@ internal sealed class EscapeSequenceParser
             }
 
             case State.PasteBuffering:
-                if (_pasteDecoder.TryConsume(key, out var pasteEvent))
+                if (_pasteDecoder.TryConsume(key, out var pasteInput))
                 {
-                    TerminaTrace.Input.Debug(this, "ESP: Paste end detected, {0} chars", pasteEvent!.Content.Length);
-                    results.Add(pasteEvent);
+                    TerminaTrace.Input.Debug(this, "ESP: Paste end detected, {0} chars", pasteInput!.Text.Length);
+                    results.AddRange(PublicInputEventAdapter.Adapt(pasteInput));
                     _state = State.Normal;
                 }
                 break;
