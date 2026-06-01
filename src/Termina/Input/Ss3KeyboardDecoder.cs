@@ -11,35 +11,39 @@ internal static class Ss3KeyboardDecoder
     /// <summary>
     /// Attempts to decode the final byte from an SS3 sequence.
     /// </summary>
-    public static bool TryDecode(char final, TerminalModeContext context, out IInputEvent? result)
+    public static bool TryDecode(char final, TerminalModeContext context, out TerminaInputEvent? result)
     {
         result = null;
 
         if (context.KittyReportAllKeysVisible && final is 'A' or 'B')
         {
-            result = new MouseScrollEvent(final == 'A' ? +1 : -1);
+            result = new PointerInput(
+                PointerAction.Wheel,
+                X: 0,
+                Y: 0,
+                final == 'A' ? MouseButton.WheelUp : MouseButton.WheelDown);
             return true;
         }
 
         var key = final switch
         {
-            'A' => ConsoleKey.UpArrow,
-            'B' => ConsoleKey.DownArrow,
-            'C' => ConsoleKey.RightArrow,
-            'D' => ConsoleKey.LeftArrow,
-            'H' => ConsoleKey.Home,
-            'F' => ConsoleKey.End,
-            'P' => ConsoleKey.F1,
-            'Q' => ConsoleKey.F2,
-            'R' => ConsoleKey.F3,
-            'S' => ConsoleKey.F4,
-            _ => ConsoleKey.None,
+            'A' => TerminaKey.UpArrow,
+            'B' => TerminaKey.DownArrow,
+            'C' => TerminaKey.RightArrow,
+            'D' => TerminaKey.LeftArrow,
+            'H' => TerminaKey.Home,
+            'F' => TerminaKey.End,
+            'P' => TerminaKey.F1,
+            'Q' => TerminaKey.F2,
+            'R' => TerminaKey.F3,
+            'S' => TerminaKey.F4,
+            _ => TerminaKey.None,
         };
 
-        if (key == ConsoleKey.None)
+        if (key == TerminaKey.None)
             return false;
 
-        result = new KeyPressed(new ConsoleKeyInfo('\0', key, false, false, false));
+        result = new KeyStroke(key);
         return true;
     }
 }

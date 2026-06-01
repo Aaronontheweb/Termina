@@ -285,11 +285,11 @@ internal sealed class EscapeSequenceParser
                 // arrive via the kitty CSI-u / second-form path instead, so any remaining
                 // SS3 OA/OB at this point must be the ?1007h wheel emission under DECCKM on.
                 // (SS3 OC/OD never come from the wheel — there is no horizontal wheel.)
-                if (Ss3KeyboardDecoder.TryDecode(key.KeyChar, _modeContext, out var ss3Event))
+                if (Ss3KeyboardDecoder.TryDecode(key.KeyChar, _modeContext, out var ss3Input))
                 {
-                    TerminaTrace.Input.Debug(this, "ESP: SS3 O{0} → {1}", key.KeyChar, ss3Event);
-                    if (ss3Event is not null)
-                        results.Add(ss3Event);
+                    TerminaTrace.Input.Debug(this, "ESP: SS3 O{0} → {1}", key.KeyChar, ss3Input);
+                    if (ss3Input is not null)
+                        results.AddRange(PublicInputEventAdapter.Adapt(ss3Input));
                 }
                 else
                 {
