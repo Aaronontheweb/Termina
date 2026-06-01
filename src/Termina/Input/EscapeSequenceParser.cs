@@ -48,11 +48,8 @@ internal sealed class EscapeSequenceParser
 
     private State _state = State.Normal;
     private readonly StringBuilder _seqBuffer = new();
-    private readonly StringBuilder _pasteBuffer = new();
+    private readonly BracketedPasteDecoder _pasteDecoder = new();
     private long _escapeReceivedAt;
-    private int _pendingEndSeqPos;
-
-    private const string PasteEndSeq = "\x1b[201~";
 
     // Injected clock for testing; defaults to Environment.TickCount64
     private readonly Func<long> _getTick;
@@ -182,10 +179,9 @@ internal sealed class EscapeSequenceParser
                 var seq = _seqBuffer.ToString();
 
                 // Bracketed paste start: ESC[200~
-                if (seq == "[200~")
+                if (BracketedPasteDecoder.IsStartSequence(seq))
                 {
-                    _pasteBuffer.Clear();
-                    _pendingEndSeqPos = 0;
+                    _pasteDecoder.Begin();
                     _state = State.PasteBuffering;
                     TerminaTrace.Input.Debug(this, "ESP: Paste start detected → PasteBuffering");
                     break;
@@ -306,33 +302,11 @@ internal sealed class EscapeSequenceParser
             }
 
             case State.PasteBuffering:
-                // Detect ESC[201~ end sentinel one character at a time
-                var expectedChar = _pendingEndSeqPos == 0 ? '\x1b' : PasteEndSeq[_pendingEndSeqPos];
-                var isEscChar = key.Key == ConsoleKey.Escape || key.KeyChar == '\x1b';
-                var charMatches = _pendingEndSeqPos == 0 ? isEscChar : key.KeyChar == expectedChar;
-
-                if (charMatches)
+                if (_pasteDecoder.TryConsume(key, out var pasteEvent))
                 {
-                    _pendingEndSeqPos++;
-                    if (_pendingEndSeqPos == PasteEndSeq.Length)
-                    {
-                        TerminaTrace.Input.Debug(this, "ESP: Paste end detected, {0} chars", _pasteBuffer.Length);
-                        results.Add(new PasteEvent(_pasteBuffer.ToString()));
-                        _pasteBuffer.Clear();
-                        _pendingEndSeqPos = 0;
-                        _state = State.Normal;
-                    }
-                }
-                else if (_pendingEndSeqPos > 0)
-                {
-                    // Partial end-sequence match failed — the buffered chars belong to paste content
-                    _pasteBuffer.Append(PasteEndSeq[.._pendingEndSeqPos]);
-                    _pendingEndSeqPos = 0;
-                    _pasteBuffer.Append(key.KeyChar);
-                }
-                else
-                {
-                    _pasteBuffer.Append(key.KeyChar);
+                    TerminaTrace.Input.Debug(this, "ESP: Paste end detected, {0} chars", pasteEvent!.Content.Length);
+                    results.Add(pasteEvent);
+                    _state = State.Normal;
                 }
                 break;
         }
@@ -344,9 +318,7 @@ internal sealed class EscapeSequenceParser
     /// </summary>
     private static bool CouldLeadToRecognizedSequence(string seq)
     {
-        // Could still be paste start "[200~"
-        const string pasteStart = "[200~";
-        if (seq.Length <= pasteStart.Length && pasteStart.StartsWith(seq, StringComparison.Ordinal))
+        if (BracketedPasteDecoder.CouldBeStartSequence(seq))
             return true;
 
         // Complete but still-unrecognized CSI tilde-terminated sequences flush as raw
