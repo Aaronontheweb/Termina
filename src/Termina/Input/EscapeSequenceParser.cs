@@ -244,7 +244,7 @@ internal sealed class EscapeSequenceParser
                             _modeContext,
                             out var functionalEvent)
                         && functionalEvent is not null)
-                        results.Add(functionalEvent);
+                        results.AddRange(PublicInputEventAdapter.Adapt(functionalEvent));
 
                     _seqBuffer.Clear();
                     _state = State.Normal;
