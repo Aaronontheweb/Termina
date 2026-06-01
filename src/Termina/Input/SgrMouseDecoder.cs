@@ -13,9 +13,9 @@ internal static class SgrMouseDecoder
     /// </summary>
     /// <returns>
     /// <c>true</c> when the sequence is a recognized SGR mouse sequence. Scroll sequences produce
-    /// a <see cref="MouseScrollEvent"/>; click, release, and drag sequences are consumed with no event.
+    /// a <see cref="PointerInput"/>; click, release, and drag sequences are consumed with no event.
     /// </returns>
-    public static bool TryDecode(InputSequence sequence, out MouseScrollEvent? result)
+    public static bool TryDecode(InputSequence sequence, out PointerInput? result)
     {
         result = null;
         var text = sequence.Text;
@@ -35,13 +35,27 @@ internal static class SgrMouseDecoder
         if (!int.TryParse(inner[..semicolon], out var button))
             return false;
 
+        var (x, y) = ParseCoordinates(inner[(semicolon + 1)..]);
+
         result = button switch
         {
-            64 => new MouseScrollEvent(+1),
-            65 => new MouseScrollEvent(-1),
+            64 => new PointerInput(PointerAction.Wheel, x, y, MouseButton.WheelUp),
+            65 => new PointerInput(PointerAction.Wheel, x, y, MouseButton.WheelDown),
             _ => null,
         };
 
         return true;
+    }
+
+    private static (int X, int Y) ParseCoordinates(string coordinateText)
+    {
+        var semicolon = coordinateText.IndexOf(';');
+        if (semicolon < 0)
+            return (0, 0);
+
+        return int.TryParse(coordinateText[..semicolon], out var x)
+            && int.TryParse(coordinateText[(semicolon + 1)..], out var y)
+            ? (x, y)
+            : (0, 0);
     }
 }

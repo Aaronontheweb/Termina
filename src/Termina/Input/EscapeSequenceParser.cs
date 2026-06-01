@@ -221,8 +221,8 @@ internal sealed class EscapeSequenceParser
                 // SGR mouse event: ESC[<button;x;yM (press) or ESC[<button;x;ym (release)
                 if (seq.Length >= 2 && seq[1] == '<' && (key.KeyChar == 'M' || key.KeyChar == 'm'))
                 {
-                    if (SgrMouseDecoder.TryDecode(seq, out var mouseEvent) && mouseEvent is not null)
-                        results.Add(mouseEvent);
+                    if (SgrMouseDecoder.TryDecode(seq, out var pointerInput) && pointerInput is not null)
+                        results.AddRange(PublicInputEventAdapter.Adapt(pointerInput));
 
                     _seqBuffer.Clear();
                     _state = State.Normal;
