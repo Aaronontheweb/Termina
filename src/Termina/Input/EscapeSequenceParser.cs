@@ -259,7 +259,7 @@ internal sealed class EscapeSequenceParser
                     if (KittySecondFormKeyboardDecoder.TryDecode(seq, out var keyEvent) && keyEvent is not null)
                     {
                         TerminaTrace.Input.Debug(this, "ESP: kitty second-form {0} → {1}", seq.Text, keyEvent);
-                        results.Add(keyEvent);
+                        results.AddRange(PublicInputEventAdapter.Adapt(keyEvent));
                     }
                     _seqBuffer.Clear();
                     _state = State.Normal;
