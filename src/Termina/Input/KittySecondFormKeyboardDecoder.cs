@@ -13,11 +13,11 @@ internal static class KittySecondFormKeyboardDecoder
     /// </summary>
     /// <param name="sequence">The buffered sequence, e.g. <c>[1;5A</c> or <c>[1;2:1A</c>.</param>
     /// <param name="result">
-    /// On <c>true</c> return: the resulting <see cref="KeyPressed"/> when this was a press event,
-    /// or <c>null</c> when a repeat/release event was parsed and intentionally swallowed.
+    /// On <c>true</c> return: the resulting semantic key event, or <c>null</c> when a recognized
+    /// sequence does not map to a supported key or event phase.
     /// </param>
     /// <returns><c>true</c> if the sequence was recognized, whether or not an event is produced.</returns>
-    public static bool TryDecode(InputSequence sequence, out KeyPressed? result)
+    public static bool TryDecode(InputSequence sequence, out KeyStroke? result)
     {
         result = null;
         var text = sequence.Text;
@@ -25,8 +25,8 @@ internal static class KittySecondFormKeyboardDecoder
             return false;
 
         var final = text[^1];
-        var key = CsiFunctionalDecoder.FinalToKey(final);
-        if (key == ConsoleKey.None)
+        var key = ToTerminaKey(CsiFunctionalDecoder.FinalToKey(final));
+        if (key == TerminaKey.None)
             return false;
 
         var inner = text[1..^1];
@@ -43,21 +43,43 @@ internal static class KittySecondFormKeyboardDecoder
         if (!int.TryParse(modPart, out var modValue) || modValue < 1)
             return false;
 
+        var phase = KeyEventPhase.Press;
         if (colon >= 0)
         {
             if (!int.TryParse(rest[(colon + 1)..], out var eventType))
                 return false;
 
-            if (eventType != 1)
+            phase = eventType switch
+            {
+                1 => KeyEventPhase.Press,
+                2 => KeyEventPhase.Repeat,
+                3 => KeyEventPhase.Release,
+                _ => phase,
+            };
+
+            if (eventType is not (1 or 2 or 3))
                 return true;
         }
 
         var modBits = modValue - 1;
-        var shift = (modBits & 1) != 0;
-        var alt = (modBits & 2) != 0;
-        var ctrl = (modBits & 4) != 0;
+        var modifiers = KeyModifiers.None;
+        if ((modBits & 1) != 0) modifiers |= KeyModifiers.Shift;
+        if ((modBits & 2) != 0) modifiers |= KeyModifiers.Alt;
+        if ((modBits & 4) != 0) modifiers |= KeyModifiers.Control;
 
-        result = new KeyPressed(new ConsoleKeyInfo('\0', key, shift, alt, ctrl));
+        result = new KeyStroke(key, modifiers, phase);
         return true;
     }
+
+    private static TerminaKey ToTerminaKey(ConsoleKey key) => key switch
+    {
+        ConsoleKey.UpArrow => TerminaKey.UpArrow,
+        ConsoleKey.DownArrow => TerminaKey.DownArrow,
+        ConsoleKey.RightArrow => TerminaKey.RightArrow,
+        ConsoleKey.LeftArrow => TerminaKey.LeftArrow,
+        ConsoleKey.Home => TerminaKey.Home,
+        ConsoleKey.End => TerminaKey.End,
+        >= ConsoleKey.F1 and <= ConsoleKey.F4 => TerminaKey.F1 + (key - ConsoleKey.F1),
+        _ => TerminaKey.None,
+    };
 }
