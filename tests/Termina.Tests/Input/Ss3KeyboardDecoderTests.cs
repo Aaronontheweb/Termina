@@ -18,7 +18,7 @@ public class Ss3KeyboardDecoderTests
     [InlineData('Q', ConsoleKey.F2)]
     [InlineData('R', ConsoleKey.F3)]
     [InlineData('S', ConsoleKey.F4)]
-    public void TryDecode_KnownFinal_ReturnsKeyPressed(char final, ConsoleKey expectedKey)
+    public void TryDecode_KnownFinal_ReturnsKeyStroke(char final, ConsoleKey expectedKey)
     {
         var decoded = Ss3KeyboardDecoder.TryDecode(
             final,
@@ -26,15 +26,17 @@ public class Ss3KeyboardDecoderTests
             out var inputEvent);
 
         Assert.True(decoded);
-        var pressed = Assert.IsType<KeyPressed>(inputEvent);
-        Assert.Equal(expectedKey, pressed.KeyInfo.Key);
-        Assert.Equal('\0', pressed.KeyInfo.KeyChar);
+        var keyStroke = Assert.IsType<KeyStroke>(inputEvent);
+        Assert.Equal(ToTerminaKey(expectedKey), keyStroke.Key);
+        Assert.Equal(KeyEventPhase.Press, keyStroke.Phase);
+        Assert.Equal(KeyModifiers.None, keyStroke.Modifiers);
+        Assert.Null(keyStroke.Text);
     }
 
     [Theory]
     [InlineData('A', +1)]
     [InlineData('B', -1)]
-    public void TryDecode_KittyVisibleVerticalArrow_ReturnsMouseScroll(char final, int expectedDelta)
+    public void TryDecode_KittyVisibleVerticalArrow_ReturnsPointerWheel(char final, int expectedDelta)
     {
         var decoded = Ss3KeyboardDecoder.TryDecode(
             final,
@@ -42,14 +44,15 @@ public class Ss3KeyboardDecoderTests
             out var inputEvent);
 
         Assert.True(decoded);
-        var scroll = Assert.IsType<MouseScrollEvent>(inputEvent);
-        Assert.Equal(expectedDelta, scroll.Delta);
+        var pointerInput = Assert.IsType<PointerInput>(inputEvent);
+        Assert.Equal(PointerAction.Wheel, pointerInput.Action);
+        Assert.Equal(expectedDelta > 0 ? MouseButton.WheelUp : MouseButton.WheelDown, pointerInput.Button);
     }
 
     [Theory]
     [InlineData('C', ConsoleKey.RightArrow)]
     [InlineData('D', ConsoleKey.LeftArrow)]
-    public void TryDecode_KittyVisibleHorizontalArrow_ReturnsKeyPressed(char final, ConsoleKey expectedKey)
+    public void TryDecode_KittyVisibleHorizontalArrow_ReturnsKeyStroke(char final, ConsoleKey expectedKey)
     {
         var decoded = Ss3KeyboardDecoder.TryDecode(
             final,
@@ -57,8 +60,8 @@ public class Ss3KeyboardDecoderTests
             out var inputEvent);
 
         Assert.True(decoded);
-        var pressed = Assert.IsType<KeyPressed>(inputEvent);
-        Assert.Equal(expectedKey, pressed.KeyInfo.Key);
+        var keyStroke = Assert.IsType<KeyStroke>(inputEvent);
+        Assert.Equal(ToTerminaKey(expectedKey), keyStroke.Key);
     }
 
     [Theory]
@@ -77,4 +80,16 @@ public class Ss3KeyboardDecoderTests
 
     private static TerminalModeContext Context(bool kittyReportAllKeysVisible) =>
         new(kittyReportAllKeysVisible);
+
+    private static TerminaKey ToTerminaKey(ConsoleKey key) => key switch
+    {
+        ConsoleKey.UpArrow => TerminaKey.UpArrow,
+        ConsoleKey.DownArrow => TerminaKey.DownArrow,
+        ConsoleKey.RightArrow => TerminaKey.RightArrow,
+        ConsoleKey.LeftArrow => TerminaKey.LeftArrow,
+        ConsoleKey.Home => TerminaKey.Home,
+        ConsoleKey.End => TerminaKey.End,
+        >= ConsoleKey.F1 and <= ConsoleKey.F4 => TerminaKey.F1 + (key - ConsoleKey.F1),
+        _ => TerminaKey.None,
+    };
 }
