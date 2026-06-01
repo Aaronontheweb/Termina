@@ -28,16 +28,16 @@ public class BracketedPasteDecoderTests
     }
 
     [Fact]
-    public void TryConsume_CompletePaste_ReturnsPasteEvent()
+    public void TryConsume_CompletePaste_ReturnsPasteInput()
     {
         var decoder = new BracketedPasteDecoder();
         decoder.Begin();
 
-        var completed = Feed(decoder, "hello world\x1b[201~", out var pasteEvent);
+        var completed = Feed(decoder, "hello world\x1b[201~", out var pasteInput);
 
         Assert.True(completed);
-        Assert.NotNull(pasteEvent);
-        Assert.Equal("hello world", pasteEvent!.Content);
+        Assert.NotNull(pasteInput);
+        Assert.Equal("hello world", pasteInput!.Text);
     }
 
     [Fact]
@@ -46,11 +46,11 @@ public class BracketedPasteDecoderTests
         var decoder = new BracketedPasteDecoder();
         decoder.Begin();
 
-        var completed = Feed(decoder, "foo\x1b[20xbar\x1b[201~", out var pasteEvent);
+        var completed = Feed(decoder, "foo\x1b[20xbar\x1b[201~", out var pasteInput);
 
         Assert.True(completed);
-        Assert.NotNull(pasteEvent);
-        Assert.Equal("foo\x1b[20xbar", pasteEvent!.Content);
+        Assert.NotNull(pasteInput);
+        Assert.Equal("foo\x1b[20xbar", pasteInput!.Text);
     }
 
     [Fact]
@@ -59,27 +59,27 @@ public class BracketedPasteDecoderTests
         var decoder = new BracketedPasteDecoder();
         decoder.Begin();
 
-        Assert.False(decoder.TryConsume(Key('x'), out var pasteEvent));
-        Assert.Null(pasteEvent);
-        Assert.False(decoder.TryConsume(new ConsoleKeyInfo('\0', ConsoleKey.Escape, false, false, false), out pasteEvent));
-        Assert.Null(pasteEvent);
+        Assert.False(decoder.TryConsume(Key('x'), out var pasteInput));
+        Assert.Null(pasteInput);
+        Assert.False(decoder.TryConsume(new ConsoleKeyInfo('\0', ConsoleKey.Escape, false, false, false), out pasteInput));
+        Assert.Null(pasteInput);
 
-        var completed = Feed(decoder, "[201~", out pasteEvent);
+        var completed = Feed(decoder, "[201~", out pasteInput);
 
         Assert.True(completed);
-        Assert.NotNull(pasteEvent);
-        Assert.Equal("x", pasteEvent!.Content);
+        Assert.NotNull(pasteInput);
+        Assert.Equal("x", pasteInput!.Text);
     }
 
-    private static bool Feed(BracketedPasteDecoder decoder, string input, out PasteEvent? pasteEvent)
+    private static bool Feed(BracketedPasteDecoder decoder, string input, out PasteInput? pasteInput)
     {
         foreach (var c in input)
         {
-            if (decoder.TryConsume(Key(c), out pasteEvent))
+            if (decoder.TryConsume(Key(c), out pasteInput))
                 return true;
         }
 
-        pasteEvent = null;
+        pasteInput = null;
         return false;
     }
 
