@@ -236,23 +236,15 @@ internal sealed class EscapeSequenceParser
                 //   - Kitty active: bare CSI A/B/C/D/H/F/P-S are the kitty canonical no-mod
                 //     keyboard form; wheel still emits the DECCKM-controlled SS3 form, so the
                 //     CSI form is unambiguously a real key.
-                if (seq.Length == 2 && IsArrowOrFunctionalFinal(key.KeyChar))
+                if (seq.Length == 2 && CsiFunctionalDecoder.IsFunctionalFinal(key.KeyChar))
                 {
-                    if (KittyReportAllKeysVisible)
-                    {
-                        var ck = FunctionalFinalToKey(key.KeyChar);
-                        if (ck != ConsoleKey.None)
-                        {
-                            TerminaTrace.Input.Debug(this, "ESP: CSI {0} (kitty no-mod) → KeyPressed({1})", key.KeyChar, ck);
-                            results.Add(new KeyPressed(new ConsoleKeyInfo('\0', ck, false, false, false)));
-                        }
-                    }
-                    else if (key.KeyChar == 'A' || key.KeyChar == 'B')
-                    {
-                        var delta = key.KeyChar == 'A' ? +1 : -1;
-                        TerminaTrace.Input.Debug(this, "ESP: CSI {0} → MouseScrollEvent({1})", key.KeyChar, delta);
-                        results.Add(new MouseScrollEvent(delta));
-                    }
+                    if (CsiFunctionalDecoder.TryDecodeBareFinal(
+                            key.KeyChar,
+                            KittyReportAllKeysVisible,
+                            out var functionalEvent)
+                        && functionalEvent is not null)
+                        results.Add(functionalEvent);
+
                     _seqBuffer.Clear();
                     _state = State.Normal;
                     break;
@@ -261,7 +253,7 @@ internal sealed class EscapeSequenceParser
                 // Kitty "second form" with parameters: CSI 1;<mods>[:<event>] [ABCDEFHPQRS]
                 // Real arrows / function keys with a modifier pressed when kitty's
                 // disambiguate (bit 1) or report_all_keys (bit 8) flag is set.
-                if (IsArrowOrFunctionalFinal(key.KeyChar) && seq.Length >= 3 && seq[1] != '<')
+                if (CsiFunctionalDecoder.IsFunctionalFinal(key.KeyChar) && seq.Length >= 3 && seq[1] != '<')
                 {
                     if (TryParseKittySecondForm(seq, out var keyEvent) && keyEvent is not null)
                     {
@@ -377,36 +369,6 @@ internal sealed class EscapeSequenceParser
         return false;
     }
 
-    /// <summary>True for CSI finals that represent an arrow / Home/End / F1-F4 / KP_Begin.</summary>
-    /// <remarks>
-    /// <c>'E'</c> is KP_Begin (numpad-5 / "center" with NumLock off). It is recognized here so
-    /// the shape <c>ESC[E</c> / <c>ESC[1;&lt;mods&gt;E</c> is consumed rather than flushed as raw
-    /// keys, but <see cref="FunctionalFinalToKey"/> has no mapping for it (no equivalent
-    /// <see cref="ConsoleKey"/>), so it is intentionally swallowed.
-    /// </remarks>
-    private static bool IsArrowOrFunctionalFinal(char c) =>
-        c is 'A' or 'B' or 'C' or 'D' or 'E' or 'F' or 'H' or 'P' or 'Q' or 'R' or 'S';
-
-    /// <summary>Maps the CSI second-form final char to a <see cref="ConsoleKey"/>.</summary>
-    /// <remarks>
-    /// <c>'E'</c> (KP_Begin) returns <see cref="ConsoleKey.None"/> on purpose — call sites
-    /// treat that as "recognized but no event to emit" so the sequence is consumed silently.
-    /// </remarks>
-    private static ConsoleKey FunctionalFinalToKey(char c) => c switch
-    {
-        'A' => ConsoleKey.UpArrow,
-        'B' => ConsoleKey.DownArrow,
-        'C' => ConsoleKey.RightArrow,
-        'D' => ConsoleKey.LeftArrow,
-        'H' => ConsoleKey.Home,
-        'F' => ConsoleKey.End,
-        'P' => ConsoleKey.F1,
-        'Q' => ConsoleKey.F2,
-        'R' => ConsoleKey.F3,
-        'S' => ConsoleKey.F4,
-        _ => ConsoleKey.None,
-    };
-
     /// <summary>
     /// Attempts to parse a kitty keyboard "second form" sequence: <c>[1;modifiers[:event] final</c>
     /// where <c>final</c> is one of <c>A B C D E F H P Q R S</c>.
@@ -424,7 +386,7 @@ internal sealed class EscapeSequenceParser
         result = null;
         if (seq.Length < 3 || seq[0] != '[') return false;
         var final = seq[^1];
-        var key = FunctionalFinalToKey(final);
+        var key = CsiFunctionalDecoder.FinalToKey(final);
         if (key == ConsoleKey.None) return false;
 
         // Strip leading '[' and trailing final → "1;modifiers[:event]"
