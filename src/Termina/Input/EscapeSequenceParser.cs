@@ -255,7 +255,7 @@ internal sealed class EscapeSequenceParser
                 // disambiguate (bit 1) or report_all_keys (bit 8) flag is set.
                 if (CsiFunctionalDecoder.IsFunctionalFinal(key.KeyChar) && seq.Length >= 3 && seq[1] != '<')
                 {
-                    if (TryParseKittySecondForm(seq, out var keyEvent) && keyEvent is not null)
+                    if (KittySecondFormKeyboardDecoder.TryDecode(seq, out var keyEvent) && keyEvent is not null)
                     {
                         TerminaTrace.Input.Debug(this, "ESP: kitty second-form {0} → {1}", seq, keyEvent);
                         results.Add(keyEvent);
@@ -367,55 +367,6 @@ internal sealed class EscapeSequenceParser
             return true;
 
         return false;
-    }
-
-    /// <summary>
-    /// Attempts to parse a kitty keyboard "second form" sequence: <c>[1;modifiers[:event] final</c>
-    /// where <c>final</c> is one of <c>A B C D E F H P Q R S</c>.
-    /// </summary>
-    /// <param name="seq">The buffered sequence string, e.g. <c>[1;5A</c> or <c>[1;2:1A</c>.</param>
-    /// <param name="result">
-    /// On <c>true</c> return: the resulting <see cref="KeyPressed"/> when this was a press event,
-    /// or <c>null</c> when a repeat/release event was parsed and intentionally swallowed.
-    /// </param>
-    /// <returns>
-    /// <c>true</c> if the sequence was recognized (whether or not an event is produced).
-    /// </returns>
-    private static bool TryParseKittySecondForm(string seq, out KeyPressed? result)
-    {
-        result = null;
-        if (seq.Length < 3 || seq[0] != '[') return false;
-        var final = seq[^1];
-        var key = CsiFunctionalDecoder.FinalToKey(final);
-        if (key == ConsoleKey.None) return false;
-
-        // Strip leading '[' and trailing final → "1;modifiers[:event]"
-        var inner = seq[1..^1];
-        var semicolon = inner.IndexOf(';');
-        if (semicolon < 0) return false;
-
-        // First field must be "1" for the second form.
-        if (inner[..semicolon] != "1") return false;
-        var rest = inner[(semicolon + 1)..];
-
-        // Parse modifiers and optional event-type subfield.
-        var colon = rest.IndexOf(':');
-        var modPart = colon < 0 ? rest : rest[..colon];
-        if (!int.TryParse(modPart, out var modValue) || modValue < 1) return false;
-
-        // Event type: 1 = press (default), 2 = repeat, 3 = release. Only emit press events.
-        if (colon >= 0)
-        {
-            if (!int.TryParse(rest[(colon + 1)..], out var eventType)) return false;
-            if (eventType != 1) return true; // parsed-and-swallowed; result stays null
-        }
-
-        var modBits = modValue - 1;
-        var shift = (modBits & 1) != 0;
-        var alt = (modBits & 2) != 0;
-        var ctrl = (modBits & 4) != 0;
-        result = new KeyPressed(new ConsoleKeyInfo('\0', key, shift, alt, ctrl));
-        return true;
     }
 
     /// <summary>
