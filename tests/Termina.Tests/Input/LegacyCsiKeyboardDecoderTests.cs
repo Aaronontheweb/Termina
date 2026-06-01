@@ -28,15 +28,16 @@ public class LegacyCsiKeyboardDecoderTests
     [InlineData("[21~", ConsoleKey.F10)]
     [InlineData("[23~", ConsoleKey.F11)]
     [InlineData("[24~", ConsoleKey.F12)]
-    public void TryDecode_KnownTildeSequence_ReturnsKeyPressed(string sequence, ConsoleKey expectedKey)
+    public void TryDecode_KnownTildeSequence_ReturnsKeyStroke(string sequence, ConsoleKey expectedKey)
     {
-        var decoded = LegacyCsiKeyboardDecoder.TryDecode(sequence, out var keyEvent);
+        var decoded = LegacyCsiKeyboardDecoder.TryDecode(sequence, out var keyStroke);
 
         Assert.True(decoded);
-        Assert.NotNull(keyEvent);
-        Assert.Equal(expectedKey, keyEvent!.KeyInfo.Key);
-        Assert.Equal('\0', keyEvent.KeyInfo.KeyChar);
-        Assert.Equal((ConsoleModifiers)0, keyEvent.KeyInfo.Modifiers);
+        Assert.NotNull(keyStroke);
+        Assert.Equal(ToTerminaKey(expectedKey), keyStroke!.Key);
+        Assert.Equal(KeyModifiers.None, keyStroke.Modifiers);
+        Assert.Equal(KeyEventPhase.Press, keyStroke.Phase);
+        Assert.Null(keyStroke.Text);
     }
 
     [Theory]
@@ -44,20 +45,20 @@ public class LegacyCsiKeyboardDecoderTests
     [InlineData("[5;3~", false, true, false)]
     [InlineData("[5;5~", false, false, true)]
     [InlineData("[5;8~", true, true, true)]
-    public void TryDecode_ModifiedTildeSequence_ReturnsKeyPressedWithModifiers(
+    public void TryDecode_ModifiedTildeSequence_ReturnsKeyStrokeWithModifiers(
         string sequence,
         bool shift,
         bool alt,
         bool ctrl)
     {
-        var decoded = LegacyCsiKeyboardDecoder.TryDecode(sequence, out var keyEvent);
+        var decoded = LegacyCsiKeyboardDecoder.TryDecode(sequence, out var keyStroke);
 
         Assert.True(decoded);
-        Assert.NotNull(keyEvent);
-        Assert.Equal(ConsoleKey.PageUp, keyEvent!.KeyInfo.Key);
-        Assert.Equal(shift, keyEvent.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Shift));
-        Assert.Equal(alt, keyEvent.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Alt));
-        Assert.Equal(ctrl, keyEvent.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Control));
+        Assert.NotNull(keyStroke);
+        Assert.Equal(TerminaKey.PageUp, keyStroke!.Key);
+        Assert.Equal(shift, keyStroke.Modifiers.HasFlag(KeyModifiers.Shift));
+        Assert.Equal(alt, keyStroke.Modifiers.HasFlag(KeyModifiers.Alt));
+        Assert.Equal(ctrl, keyStroke.Modifiers.HasFlag(KeyModifiers.Control));
     }
 
     [Theory]
@@ -69,9 +70,21 @@ public class LegacyCsiKeyboardDecoderTests
     [InlineData("5~")]
     public void TryDecode_UnknownOrMalformedSequence_ReturnsFalse(string sequence)
     {
-        var decoded = LegacyCsiKeyboardDecoder.TryDecode(sequence, out var keyEvent);
+        var decoded = LegacyCsiKeyboardDecoder.TryDecode(sequence, out var keyStroke);
 
         Assert.False(decoded);
-        Assert.Null(keyEvent);
+        Assert.Null(keyStroke);
     }
+
+    private static TerminaKey ToTerminaKey(ConsoleKey key) => key switch
+    {
+        ConsoleKey.Insert => TerminaKey.Insert,
+        ConsoleKey.Delete => TerminaKey.Delete,
+        ConsoleKey.Home => TerminaKey.Home,
+        ConsoleKey.End => TerminaKey.End,
+        ConsoleKey.PageUp => TerminaKey.PageUp,
+        ConsoleKey.PageDown => TerminaKey.PageDown,
+        >= ConsoleKey.F1 and <= ConsoleKey.F12 => TerminaKey.F1 + (key - ConsoleKey.F1),
+        _ => TerminaKey.None,
+    };
 }
