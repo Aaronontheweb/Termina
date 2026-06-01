@@ -15,10 +15,15 @@ internal sealed class TerminalInputPipeline
     private readonly EscapeSequenceParser _parser;
 
     public TerminalInputPipeline(bool kittyReportAllKeysVisible = false, Func<long>? getTick = null)
+        : this(new TerminalModeContext(kittyReportAllKeysVisible), getTick)
+    {
+    }
+
+    public TerminalInputPipeline(TerminalModeContext modeContext, Func<long>? getTick = null)
     {
         _parser = new EscapeSequenceParser(getTick)
         {
-            KittyReportAllKeysVisible = kittyReportAllKeysVisible,
+            KittyReportAllKeysVisible = modeContext.KittyReportAllKeysVisible,
         };
     }
 

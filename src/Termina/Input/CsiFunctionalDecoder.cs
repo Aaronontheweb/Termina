@@ -13,7 +13,7 @@ internal static class CsiFunctionalDecoder
     /// </summary>
     public static bool TryDecodeBareFinal(
         char final,
-        bool kittyReportAllKeysVisible,
+        TerminalModeContext context,
         out IInputEvent? result)
     {
         result = null;
@@ -21,7 +21,7 @@ internal static class CsiFunctionalDecoder
         if (!IsFunctionalFinal(final))
             return false;
 
-        if (kittyReportAllKeysVisible)
+        if (context.KittyReportAllKeysVisible)
         {
             var key = FinalToKey(final);
             if (key != ConsoleKey.None)
