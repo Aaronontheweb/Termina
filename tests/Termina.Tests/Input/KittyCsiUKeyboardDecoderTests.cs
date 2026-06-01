@@ -13,7 +13,7 @@ public class KittyCsiUKeyboardDecoderTests
     [InlineData("[13;6u", ConsoleKey.Enter, '\r', true, false, true)]
     [InlineData("[13u", ConsoleKey.Enter, '\r', false, false, false)]
     [InlineData("[97;2;65u", ConsoleKey.A, 'a', true, false, false)]
-    public void TryDecode_StandardSequence_ReturnsKeyPressed(
+    public void TryDecode_StandardSequence_ReturnsKeyStroke(
         string sequence,
         ConsoleKey expectedKey,
         char expectedChar,
@@ -21,15 +21,16 @@ public class KittyCsiUKeyboardDecoderTests
         bool alt,
         bool ctrl)
     {
-        var decoded = KittyCsiUKeyboardDecoder.TryDecode(sequence, out var keyEvent);
+        var decoded = KittyCsiUKeyboardDecoder.TryDecode(sequence, out var keyStroke);
 
         Assert.True(decoded);
-        Assert.NotNull(keyEvent);
-        Assert.Equal(expectedKey, keyEvent!.KeyInfo.Key);
-        Assert.Equal(expectedChar, keyEvent.KeyInfo.KeyChar);
-        Assert.Equal(shift, keyEvent.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Shift));
-        Assert.Equal(alt, keyEvent.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Alt));
-        Assert.Equal(ctrl, keyEvent.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Control));
+        Assert.NotNull(keyStroke);
+        Assert.Equal(ToTerminaKey(expectedKey), keyStroke!.Key);
+        Assert.Equal(expectedChar.ToString(), keyStroke.Text);
+        Assert.Equal(KeyEventPhase.Press, keyStroke.Phase);
+        Assert.Equal(shift, keyStroke.Modifiers.HasFlag(KeyModifiers.Shift));
+        Assert.Equal(alt, keyStroke.Modifiers.HasFlag(KeyModifiers.Alt));
+        Assert.Equal(ctrl, keyStroke.Modifiers.HasFlag(KeyModifiers.Control));
     }
 
     [Theory]
@@ -37,32 +38,44 @@ public class KittyCsiUKeyboardDecoderTests
     [InlineData("[57352;2u", ConsoleKey.UpArrow, true)]
     [InlineData("[57368u", ConsoleKey.F5, false)]
     [InlineData("[57348u", ConsoleKey.Insert, false)]
-    public void TryDecode_PuaFunctionalKey_ReturnsKeyPressed(
+    public void TryDecode_PuaFunctionalKey_ReturnsKeyStroke(
         string sequence,
         ConsoleKey expectedKey,
         bool shift)
     {
-        var decoded = KittyCsiUKeyboardDecoder.TryDecode(sequence, out var keyEvent);
+        var decoded = KittyCsiUKeyboardDecoder.TryDecode(sequence, out var keyStroke);
 
         Assert.True(decoded);
-        Assert.NotNull(keyEvent);
-        Assert.Equal(expectedKey, keyEvent!.KeyInfo.Key);
-        Assert.Equal('\0', keyEvent.KeyInfo.KeyChar);
-        Assert.Equal(shift, keyEvent.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Shift));
+        Assert.NotNull(keyStroke);
+        Assert.Equal(ToTerminaKey(expectedKey), keyStroke!.Key);
+        Assert.Null(keyStroke.Text);
+        Assert.Equal(KeyEventPhase.Press, keyStroke.Phase);
+        Assert.Equal(shift, keyStroke.Modifiers.HasFlag(KeyModifiers.Shift));
     }
 
     [Theory]
     [InlineData("[57441u")]
     [InlineData("[57448u")]
     [InlineData("[57441;1:3u")]
-    [InlineData("[97;1:3u")]
     [InlineData("[20000u")]
     public void TryDecode_SwallowedSequence_ReturnsTrueWithoutEvent(string sequence)
     {
-        var decoded = KittyCsiUKeyboardDecoder.TryDecode(sequence, out var keyEvent);
+        var decoded = KittyCsiUKeyboardDecoder.TryDecode(sequence, out var keyStroke);
 
         Assert.True(decoded);
-        Assert.Null(keyEvent);
+        Assert.Null(keyStroke);
+    }
+
+    [Fact]
+    public void TryDecode_ReleaseEvent_ReturnsKeyStrokeWithReleasePhase()
+    {
+        var decoded = KittyCsiUKeyboardDecoder.TryDecode("[97;1:3u", out var keyStroke);
+
+        Assert.True(decoded);
+        Assert.NotNull(keyStroke);
+        Assert.Equal(TerminaKey.A, keyStroke!.Key);
+        Assert.Equal("a", keyStroke.Text);
+        Assert.Equal(KeyEventPhase.Release, keyStroke.Phase);
     }
 
     [Theory]
@@ -74,9 +87,32 @@ public class KittyCsiUKeyboardDecoderTests
     [InlineData("13;1u")]
     public void TryDecode_MalformedSequence_ReturnsFalse(string sequence)
     {
-        var decoded = KittyCsiUKeyboardDecoder.TryDecode(sequence, out var keyEvent);
+        var decoded = KittyCsiUKeyboardDecoder.TryDecode(sequence, out var keyStroke);
 
         Assert.False(decoded);
-        Assert.Null(keyEvent);
+        Assert.Null(keyStroke);
     }
+
+    private static TerminaKey ToTerminaKey(ConsoleKey key) => key switch
+    {
+        ConsoleKey.Escape => TerminaKey.Escape,
+        ConsoleKey.Enter => TerminaKey.Enter,
+        ConsoleKey.Tab => TerminaKey.Tab,
+        ConsoleKey.Backspace => TerminaKey.Backspace,
+        ConsoleKey.Spacebar => TerminaKey.Space,
+        ConsoleKey.Insert => TerminaKey.Insert,
+        ConsoleKey.Delete => TerminaKey.Delete,
+        ConsoleKey.Home => TerminaKey.Home,
+        ConsoleKey.End => TerminaKey.End,
+        ConsoleKey.PageUp => TerminaKey.PageUp,
+        ConsoleKey.PageDown => TerminaKey.PageDown,
+        ConsoleKey.UpArrow => TerminaKey.UpArrow,
+        ConsoleKey.DownArrow => TerminaKey.DownArrow,
+        ConsoleKey.LeftArrow => TerminaKey.LeftArrow,
+        ConsoleKey.RightArrow => TerminaKey.RightArrow,
+        >= ConsoleKey.A and <= ConsoleKey.Z => TerminaKey.A + (key - ConsoleKey.A),
+        >= ConsoleKey.D0 and <= ConsoleKey.D9 => TerminaKey.D0 + (key - ConsoleKey.D0),
+        >= ConsoleKey.F1 and <= ConsoleKey.F12 => TerminaKey.F1 + (key - ConsoleKey.F1),
+        _ => TerminaKey.None,
+    };
 }
