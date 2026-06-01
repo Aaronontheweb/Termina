@@ -199,7 +199,7 @@ internal sealed class EscapeSequenceParser
                     && legacyKeyEvent is not null)
                 {
                     TerminaTrace.Input.Debug(this, "ESP: legacy CSI tilde {0} → {1}", seq.Text, legacyKeyEvent);
-                    results.Add(legacyKeyEvent);
+                    results.AddRange(PublicInputEventAdapter.Adapt(legacyKeyEvent));
                     _seqBuffer.Clear();
                     _state = State.Normal;
                     break;
