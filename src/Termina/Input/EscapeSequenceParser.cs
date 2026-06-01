@@ -211,7 +211,7 @@ internal sealed class EscapeSequenceParser
                     if (KittyCsiUKeyboardDecoder.TryDecode(seq, out var csiEvent) && csiEvent is not null)
                     {
                         TerminaTrace.Input.Debug(this, "ESP: CSI u detected: {0}", seq.Text);
-                        results.Add(csiEvent);
+                        results.AddRange(PublicInputEventAdapter.Adapt(csiEvent));
                     }
                     _seqBuffer.Clear();
                     _state = State.Normal;
