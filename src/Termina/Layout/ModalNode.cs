@@ -30,6 +30,8 @@ public sealed class ModalNode : LayoutNode, IFocusable, IInvalidatingNode
     private ILayoutNode? _content;
     private string? _title;
     private Color? _titleColor;
+    private string? _footer;
+    private Color? _footerColor;
     private BorderStyle _borderStyle = BorderStyle.Rounded;
     private Color? _borderColor;
     private BackdropStyle _backdrop = BackdropStyle.Dim;
@@ -117,6 +119,24 @@ public sealed class ModalNode : LayoutNode, IFocusable, IInvalidatingNode
     public ModalNode WithTitleColor(Color color)
     {
         _titleColor = color;
+        return this;
+    }
+
+    /// <summary>
+    /// Sets the modal footer text, rendered in the bottom border line.
+    /// </summary>
+    public ModalNode WithFooter(string footer)
+    {
+        _footer = footer;
+        return this;
+    }
+
+    /// <summary>
+    /// Sets the footer color.
+    /// </summary>
+    public ModalNode WithFooterColor(Color color)
+    {
+        _footerColor = color;
         return this;
     }
 
@@ -351,6 +371,22 @@ public sealed class ModalNode : LayoutNode, IFocusable, IInvalidatingNode
                 panelContext.ResetColors();
 
             panelContext.WriteAt(titleX, 0, titleText);
+        }
+
+        // Draw footer if present (on bottom border line)
+        if (!string.IsNullOrEmpty(_footer))
+        {
+            var maxFooterLen = bounds.Width - 4;
+            var displayFooter = _footer.Length > maxFooterLen ? _footer[..maxFooterLen] : _footer;
+            var footerText = $" {displayFooter} ";
+            var footerX = 2;
+
+            if (_footerColor.HasValue)
+                panelContext.SetForeground(_footerColor.Value);
+            else
+                panelContext.ResetColors();
+
+            panelContext.WriteAt(footerX, bounds.Height - 1, footerText);
         }
 
         panelContext.ResetColors();
