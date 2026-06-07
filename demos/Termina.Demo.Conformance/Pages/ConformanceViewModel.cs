@@ -1,4 +1,4 @@
-  using System.Diagnostics;
+using System.Diagnostics;
 using R3;
 using Termina.Input;
 using Termina.Reactive;
@@ -75,6 +75,15 @@ public sealed class ConformanceViewModel : ReactiveViewModel
                 ("phase", "submit"),
                 ("text", text),
                 ("count", SubmittedCount.Value.ToString())));
+    }
+
+    public void RecordInputTextChanged(string text)
+    {
+        _recorder.RecordLine(
+            JsonLine(
+                ("phase", "text"),
+                ("kind", "TextChanged"),
+                ("text", text)));
     }
 
     private void HandleKey(KeyPressed key)

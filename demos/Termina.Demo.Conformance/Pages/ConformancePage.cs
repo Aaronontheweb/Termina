@@ -55,6 +55,10 @@ public sealed class ConformancePage : ReactivePage<ConformanceViewModel>
             })
             .DisposeWith(Subscriptions);
 
+        _input.TextChanged
+            .Subscribe(ViewModel.RecordInputTextChanged)
+            .DisposeWith(Subscriptions);
+
         ViewModel.Input.OfType<IInputEvent, MouseScrollEvent>()
             .Subscribe(scroll =>
             {

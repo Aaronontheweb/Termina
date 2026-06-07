@@ -13,6 +13,7 @@ EVENTS="$ARTIFACT_DIR/events.jsonl"
 SESSION="termina-conformance"
 TMUX_SOCKET="termina-ci"
 TMUX_MOUSE="${TMUX_CONFORMANCE_MOUSE:-off}"
+PASTE_TEXT="tmux bracketed paste value"
 
 export TERMINA_RAW_INPUT=1
 export TERMINA_KITTY_KEYBOARD=9
@@ -35,6 +36,9 @@ tmux -L "$TMUX_SOCKET" paste-buffer -t "$SESSION" -d
 printf '\x1b[B' | tmux -L "$TMUX_SOCKET" load-buffer -
 tmux -L "$TMUX_SOCKET" paste-buffer -t "$SESSION" -d
 tmux -L "$TMUX_SOCKET" send-keys -t "$SESSION" Enter
+printf '\x1b[200~%s\x1b[201~' "$PASTE_TEXT" | tmux -L "$TMUX_SOCKET" load-buffer -
+tmux -L "$TMUX_SOCKET" paste-buffer -t "$SESSION" -d
+tmux -L "$TMUX_SOCKET" send-keys -t "$SESSION" Enter
 sleep 1
 tmux -L "$TMUX_SOCKET" capture-pane -p -t "$SESSION" >"$CAPTURE"
 
@@ -47,7 +51,9 @@ python3 "$ROOT_DIR/tests/conformance/linux/assert-conformance.py" \
   --events "$EVENTS" \
   --expect-tmux true \
   --expect-tmux-mouse "$TMUX_MOUSE" \
-  --expect-arrows
+  --expect-arrows \
+  --expect-input-text "$PASTE_TEXT" \
+  --expect-submitted "$PASTE_TEXT"
 
 tmux -L "$TMUX_SOCKET" kill-session -t "$SESSION" >/dev/null 2>&1 || true
 tmux -L "$TMUX_SOCKET" kill-server >/dev/null 2>&1 || true
