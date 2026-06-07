@@ -3,9 +3,13 @@
 Termina supports two runtime input strategies:
 
 - legacy mouse tracking, which is the compatibility-first default
-- raw input plus alternate-scroll, which is the higher-fidelity mode for apps like Netclaw
+- raw input plus alternate-scroll, which is the higher-fidelity mode for apps like NetClaw
 
 This page explains when to use each mode, how to configure them, and what to expect in tmux and kitty-capable terminals.
+
+::: tip Upgrading to 0.11.0
+If you are upgrading an app that needs native terminal selection, clipboard copy, or paste into focused inputs, start with the [0.11.0 upgrade advisory](/guide/upgrade-0.11).
+:::
 
 ## Recommended Defaults
 
@@ -136,7 +140,7 @@ Older or unsupported terminals still work, but Termina may fall back to legacy m
 
 For existing apps, keep defaults.
 
-For apps like Netclaw, opt in explicitly and test:
+For apps like NetClaw, opt in explicitly and test:
 
 1. direct terminal session
 2. tmux session

@@ -169,6 +169,8 @@ public class MyPage : ReactivePage<MyViewModel>
 
 `TextInputNode` implements `IPasteReceiver` and automatically handles bracketed paste mode. When the user pastes text from the clipboard, Termina detects the terminal's paste escape sequences and delivers the content as a single `PasteEvent` rather than individual key presses.
 
+In Termina 0.11.0, focused paste routing is covered by real terminal conformance tests for direct terminals, tmux, kitty, and kitty plus tmux. See the [0.11.0 upgrade advisory](/guide/upgrade-0.11) if your app needs users to copy text from the screen and paste it into a Termina input.
+
 ### How It Works
 
 1. The user pastes text (Ctrl+V or right-click paste)
@@ -205,6 +207,24 @@ Input.OfType<PasteEvent>()
         ProcessPastedContent(paste.Content);
     })
     .DisposeWith(Subscriptions);
+```
+
+### Custom Input Components
+
+If you build a custom focusable input node, implement `IPasteReceiver` so paste content goes directly to the focused component:
+
+```csharp
+public sealed class CustomInputNode : LayoutNode, IFocusable, IPasteReceiver
+{
+    public bool HandlePaste(PasteEvent paste)
+    {
+        if (string.IsNullOrEmpty(paste.Content))
+            return false;
+
+        InsertTextAtCursor(paste.Content);
+        return true;
+    }
+}
 ```
 
 ## Observables
