@@ -1,3 +1,26 @@
+#### 0.11.0 June 7th 2026 ####
+
+**Terminal Input Reliability and Native Copy/Paste Support**
+
+- Added an internal semantic input pipeline that decodes terminal protocol input before adapting back to Termina's existing public input events.
+- Extracted protocol-specific decoders for SGR mouse input, SS3 keyboard input, CSI functional keys, legacy CSI keyboard sequences, Kitty keyboard formats, bracketed paste, and unknown-sequence fallback handling.
+- Preserved the existing public input surface: `KeyPressed`, `MouseScrollEvent`, `PasteEvent`, and `ResizeEvent`.
+- Expanded Linux terminal conformance coverage for baseline PTY, tmux, kitty, and kitty plus tmux scenarios.
+- Added real terminal selection, explicit clipboard copy, and paste-into-focused-input coverage to validate native terminal clipboard workflows.
+- Hardened file trace disposal so buffered trace events drain deterministically.
+
+**Upgrade Notes**
+
+- Existing applications continue using `LegacyMouseTracking` by default.
+- Applications that need native terminal text selection should opt into raw input plus alternate-scroll.
+- Built-in text inputs handle bracketed paste automatically.
+- Custom focusable input components should implement `IPasteReceiver` to receive focused paste content.
+- For tmux, enable passthrough with `set -g allow-passthrough on`.
+- When tmux mouse mode captures selection, use Shift-drag plus the terminal copy shortcut, usually `Ctrl+Shift+C`.
+- See the [0.11.0 upgrade advisory](https://aaronstannard.com/termina/guide/upgrade-0.11.html) for the recommended runtime configuration and tmux workflow.
+
+---
+
 #### 0.10.1 May 24th 2026 ####
 
 **Bug Fixes** — `StreamingTextNode` thread-safety and disposal hardening:
@@ -50,4 +73,3 @@
   - Enables consumers to recompute width- or height-sensitive layout on terminal resize
 
 ---
-

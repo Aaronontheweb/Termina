@@ -137,6 +137,23 @@ If selection requires Shift, check your outer terminal's configuration or verify
 - This is expected behavior when `mouse on` is set
 - Either switch to `mouse off`, or use Shift+drag to bypass tmux's mouse handling
 - Shift+drag always works regardless of tmux mouse setting
+- Shift+drag is native terminal selection, not tmux copy-mode; after selecting, use your terminal copy shortcut such as `Ctrl+Shift+C`
+
+### Enter does not copy after Shift-selection
+
+When you hold Shift and drag-select text, the outer terminal owns the selection. Pressing `Enter` does nothing because tmux copy-mode is not active.
+
+Use the native terminal workflow:
+
+```text
+Shift-drag select -> Ctrl+Shift+C -> Ctrl+Shift+V
+```
+
+Use tmux copy-mode only when you want tmux to own the buffer:
+
+```text
+prefix + [ -> select -> Enter -> prefix + ]
+```
 
 ### Paste inserts literal escape sequences
 
@@ -185,5 +202,6 @@ With this configuration, Termina apps running inside tmux will have:
 ## See Also
 
 - [Terminal Input Modes](/concepts/terminal-input-modes) — framework-level input mode configuration
+- [Upgrading to 0.11.0](/guide/upgrade-0.11) — native selection, copy, paste, and input mode guidance
 - [Clipboard And Feedback](/advanced/clipboard-and-feedback) — Termina's clipboard transport architecture
 - [Input Handling](/concepts/input-handling) — keyboard, mouse, and paste event routing

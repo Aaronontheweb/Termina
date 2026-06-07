@@ -87,4 +87,5 @@ Termina is ideal for:
 
 - [Getting Started](/guide/getting-started) - Build your first Termina app
 - [Installation](/guide/installation) - Package installation options
+- [Upgrading to 0.11.0](/guide/upgrade-0.11) - Native selection, copy, paste, and input mode guidance
 - [Counter Tutorial](/tutorials/counter-app) - Step-by-step tutorial
