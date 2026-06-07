@@ -24,10 +24,13 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--events", required=True)
     parser.add_argument("--selection")
+    parser.add_argument("--clipboard")
     parser.add_argument("--ansi-capture")
     parser.add_argument("--expect-wheel", action="store_true")
     parser.add_argument("--expect-arrows", action="store_true")
     parser.add_argument("--expect-selection")
+    parser.add_argument("--expect-clipboard")
+    parser.add_argument("--expect-input-text")
     parser.add_argument("--require-alt-scroll-sequence", action="store_true")
     parser.add_argument("--require-alt-scroll-enable-only", action="store_true")
     parser.add_argument("--require-no-mouse-tracking", action="store_true")
@@ -100,6 +103,21 @@ def main():
         require(
             args.expect_selection in selection_text,
             f"selection did not contain '{args.expect_selection}'",
+        )
+
+    if args.expect_clipboard:
+        require(args.clipboard is not None, "--expect-clipboard requires --clipboard")
+        clipboard_text = Path(args.clipboard).read_text()
+        require(
+            args.expect_clipboard in clipboard_text,
+            f"clipboard did not contain '{args.expect_clipboard}'",
+        )
+
+    if args.expect_input_text:
+        text_events = [evt for evt in events if evt.get("phase") == "text"]
+        require(
+            any(args.expect_input_text in evt.get("text", "") for evt in text_events),
+            f"input text events did not contain '{args.expect_input_text}'",
         )
 
     if args.ansi_capture:

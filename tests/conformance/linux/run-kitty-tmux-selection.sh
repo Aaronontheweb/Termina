@@ -18,6 +18,7 @@ SOCKET="unix:${SOCKET_PATH}"
 DISPLAY_NUM=":104"
 TMUX_SOCKET="termina-ci"
 TMUX_SESSION="conformance"
+PASTE_TEXT="netclaw config pasted value"
 
 cat >"$KITTY_CONF" <<'EOF'
 allow_remote_control socket
@@ -26,7 +27,7 @@ enable_audio_bell no
 font_size 16.0
 window_padding_width 0
 tab_bar_style hidden
-copy_on_select clipboard
+copy_on_select no
 shell_integration no-rc no-cursor
 EOF
 
@@ -94,8 +95,10 @@ CELL_W=$((WIDTH / COLS))
 CELL_H=$((HEIGHT / LINES))
 START_X=$((CELL_W * 3 + CELL_W / 2))
 START_Y=$((CELL_H * 3 + CELL_H / 2))
-END_X=$((CELL_W * 31))
+END_X=$((CELL_W * (COLS - 2)))
 END_Y=$START_Y
+
+printf '%s' '__termina_empty_clipboard__' | xsel --clipboard --input >/dev/null 2>&1 || true
 
 xdotool key --window "$WINDOW_ID" a b c Left Left
 printf '\x1b[A' | tmux -L "$TMUX_SOCKET" load-buffer -
@@ -112,7 +115,28 @@ xdotool mouseup --window "$WINDOW_ID" 1
 sleep 1
 
 kitty @ --to "$SOCKET" get-text --extent selection >"$SELECTION_FILE"
-xsel --clipboard --output >"$CLIPBOARD_FILE" 2>/dev/null || true
+xdotool key --window "$WINDOW_ID" ctrl+shift+c
+
+for _ in $(seq 1 30); do
+  xsel --clipboard --output >"$CLIPBOARD_FILE" 2>/dev/null || true
+  if python3 - "$CLIPBOARD_FILE" <<'PY'
+import sys
+from pathlib import Path
+
+sys.exit(0 if "SELECTABLE SENTINEL" in Path(sys.argv[1]).read_text() else 1)
+PY
+  then
+    break
+  fi
+
+  sleep 1
+done
+
+printf '%s' "$PASTE_TEXT" | xsel --clipboard --input >/dev/null 2>&1
+xdotool key --window "$WINDOW_ID" ctrl+shift+v
+sleep 1
+xdotool key --window "$WINDOW_ID" Return
+sleep 1
 
 xdotool key --window "$WINDOW_ID" ctrl+q
 
@@ -137,9 +161,13 @@ cp "$CONFORMANCE_DIR/events.jsonl" "$EVENTS"
 python3 "$ROOT_DIR/tests/conformance/linux/assert-conformance.py" \
   --events "$EVENTS" \
   --selection "$SELECTION_FILE" \
+  --clipboard "$CLIPBOARD_FILE" \
   --ansi-capture "$CAPTURE" \
   --expect-tmux true \
   --expect-tmux-mouse off \
   --expect-arrows \
   --expect-selection "SELECTABLE" \
+  --expect-clipboard "SELECTABLE SENTINEL" \
+  --expect-input-text "$PASTE_TEXT" \
+  --expect-submitted "$PASTE_TEXT" \
   --require-no-mouse-tracking
