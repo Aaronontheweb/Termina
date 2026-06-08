@@ -1,3 +1,5 @@
+using Termina.Terminal;
+
 namespace Termina.Notifications;
 
 /// <summary>
@@ -5,4 +7,6 @@ namespace Termina.Notifications;
 /// </summary>
 public sealed record ToastOptions(
     TimeSpan? Duration = null,
-    ToastPosition Position = ToastPosition.BottomRight);
+    ToastPosition Position = ToastPosition.BottomRight,
+    Color? Color = null,
+    string? Icon = null);
