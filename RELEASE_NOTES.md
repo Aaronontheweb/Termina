@@ -1,3 +1,14 @@
+#### 0.11.1 June 8th 2026 ####
+
+**Bug Fix** — DECCKM arrow disambiguation:
+
+- **CSI A/B no longer misrouted as wheel events in terminals that ignore DECCKM** ([#280](https://github.com/Aaronontheweb/termina/pull/280))
+  - `CsiFunctionalDecoder` unconditionally treated bare CSI A/B as alternate-scroll wheel events when Kitty was inactive, assuming the terminal honored DECCKM (`?1h`) and sent real arrows as SS3. Terminals that ignore DECCKM (VHS, some PTY wrappers) keep sending arrows as CSI form, so arrow navigation broke silently.
+  - Added a `DeckmConfirmed` flag to `TerminalModeContext`. The parser sets it when it first sees an SS3 arrow key — proof the terminal honored DECCKM. `CsiFunctionalDecoder` only routes CSI A/B as wheel after this confirmation; until then they are keyboard arrows.
+  - Narrowed the DECCKM confirmation to SS3 arrow keys only (A/B/C/D). SS3 F1-F4 (P/Q/R/S) use the SS3 encoding as a VT220 legacy independent of DECCKM and no longer false-positive the detection.
+
+---
+
 #### 0.11.0 June 7th 2026 ####
 
 **Terminal Input Reliability and Native Copy/Paste Support**

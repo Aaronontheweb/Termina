@@ -10,25 +10,12 @@
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <VersionPrefix>0.11.0</VersionPrefix>
-    <PackageReleaseNotes>**Terminal Input Reliability and Native Copy/Paste Support**
+    <VersionPrefix>0.11.1</VersionPrefix>
+    <PackageReleaseNotes>**Bug Fix** — DECCKM arrow disambiguation:
 
-- Added an internal semantic input pipeline that decodes terminal protocol input before adapting back to Termina's existing public input events.
-- Extracted protocol-specific decoders for SGR mouse input, SS3 keyboard input, CSI functional keys, legacy CSI keyboard sequences, Kitty keyboard formats, bracketed paste, and unknown-sequence fallback handling.
-- Preserved the existing public input surface: `KeyPressed`, `MouseScrollEvent`, `PasteEvent`, and `ResizeEvent`.
-- Expanded Linux terminal conformance coverage for baseline PTY, tmux, kitty, and kitty plus tmux scenarios.
-- Added real terminal selection, explicit clipboard copy, and paste-into-focused-input coverage to validate native terminal clipboard workflows.
-- Hardened file trace disposal so buffered trace events drain deterministically.
-
-**Upgrade Notes**
-
-- Existing applications continue using `LegacyMouseTracking` by default.
-- Applications that need native terminal text selection should opt into raw input plus alternate-scroll.
-- Built-in text inputs handle bracketed paste automatically.
-- Custom focusable input components should implement `IPasteReceiver` to receive focused paste content.
-- For tmux, enable passthrough with `set -g allow-passthrough on`.
-- When tmux mouse mode captures selection, use Shift-drag plus the terminal copy shortcut, usually `Ctrl+Shift+C`.
-- See the [0.11.0 upgrade advisory](https://aaronstannard.com/termina/guide/upgrade-0.11.html) for the recommended runtime configuration and tmux workflow.
+- CSI A/B no longer misrouted as wheel events in terminals that ignore DECCKM.
+- Added DeckmConfirmed auto-detection: CSI A/B are keyboard arrows until an SS3 arrow key proves the terminal honors DECCKM.
+- Narrowed DECCKM confirmation to SS3 arrow keys only — VT220 F1-F4 (SS3 P/Q/R/S) no longer false-positive.
 
 ---</PackageReleaseNotes>
   </PropertyGroup>
