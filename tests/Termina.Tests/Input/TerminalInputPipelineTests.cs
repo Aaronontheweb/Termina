@@ -32,14 +32,14 @@ public class TerminalInputPipelineTests
     }
 
     [Fact]
-    public void KittyReportAllKeysNotVisible_RoutesBareCsiArrowAsScroll()
+    public void KittyReportAllKeysNotVisible_RoutesBareCsiArrowAsKeyBeforeDeckmConfirmed()
     {
         var pipeline = new TerminalInputPipeline(kittyReportAllKeysVisible: false);
 
         var events = FeedString(pipeline, "\x1b[A");
 
-        var scroll = Assert.IsType<MouseScrollEvent>(Assert.Single(events));
-        Assert.Equal(+1, scroll.Delta);
+        var press = Assert.IsType<KeyPressed>(Assert.Single(events));
+        Assert.Equal(ConsoleKey.UpArrow, press.KeyInfo.Key);
     }
 
     [Fact]

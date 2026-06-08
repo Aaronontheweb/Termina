@@ -290,6 +290,14 @@ internal sealed class EscapeSequenceParser
                     TerminaTrace.Input.Debug(this, "ESP: SS3 O{0} → {1}", key.KeyChar, ss3Input);
                     if (ss3Input is not null)
                         results.AddRange(PublicInputEventAdapter.Adapt(ss3Input));
+
+                    // SS3 arrow keys only arrive when the terminal honors DECCKM (?1h).
+                    // Once confirmed, CsiFunctionalDecoder can safely treat CSI A/B as
+                    // alternate-scroll wheel events rather than keyboard arrows.
+                    if (!_modeContext.DeckmConfirmed
+                        && !_modeContext.KittyReportAllKeysVisible
+                        && ss3Input is KeyStroke)
+                        _modeContext = _modeContext with { DeckmConfirmed = true };
                 }
                 else
                 {

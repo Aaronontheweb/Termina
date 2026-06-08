@@ -39,9 +39,9 @@ public class TerminalInputFixtureTests
             RawChar('~'));
 
         yield return Case(
-            "Bare CSI Up is alternate-scroll wheel when kitty report-all-keys is not visible",
+            "Bare CSI Up is keyboard arrow when DECCKM is not yet confirmed",
             "\x1b[A",
-            Scroll(+1));
+            Key(ConsoleKey.UpArrow));
 
         yield return ModeCase(
             "Bare CSI Up is key when kitty report-all-keys is visible",

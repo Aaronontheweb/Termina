@@ -30,13 +30,24 @@ internal static class CsiFunctionalDecoder
             return true;
         }
 
-        if (final is 'A' or 'B')
+        if (final is 'A' or 'B' && context.DeckmConfirmed)
         {
+            // DECCKM is confirmed (we've seen SS3 arrow keys), so CSI A/B can only be
+            // alternate-scroll wheel events — real arrows arrive as SS3.
             result = new PointerInput(
                 PointerAction.Wheel,
                 X: 0,
                 Y: 0,
                 final == 'A' ? MouseButton.WheelUp : MouseButton.WheelDown);
+        }
+        else
+        {
+            // DECCKM not yet confirmed — treat CSI A/B/C/D as keyboard arrows.
+            // Terminals that ignore DECCKM (VHS, some PTY wrappers) send arrows
+            // as CSI form; misrouting them as wheel breaks all navigation.
+            var key = FinalToTerminaKey(final);
+            if (key != TerminaKey.None)
+                result = new KeyStroke(key);
         }
 
         return true;

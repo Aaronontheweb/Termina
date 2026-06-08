@@ -48,11 +48,11 @@ public class CsiFunctionalDecoderTests
     [Theory]
     [InlineData('A', +1)]
     [InlineData('B', -1)]
-    public void TryDecodeBareFinal_KittyInactive_VerticalArrowReturnsPointerWheel(char final, int expectedDelta)
+    public void TryDecodeBareFinal_DeckmConfirmed_VerticalArrowReturnsPointerWheel(char final, int expectedDelta)
     {
         var decoded = CsiFunctionalDecoder.TryDecodeBareFinal(
             final,
-            Context(kittyReportAllKeysVisible: false),
+            Context(kittyReportAllKeysVisible: false, deckmConfirmed: true),
             out var inputEvent);
 
         Assert.True(decoded);
@@ -62,24 +62,59 @@ public class CsiFunctionalDecoderTests
     }
 
     [Theory]
+    [InlineData('A', ConsoleKey.UpArrow)]
+    [InlineData('B', ConsoleKey.DownArrow)]
+    [InlineData('C', ConsoleKey.RightArrow)]
+    [InlineData('D', ConsoleKey.LeftArrow)]
+    [InlineData('H', ConsoleKey.Home)]
+    [InlineData('F', ConsoleKey.End)]
+    [InlineData('P', ConsoleKey.F1)]
+    [InlineData('Q', ConsoleKey.F2)]
+    [InlineData('R', ConsoleKey.F3)]
+    [InlineData('S', ConsoleKey.F4)]
+    public void TryDecodeBareFinal_DeckmNotConfirmed_ReturnsKeyStroke(char final, ConsoleKey expectedKey)
+    {
+        var decoded = CsiFunctionalDecoder.TryDecodeBareFinal(
+            final,
+            Context(kittyReportAllKeysVisible: false, deckmConfirmed: false),
+            out var inputEvent);
+
+        Assert.True(decoded);
+        var keyStroke = Assert.IsType<KeyStroke>(inputEvent);
+        Assert.Equal(ToTerminaKey(expectedKey), keyStroke.Key);
+    }
+
+    [Fact]
+    public void TryDecodeBareFinal_DeckmNotConfirmed_KpBeginConsumesWithoutEvent()
+    {
+        var decoded = CsiFunctionalDecoder.TryDecodeBareFinal(
+            'E',
+            Context(kittyReportAllKeysVisible: false, deckmConfirmed: false),
+            out var inputEvent);
+
+        Assert.True(decoded);
+        Assert.Null(inputEvent);
+    }
+
+    [Theory]
     [InlineData('C')]
     [InlineData('D')]
-    [InlineData('E')]
     [InlineData('H')]
     [InlineData('F')]
     [InlineData('P')]
     [InlineData('Q')]
     [InlineData('R')]
     [InlineData('S')]
-    public void TryDecodeBareFinal_KittyInactive_OtherFunctionalFinalConsumesWithoutEvent(char final)
+    public void TryDecodeBareFinal_DeckmConfirmed_NonWheelFunctionalReturnsKeyStroke(char final)
     {
         var decoded = CsiFunctionalDecoder.TryDecodeBareFinal(
             final,
-            Context(kittyReportAllKeysVisible: false),
+            Context(kittyReportAllKeysVisible: false, deckmConfirmed: true),
             out var inputEvent);
 
         Assert.True(decoded);
-        Assert.Null(inputEvent);
+        var keyStroke = Assert.IsType<KeyStroke>(inputEvent);
+        Assert.NotEqual(TerminaKey.None, keyStroke.Key);
     }
 
     [Theory]
@@ -97,8 +132,10 @@ public class CsiFunctionalDecoderTests
         Assert.Null(inputEvent);
     }
 
-    private static TerminalModeContext Context(bool kittyReportAllKeysVisible) =>
-        new(kittyReportAllKeysVisible);
+    private static TerminalModeContext Context(
+        bool kittyReportAllKeysVisible,
+        bool deckmConfirmed = false) =>
+        new(kittyReportAllKeysVisible, deckmConfirmed);
 
     private static TerminaKey ToTerminaKey(ConsoleKey key) => key switch
     {

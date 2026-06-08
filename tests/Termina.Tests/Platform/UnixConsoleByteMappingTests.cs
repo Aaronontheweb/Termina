@@ -97,13 +97,13 @@ public class UnixConsoleByteMappingTests
     }
 
     /// <summary>
-    /// CSI arrow forms fed byte-by-byte through the parser must come out as
-    /// <see cref="MouseScrollEvent"/>s — the wheel-disambiguation contract.
+    /// CSI arrow forms fed byte-by-byte through the parser emit as keyboard arrows
+    /// until DECCKM compliance is confirmed (by observing an SS3 arrow key).
     /// </summary>
     [Theory]
-    [InlineData('A', +1)]
-    [InlineData('B', -1)]
-    public void RawBytes_CsiArrow_ParsesAsMouseScroll(char letter, int expectedDelta)
+    [InlineData('A', ConsoleKey.UpArrow)]
+    [InlineData('B', ConsoleKey.DownArrow)]
+    public void RawBytes_CsiArrow_ParsesAsKeyPressedBeforeDeckmConfirmed(char letter, ConsoleKey expectedKey)
     {
         var parser = new EscapeSequenceParser();
         var events = new List<IInputEvent>();
@@ -111,9 +111,9 @@ public class UnixConsoleByteMappingTests
         events.AddRange(parser.Process(RawByteKeyMapper.ByteToKeyInfo((byte)'[')));
         events.AddRange(parser.Process(RawByteKeyMapper.ByteToKeyInfo((byte)letter)));
 
-        var scroll = Assert.Single(events);
-        var mse = Assert.IsType<MouseScrollEvent>(scroll);
-        Assert.Equal(expectedDelta, mse.Delta);
+        var press = Assert.Single(events);
+        var kp = Assert.IsType<KeyPressed>(press);
+        Assert.Equal(expectedKey, kp.KeyInfo.Key);
     }
 
     /// <summary>
