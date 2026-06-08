@@ -6,7 +6,7 @@ namespace Termina.Input;
 /// <summary>
 /// Captures terminal mode state needed to disambiguate input sequences.
 /// </summary>
-internal readonly record struct TerminalModeContext(bool KittyReportAllKeysVisible)
+internal readonly record struct TerminalModeContext(bool KittyReportAllKeysVisible, bool DeckmConfirmed = false)
 {
     public static TerminalModeContext Default { get; } = new(false);
 }

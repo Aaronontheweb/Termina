@@ -28,13 +28,13 @@ public class EscapeSequenceParserKittyTests
     // --- Bare CSI arrow routing depends on KittyReportAllKeysVisible ---
 
     [Fact]
-    public void BareCsiUp_WhenKittyInactive_EmitsMouseScrollUp()
+    public void BareCsiUp_WhenKittyInactive_EmitsKeyPressedBeforeDeckmConfirmed()
     {
         var parser = new EscapeSequenceParser { KittyReportAllKeysVisible = false };
         var events = FeedString(parser, "\x1b[A");
         Assert.Single(events);
-        var scroll = Assert.IsType<MouseScrollEvent>(events[0]);
-        Assert.Equal(+1, scroll.Delta);
+        var press = Assert.IsType<KeyPressed>(events[0]);
+        Assert.Equal(ConsoleKey.UpArrow, press.KeyInfo.Key);
     }
 
     [Fact]
@@ -265,14 +265,37 @@ public class EscapeSequenceParserKittyTests
         Assert.True((press.KeyInfo.Modifiers & ConsoleModifiers.Shift) != 0);
     }
 
-    // --- Existing wheel disambiguation under ?1007h preserved when kitty inactive ---
+    // --- CSI arrows are keyboard keys until DECCKM is confirmed ---
 
     [Fact]
-    public void ExistingBehavior_BareCsiB_KittyInactive_StillEmitsScrollDown()
+    public void ExistingBehavior_BareCsiB_KittyInactive_EmitsKeyPressedBeforeDeckmConfirmed()
     {
         var parser = new EscapeSequenceParser { KittyReportAllKeysVisible = false };
         var events = FeedString(parser, "\x1b[B");
+        var press = Assert.IsType<KeyPressed>(events[0]);
+        Assert.Equal(ConsoleKey.DownArrow, press.KeyInfo.Key);
+    }
+
+    [Fact]
+    public void BareCsiB_AfterSs3Arrow_EmitsScrollDown()
+    {
+        // Once an SS3 arrow key arrives (proving DECCKM is honored), CSI A/B become wheel.
+        var parser = new EscapeSequenceParser { KittyReportAllKeysVisible = false };
+        FeedString(parser, "\x1bOA"); // SS3 Up — confirms DECCKM
+        var events = FeedString(parser, "\x1b[B");
         var scroll = Assert.IsType<MouseScrollEvent>(events[0]);
         Assert.Equal(-1, scroll.Delta);
+    }
+
+    [Fact]
+    public void BareCsiB_AfterSs3FKey_StillEmitsKeyPressed()
+    {
+        // SS3 F1-F4 use SS3 encoding as a VT220 legacy independent of DECCKM.
+        // They must not false-positive the DECCKM detection.
+        var parser = new EscapeSequenceParser { KittyReportAllKeysVisible = false };
+        FeedString(parser, "\x1bOP"); // SS3 F1 — should NOT confirm DECCKM
+        var events = FeedString(parser, "\x1b[B");
+        var press = Assert.IsType<KeyPressed>(events[0]);
+        Assert.Equal(ConsoleKey.DownArrow, press.KeyInfo.Key);
     }
 }
