@@ -294,9 +294,12 @@ internal sealed class EscapeSequenceParser
                     // SS3 arrow keys only arrive when the terminal honors DECCKM (?1h).
                     // Once confirmed, CsiFunctionalDecoder can safely treat CSI A/B as
                     // alternate-scroll wheel events rather than keyboard arrows.
+                    // Restrict to arrow keys — SS3 F1-F4 (P/Q/R/S) use the SS3 encoding
+                    // as a VT220 legacy independent of DECCKM and must not false-positive.
                     if (!_modeContext.DeckmConfirmed
                         && !_modeContext.KittyReportAllKeysVisible
-                        && ss3Input is KeyStroke)
+                        && ss3Input is KeyStroke { Key: TerminaKey.UpArrow or TerminaKey.DownArrow
+                            or TerminaKey.LeftArrow or TerminaKey.RightArrow })
                         _modeContext = _modeContext with { DeckmConfirmed = true };
                 }
                 else
