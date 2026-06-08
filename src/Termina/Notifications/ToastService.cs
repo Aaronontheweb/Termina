@@ -22,7 +22,7 @@ public sealed class ToastService : IToastService, IDisposable
             return;
 
         var resolvedOptions = options ?? new ToastOptions();
-        _currentToast.Value = new ToastMessage(message, resolvedOptions.Position);
+        _currentToast.Value = new ToastMessage(message, resolvedOptions.Position, resolvedOptions.Color, resolvedOptions.Icon);
 
         _dismissSubscription?.Dispose();
         _dismissSubscription = Observable
