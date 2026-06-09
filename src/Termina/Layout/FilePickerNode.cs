@@ -770,16 +770,16 @@ public sealed class FilePickerNode : IFocusable, IInvalidatingNode, IActivatable
         else if (_selectionMode == FilePickerSelectionMode.Multi)
         {
             hints = _selectedPaths.Count > 0
-                ? $"{_selectedPaths.Count} selected  [Space] Toggle  [Enter] Open/Confirm  [BS] Up  [Esc] Cancel"
-                : "[Space] Toggle  [Enter] Open/Select  [BS] Up  [/] Filter  [Esc] Cancel";
+                ? $"{_selectedPaths.Count} selected  [Space] Toggle  [Enter] Open/Confirm  [Backspace] Up  [Esc] Cancel"
+                : "[Space] Toggle  [Enter] Open/Select  [Backspace] Up  [/] Filter  [Esc] Cancel";
         }
         else if (_mode is FilePickerMode.Directories or FilePickerMode.All)
         {
-            hints = "[Enter] Open  [Space] Select  [BS] Up  [/] Filter  [Esc] Cancel";
+            hints = "[Enter] Open  [Space] Select  [Backspace] Up  [/] Filter  [Esc] Cancel";
         }
         else
         {
-            hints = "[Enter] Open/Select  [BS] Up  [/] Filter  [Esc] Cancel";
+            hints = "[Enter] Open/Select  [Backspace] Up  [/] Filter  [Esc] Cancel";
         }
 
         if (hints.Length > width)
