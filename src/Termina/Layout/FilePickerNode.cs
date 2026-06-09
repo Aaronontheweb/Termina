@@ -556,6 +556,10 @@ public sealed class FilePickerNode : IFocusable, IInvalidatingNode
         if (!bounds.HasArea)
             return;
 
+        // Lazy-load on first render so unfocused pickers show content
+        if (!_isLoaded)
+            LoadDirectory(_currentPath);
+
         var sub = context.CreateSubContext(bounds);
         var currentRow = 0;
         var width = bounds.Width;
