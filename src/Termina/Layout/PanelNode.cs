@@ -242,7 +242,7 @@ public sealed class PanelNode : LayoutNode, IInvalidatingNode
     /// <inheritdoc />
     public override void OnActivate()
     {
-        if (_content is LayoutNode contentNode)
+        if (_content is IActivatableNode contentNode)
         {
             contentNode.OnActivate();
         }
@@ -252,7 +252,7 @@ public sealed class PanelNode : LayoutNode, IInvalidatingNode
     /// <inheritdoc />
     public override void OnDeactivate()
     {
-        if (_content is LayoutNode contentNode)
+        if (_content is IActivatableNode contentNode)
         {
             contentNode.OnDeactivate();
         }

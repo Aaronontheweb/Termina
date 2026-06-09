@@ -82,7 +82,7 @@ public sealed class KeyedDynamicLayoutNode<TKey> : LayoutNode, IInvalidatingNode
             return;
 
         // Deactivate old child
-        if (_isActive && _currentChild is LayoutNode oldLayoutNode)
+        if (_isActive && _currentChild is IActivatableNode oldLayoutNode)
         {
             oldLayoutNode.OnDeactivate();
         }
@@ -91,7 +91,7 @@ public sealed class KeyedDynamicLayoutNode<TKey> : LayoutNode, IInvalidatingNode
         SubscribeToChildInvalidation(newChild);
 
         // Activate new child if we're currently active
-        if (_isActive && newChild is LayoutNode newLayoutNode)
+        if (_isActive && newChild is IActivatableNode newLayoutNode)
         {
             newLayoutNode.OnActivate();
         }
@@ -152,7 +152,7 @@ public sealed class KeyedDynamicLayoutNode<TKey> : LayoutNode, IInvalidatingNode
         SubscribeToChildInvalidation(_currentChild);
 
         // Activate current child
-        if (_currentChild is LayoutNode childNode)
+        if (_currentChild is IActivatableNode childNode)
         {
             childNode.OnActivate();
         }
@@ -166,7 +166,7 @@ public sealed class KeyedDynamicLayoutNode<TKey> : LayoutNode, IInvalidatingNode
         _isActive = false;
 
         // Deactivate current child
-        if (_currentChild is LayoutNode childNode)
+        if (_currentChild is IActivatableNode childNode)
         {
             childNode.OnDeactivate();
         }

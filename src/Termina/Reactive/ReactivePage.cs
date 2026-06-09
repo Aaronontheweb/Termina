@@ -311,7 +311,7 @@ public abstract class ReactivePage<TViewModel> : IBindablePage, IDisposable
             // page reuses child node instances across rebuilds, this ensures
             // those nodes finish in the active state after the new tree is
             // activated rather than being shut back down by the old tree.
-            if (oldRoot is LayoutNode oldNode)
+            if (oldRoot is IActivatableNode oldNode)
                 oldNode.OnDeactivate();
 
             // Disconnect invalidation subscriptions on old nodes that won't
@@ -332,7 +332,7 @@ public abstract class ReactivePage<TViewModel> : IBindablePage, IDisposable
                     .DisposeWith(_layoutSubscriptions);
             }
 
-            if (newRoot is LayoutNode newNode)
+            if (newRoot is IActivatableNode newNode)
                 newNode.OnActivate();
 
             // Focus handling: preserve user focus if the focused node still
@@ -400,7 +400,7 @@ public abstract class ReactivePage<TViewModel> : IBindablePage, IDisposable
         }
 
         // Activate the layout tree (resume subscriptions, timers, etc.)
-        if (_layoutRoot is LayoutNode node)
+        if (_layoutRoot is IActivatableNode node)
         {
             node.OnActivate();
         }
@@ -498,7 +498,7 @@ public abstract class ReactivePage<TViewModel> : IBindablePage, IDisposable
         _keyBindings.Clear();
 
         // Deactivate layout (pause, don't dispose)
-        if (_layoutRoot is LayoutNode node)
+        if (_layoutRoot is IActivatableNode node)
         {
             node.OnDeactivate();
         }

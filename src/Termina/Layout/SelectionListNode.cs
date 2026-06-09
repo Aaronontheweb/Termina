@@ -29,7 +29,7 @@ namespace Termina.Layout;
 /// Optionally supports an "Other" option for custom text input.
 /// </para>
 /// </remarks>
-public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode
+public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode, IActivatableNode
 {
     private readonly Subject<Unit> _invalidated = new();
     private readonly Subject<IReadOnlyList<T>> _selectionConfirmed = new();

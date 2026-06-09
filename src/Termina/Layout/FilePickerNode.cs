@@ -11,7 +11,7 @@ namespace Termina.Layout;
 /// <summary>
 /// An interactive file/folder picker with breadcrumb navigation, scrolling, and fuzzy filtering.
 /// </summary>
-public sealed class FilePickerNode : IFocusable, IInvalidatingNode
+public sealed class FilePickerNode : IFocusable, IInvalidatingNode, IActivatableNode
 {
     private readonly Subject<Unit> _invalidated = new();
     private readonly Subject<IReadOnlyList<string>> _selectionConfirmed = new();

@@ -569,6 +569,36 @@ public class FilePickerNodeTests
         Assert.Equal(1, fs.DirectoryExistsCalls);
     }
 
+    [Fact]
+    public void ContainerActivation_PropagatesToFilePicker()
+    {
+        // FilePickerNode implements IActivatableNode (not LayoutNode), so the
+        // container tree-walk must dispatch on the interface for this to work.
+        using var picker = CreatePicker();
+        var layout = Layouts.Vertical().WithChild(picker);
+
+        layout.OnActivate();
+
+        // Entries were loaded by activation — Enter navigates without focus or render
+        picker.HandleInput(Key(ConsoleKey.Enter));
+        Assert.Equal("/root/src", picker.CurrentPath);
+    }
+
+    [Fact]
+    public void GridActivation_PropagatesToFilePicker()
+    {
+        using var picker = CreatePicker();
+        var grid = new GridNode()
+            .WithColumns(SizeConstraint.FillRemaining())
+            .WithRows(SizeConstraint.FillRemaining());
+        grid.SetCell(0, 0, picker);
+
+        grid.OnActivate();
+
+        picker.HandleInput(Key(ConsoleKey.Enter));
+        Assert.Equal("/root/src", picker.CurrentPath);
+    }
+
     private sealed class CountingFileSystemProvider(IFileSystemProvider inner) : IFileSystemProvider
     {
         public int DirectoryExistsCalls { get; private set; }
