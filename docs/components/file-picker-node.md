@@ -10,7 +10,8 @@ An interactive file and folder picker with breadcrumb navigation, keyboard-drive
 
 ```csharp
 // Pick a single file, starting in the current directory
-var picker = new FilePickerNode()
+// (or pass a path: Layouts.FilePicker("/home/user/projects"))
+var picker = Layouts.FilePicker()
     .WithMode(FilePickerMode.Files)
     .WithSelectionMode(FilePickerSelectionMode.Single);
 
@@ -24,7 +25,7 @@ picker.Cancelled.Subscribe(_ => {
 });
 ```
 
-The picker loads its directory lazily on first focus, so constructing one is cheap.
+The picker loads its directory lazily on first render or focus, so constructing one is cheap.
 
 ## Features
 
@@ -44,13 +45,13 @@ The picker loads its directory lazily on first focus, so constructing one is che
 
 ```csharp
 // Only files can be selected; folders are navigation-only
-new FilePickerNode().WithMode(FilePickerMode.Files);
+Layouts.FilePicker().WithMode(FilePickerMode.Files);
 
 // Only folders are shown and selectable (Space selects, Enter opens)
-new FilePickerNode().WithMode(FilePickerMode.Directories);
+Layouts.FilePicker().WithMode(FilePickerMode.Directories);
 
 // Both files and folders are selectable
-new FilePickerNode().WithMode(FilePickerMode.All);
+Layouts.FilePicker().WithMode(FilePickerMode.All);
 ```
 
 Because Enter always opens a directory, **Space** is the selection gesture for folders. This keeps deep navigation possible in directory-only mode.
@@ -60,7 +61,7 @@ Because Enter always opens a directory, **Space** is the selection gesture for f
 ### Single Select (Default)
 
 ```csharp
-var picker = new FilePickerNode("/home/user/projects")
+var picker = Layouts.FilePicker("/home/user/projects")
     .WithSelectionMode(FilePickerSelectionMode.Single);
 
 picker.SelectionConfirmed.Subscribe(paths => {
@@ -74,7 +75,7 @@ picker.SelectionConfirmed.Subscribe(paths => {
 ### Multi-Select
 
 ```csharp
-var picker = new FilePickerNode()
+var picker = Layouts.FilePicker()
     .WithSelectionMode(FilePickerSelectionMode.Multi);
 
 picker.SelectionConfirmed.Subscribe(paths => {
@@ -119,7 +120,7 @@ The filter is a case-insensitive substring match against entry names. Filtering 
 Restrict the files shown with a glob pattern. Directories always pass through so navigation still works:
 
 ```csharp
-var picker = new FilePickerNode()
+var picker = Layouts.FilePicker()
     .WithFileFilter("*.cs");   // only .cs files are listed
 ```
 
@@ -128,7 +129,7 @@ var picker = new FilePickerNode()
 Dotfiles (names starting with `.`) are hidden by default:
 
 ```csharp
-var picker = new FilePickerNode()
+var picker = Layouts.FilePicker()
     .WithShowHidden();   // include .gitignore, .config, etc.
 ```
 
@@ -138,18 +139,18 @@ By default the picker auto-sizes with a maximum of 10 visible rows. Use `WithFil
 
 ```csharp
 // Fill a panel
-var picker = new FilePickerNode()
+var picker = Layouts.FilePicker()
     .WithFillHeight();
 
 // Or a fixed window of 15 rows
-var picker = new FilePickerNode()
+var picker = Layouts.FilePicker()
     .WithVisibleRows(15);
 ```
 
 ## Styling
 
 ```csharp
-new FilePickerNode()
+Layouts.FilePicker()
     .WithHighlightColors(Color.Black, Color.Cyan)  // Highlighted row colors
     .WithDirectoryColor(Color.BrightCyan)          // Directory entry color
     .WithFileColor(Color.Default);                 // File entry color
@@ -251,7 +252,7 @@ public class OpenFilePage : ReactivePage<OpenFileViewModel>
 
     public override ILayoutNode BuildLayout()
     {
-        _picker = new FilePickerNode(Environment.CurrentDirectory)
+        _picker = Layouts.FilePicker(Environment.CurrentDirectory)
             .WithMode(FilePickerMode.Files)
             .WithFileFilter("*.json")
             .WithFillHeight();

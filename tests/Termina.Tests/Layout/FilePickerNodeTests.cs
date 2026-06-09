@@ -106,6 +106,16 @@ public class FilePickerNodeTests
     }
 
     [Fact]
+    public void Layouts_FilePicker_CreatesNode()
+    {
+        using var picker = Layouts.FilePicker("/root");
+        Assert.Equal("/root", picker.CurrentPath);
+
+        using var defaultPicker = Layouts.FilePicker();
+        Assert.Equal(Environment.CurrentDirectory, defaultPicker.CurrentPath);
+    }
+
+    [Fact]
     public void FilePickerNode_FluentApi_ReturnsThis()
     {
         using var picker = new FilePickerNode();

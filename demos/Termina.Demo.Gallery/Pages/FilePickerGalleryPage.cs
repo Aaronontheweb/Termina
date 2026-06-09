@@ -60,13 +60,13 @@ public class FilePickerGalleryPage : ReactivePage<FilePickerGalleryViewModel>
     {
         var startPath = Environment.CurrentDirectory;
 
-        _filePicker = new FilePickerNode(startPath)
+        _filePicker = Layouts.FilePicker(startPath)
             .WithMode(FilePickerMode.Files)
             .WithSelectionMode(FilePickerSelectionMode.Single)
             .WithHighlightColors(Color.Black, Color.Green)
             .WithFillHeight();
 
-        _folderPicker = new FilePickerNode(startPath)
+        _folderPicker = Layouts.FilePicker(startPath)
             .WithMode(FilePickerMode.Directories)
             .WithSelectionMode(FilePickerSelectionMode.Single)
             .WithHighlightColors(Color.Black, Color.Yellow)
