@@ -29,6 +29,7 @@ public sealed class FilePickerNode : IFocusable, IInvalidatingNode
     private int _visibleRows = 10;
     private bool _hasFocus;
     private bool _disposed;
+    private bool _isLoaded;
 
     // Filter state
     private bool _isFiltering;
@@ -166,8 +167,7 @@ public sealed class FilePickerNode : IFocusable, IInvalidatingNode
     {
         _hasFocus = true;
 
-        // Load entries on first focus if not yet loaded
-        if (_entries.Count == 0)
+        if (!_isLoaded)
             LoadDirectory(_currentPath);
 
         Invalidate();
@@ -183,7 +183,7 @@ public sealed class FilePickerNode : IFocusable, IInvalidatingNode
 
     public void OnActivate()
     {
-        if (_entries.Count == 0)
+        if (!_isLoaded)
             LoadDirectory(_currentPath);
 
         _filterInput?.OnActivate();
@@ -268,21 +268,19 @@ public sealed class FilePickerNode : IFocusable, IInvalidatingNode
                 ActivateHighlighted();
                 return true;
 
-            case ConsoleKey.Spacebar:
-                HandleSpacebar();
-                return true;
-
             default:
                 if (_filterInput != null)
                 {
                     var handled = _filterInput.HandleInput(key);
                     if (handled)
-                    {
                         ApplyFilter();
 
-                        if (string.IsNullOrEmpty(_filterInput.Text))
-                            StopFiltering();
+                    if (string.IsNullOrEmpty(_filterInput.Text))
+                    {
+                        StopFiltering();
+                        return true;
                     }
+
                     return handled;
                 }
                 return false;
@@ -328,14 +326,15 @@ public sealed class FilePickerNode : IFocusable, IInvalidatingNode
         else
         {
             // Single mode: Space selects the item if it's selectable per mode
-            if (IsSelectable(entry))
+            if (IsSelectable(entry) && !_disposed)
                 _selectionConfirmed.OnNext(new[] { entry.FullPath });
         }
     }
 
     private void OnEscapePressed()
     {
-        _cancelled.OnNext(Unit.Default);
+        if (!_disposed)
+            _cancelled.OnNext(Unit.Default);
     }
 
     #endregion
@@ -348,6 +347,7 @@ public sealed class FilePickerNode : IFocusable, IInvalidatingNode
             return;
 
         _currentPath = path;
+        _selectedPaths.Clear();
         var allEntries = _fileSystem.GetEntries(path);
 
         _entries = new List<FileSystemEntry>(allEntries.Count);
@@ -366,6 +366,7 @@ public sealed class FilePickerNode : IFocusable, IInvalidatingNode
         _highlightedIndex = 0;
         _scrollOffset = 0;
         _isFiltering = false;
+        _isLoaded = true;
 
         EmitDirectoryChanged(_currentPath);
         Invalidate();
@@ -387,23 +388,37 @@ public sealed class FilePickerNode : IFocusable, IInvalidatingNode
 
         if (entry.IsDirectory)
         {
-            // Enter on a directory always navigates into it, regardless of mode
-            LoadDirectory(entry.FullPath);
+            if (_selectionMode == FilePickerSelectionMode.Multi && _selectedPaths.Count > 0)
+            {
+                if (!_disposed)
+                    _selectionConfirmed.OnNext(_selectedPaths.ToList());
+            }
+            else
+            {
+                LoadDirectory(entry.FullPath);
+            }
+
             return;
         }
 
         // File selected
         if (_selectionMode == FilePickerSelectionMode.Single)
         {
-            _selectionConfirmed.OnNext(new[] { entry.FullPath });
+            if (!_disposed)
+                _selectionConfirmed.OnNext(new[] { entry.FullPath });
         }
         else
         {
-            // In multi-select, Enter confirms all toggled items
-            var selected = _selectedPaths.Count > 0
-                ? _selectedPaths.ToList()
-                : new List<string> { entry.FullPath };
-            _selectionConfirmed.OnNext(selected);
+            if (IsSelectable(entry))
+                _selectedPaths.Add(entry.FullPath);
+
+            if (!_disposed)
+            {
+                var selected = _selectedPaths.Count > 0
+                    ? _selectedPaths.ToList()
+                    : new List<string> { entry.FullPath };
+                _selectionConfirmed.OnNext(selected);
+            }
         }
     }
 
@@ -558,7 +573,7 @@ public sealed class FilePickerNode : IFocusable, IInvalidatingNode
 
         // Recalculate visible rows in fill mode
         var footerLines = 1;
-        var availableForList = bounds.Height - currentRow - footerLines;
+        var availableForList = Math.Max(0, bounds.Height - currentRow - footerLines);
         if (_fillHeight)
             _visibleRows = Math.Max(1, availableForList);
 
@@ -575,15 +590,19 @@ public sealed class FilePickerNode : IFocusable, IInvalidatingNode
 
     private void RenderBreadcrumb(IRenderContext context, int row, int width)
     {
+        if (width <= 0) return;
+
         context.SetForeground(Color.BrightYellow);
         context.SetDecoration(TextDecoration.Bold);
 
         var pathDisplay = _currentPath;
-        var maxPathWidth = width - BreadcrumbPrefix.Length - 1;
-        if (pathDisplay.Length > maxPathWidth)
+        var maxPathWidth = width - BreadcrumbPrefix.Length;
+        if (maxPathWidth > 3 && pathDisplay.Length > maxPathWidth)
             pathDisplay = "..." + pathDisplay[(pathDisplay.Length - maxPathWidth + 3)..];
+        else if (maxPathWidth >= 0 && pathDisplay.Length > maxPathWidth)
+            pathDisplay = maxPathWidth > 0 ? pathDisplay[..maxPathWidth] : "";
 
-        context.WriteAt(1, row, BreadcrumbPrefix + pathDisplay);
+        context.WriteAt(0, row, BreadcrumbPrefix + pathDisplay);
         context.SetDecoration(TextDecoration.None);
         context.ResetColors();
     }
@@ -591,8 +610,8 @@ public sealed class FilePickerNode : IFocusable, IInvalidatingNode
     private void RenderFilterBar(IRenderContext context, int row, int width)
     {
         context.SetForeground(Color.BrightMagenta);
-        var prefixLen = FilterPrefix.Length + 1; // +1 for the leading space at x=1
-        context.WriteAt(1, row, FilterPrefix);
+        var prefixLen = FilterPrefix.Length;
+        context.WriteAt(0, row, FilterPrefix);
 
         if (_filterInput != null)
         {
@@ -650,9 +669,12 @@ public sealed class FilePickerNode : IFocusable, IInvalidatingNode
         var prefix = cursor + checkbox + icon;
         var displayText = prefix + name;
 
-        // Truncate if needed (safe — all chars are BMP, no surrogates)
-        if (displayText.Length > width)
+        if (width <= 0) return;
+
+        if (displayText.Length > width && width > 1)
             displayText = displayText[..(width - 1)] + "~";
+        else if (displayText.Length > width)
+            displayText = displayText[..width];
 
         // Apply highlight or normal colors
         if (isHighlighted)
@@ -717,7 +739,7 @@ public sealed class FilePickerNode : IFocusable, IInvalidatingNode
         if (hints.Length > width)
             hints = hints[..width];
 
-        context.WriteAt(1, row, hints);
+        context.WriteAt(0, row, hints);
         context.ResetColors();
     }
 
@@ -750,6 +772,12 @@ public sealed class FilePickerNode : IFocusable, IInvalidatingNode
             return;
 
         _disposed = true;
+
+        if (_isFiltering)
+        {
+            _isFiltering = false;
+            _filterInput?.OnDeactivate();
+        }
 
         _invalidated.OnCompleted();
         _invalidated.Dispose();

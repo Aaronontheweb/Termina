@@ -45,14 +45,14 @@ public class FilePickerGalleryPage : ReactivePage<FilePickerGalleryViewModel>
             .DisposeWith(Subscriptions);
 
         _focusedPickerIndex = 0;
-        Focus.PushFocus(_filePicker);
+        Focus.SetFocus(_filePicker);
     }
 
     private void CycleFocus()
     {
         _focusedPickerIndex = (_focusedPickerIndex + 1) % 2;
         IFocusable target = _focusedPickerIndex == 0 ? _filePicker : _folderPicker;
-        Focus.PushFocus(target);
+        Focus.SetFocus(target);
         ViewModel.OnFocusChanged(_focusedPickerIndex);
     }
 

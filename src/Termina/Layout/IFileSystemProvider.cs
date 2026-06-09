@@ -49,16 +49,12 @@ public sealed class DefaultFileSystemProvider : IFileSystemProvider
                     entries.Add(new FileSystemEntry(d.Name, d.FullName, IsDirectory: true,
                         LastModified: d.LastWriteTimeUtc));
                 }
-                catch (UnauthorizedAccessException)
-                {
-                    // skip inaccessible directories
-                }
+                catch (UnauthorizedAccessException) { }
+                catch (IOException) { }
             }
         }
-        catch (UnauthorizedAccessException)
-        {
-            // skip if we can't enumerate directories at all
-        }
+        catch (UnauthorizedAccessException) { }
+        catch (IOException) { }
 
         try
         {
@@ -69,16 +65,12 @@ public sealed class DefaultFileSystemProvider : IFileSystemProvider
                     entries.Add(new FileSystemEntry(f.Name, f.FullName, IsDirectory: false,
                         Size: f.Length, LastModified: f.LastWriteTimeUtc));
                 }
-                catch (UnauthorizedAccessException)
-                {
-                    // skip inaccessible files
-                }
+                catch (UnauthorizedAccessException) { }
+                catch (IOException) { }
             }
         }
-        catch (UnauthorizedAccessException)
-        {
-            // skip if we can't enumerate files at all
-        }
+        catch (UnauthorizedAccessException) { }
+        catch (IOException) { }
 
         entries.Sort((a, b) =>
         {
