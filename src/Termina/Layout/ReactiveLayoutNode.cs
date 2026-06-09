@@ -35,7 +35,7 @@ public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
         _subscription = source.Subscribe(node =>
             {
                 // Deactivate old child instead of disposing (active/inactive pattern)
-                if (_currentChild is LayoutNode oldChild)
+                if (_currentChild is IActivatableNode oldChild)
                 {
                     oldChild.OnDeactivate();
                 }
@@ -43,7 +43,7 @@ public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
                 SubscribeToChildInvalidation(node);
 
                 // Activate the new child if we're currently active
-                if (_isActive && node is LayoutNode newChildNode)
+                if (_isActive && node is IActivatableNode newChildNode)
                 {
                     newChildNode.OnActivate();
                 }
@@ -107,7 +107,7 @@ public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
             _subscription = _source.Subscribe(node =>
                 {
                     // Deactivate old child instead of disposing (active/inactive pattern)
-                    if (_currentChild is LayoutNode oldChild)
+                    if (_currentChild is IActivatableNode oldChild)
                     {
                         oldChild.OnDeactivate();
                     }
@@ -115,7 +115,7 @@ public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
                     SubscribeToChildInvalidation(node);
 
                     // Activate the new child if we're currently active
-                    if (_isActive && node is LayoutNode newChildNode)
+                    if (_isActive && node is IActivatableNode newChildNode)
                     {
                         newChildNode.OnActivate();
                     }
@@ -128,7 +128,7 @@ public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
         SubscribeToChildInvalidation(_currentChild);
 
         // Activate current child if it's a LayoutNode
-        if (_currentChild is LayoutNode childNode)
+        if (_currentChild is IActivatableNode childNode)
         {
             childNode.OnActivate();
         }
@@ -142,7 +142,7 @@ public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
         _isActive = false;
 
         // Deactivate current child if it's a LayoutNode
-        if (_currentChild is LayoutNode childNode)
+        if (_currentChild is IActivatableNode childNode)
         {
             childNode.OnDeactivate();
         }
@@ -194,7 +194,7 @@ public sealed class ReactiveLayoutNode<T> : LayoutNode, IInvalidatingNode
         _subscription = source.Subscribe(value =>
             {
                 // Deactivate old child instead of disposing (active/inactive pattern)
-                if (_currentChild is LayoutNode oldChild)
+                if (_currentChild is IActivatableNode oldChild)
                 {
                     oldChild.OnDeactivate();
                 }
@@ -202,7 +202,7 @@ public sealed class ReactiveLayoutNode<T> : LayoutNode, IInvalidatingNode
                 SubscribeToChildInvalidation(_currentChild);
 
                 // Activate the new child if we're currently active
-                if (_isActive && _currentChild is LayoutNode newChildNode)
+                if (_isActive && _currentChild is IActivatableNode newChildNode)
                 {
                     newChildNode.OnActivate();
                 }
@@ -264,7 +264,7 @@ public sealed class ReactiveLayoutNode<T> : LayoutNode, IInvalidatingNode
             _subscription = _source.Subscribe(value =>
                 {
                     // Deactivate old child instead of disposing (active/inactive pattern)
-                    if (_currentChild is LayoutNode oldChild)
+                    if (_currentChild is IActivatableNode oldChild)
                     {
                         oldChild.OnDeactivate();
                     }
@@ -272,7 +272,7 @@ public sealed class ReactiveLayoutNode<T> : LayoutNode, IInvalidatingNode
                     SubscribeToChildInvalidation(_currentChild);
 
                     // Activate the new child if we're currently active
-                    if (_isActive && _currentChild is LayoutNode newChildNode)
+                    if (_isActive && _currentChild is IActivatableNode newChildNode)
                     {
                         newChildNode.OnActivate();
                     }
@@ -285,7 +285,7 @@ public sealed class ReactiveLayoutNode<T> : LayoutNode, IInvalidatingNode
         SubscribeToChildInvalidation(_currentChild);
 
         // Activate current child if it's a LayoutNode
-        if (_currentChild is LayoutNode childNode)
+        if (_currentChild is IActivatableNode childNode)
         {
             childNode.OnActivate();
         }
@@ -299,7 +299,7 @@ public sealed class ReactiveLayoutNode<T> : LayoutNode, IInvalidatingNode
         _isActive = false;
 
         // Deactivate current child if it's a LayoutNode
-        if (_currentChild is LayoutNode childNode)
+        if (_currentChild is IActivatableNode childNode)
         {
             childNode.OnDeactivate();
         }

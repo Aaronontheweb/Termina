@@ -65,6 +65,12 @@ public static class Layouts
         new(items, s => s);
 
     /// <summary>
+    /// Create a file/folder picker with breadcrumb navigation and type-to-filter search.
+    /// </summary>
+    /// <param name="startPath">The initial directory. Defaults to <see cref="Environment.CurrentDirectory"/>.</param>
+    public static FilePickerNode FilePicker(string? startPath = null) => new(startPath);
+
+    /// <summary>
     /// Create a deferred node that delegates to a lazily-obtained node without owning it.
     /// </summary>
     /// <remarks>

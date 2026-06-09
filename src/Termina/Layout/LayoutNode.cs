@@ -9,7 +9,7 @@ namespace Termina.Layout;
 /// <summary>
 /// Base class for layout nodes providing common functionality.
 /// </summary>
-public abstract class LayoutNode : ILayoutNode
+public abstract class LayoutNode : ILayoutNode, IActivatableNode
 {
     private SizeConstraint _widthConstraint = new SizeConstraint.Auto();
     private SizeConstraint _heightConstraint = new SizeConstraint.Auto();
@@ -244,7 +244,7 @@ public abstract class ContainerNode : LayoutNode, IContainerNode, IInvalidatingN
     {
         foreach (var child in _children)
         {
-            if (child is LayoutNode node)
+            if (child is IActivatableNode node)
                 node.OnActivate();
         }
         base.OnActivate();
@@ -257,7 +257,7 @@ public abstract class ContainerNode : LayoutNode, IContainerNode, IInvalidatingN
     {
         foreach (var child in _children)
         {
-            if (child is LayoutNode node)
+            if (child is IActivatableNode node)
                 node.OnDeactivate();
         }
         base.OnDeactivate();

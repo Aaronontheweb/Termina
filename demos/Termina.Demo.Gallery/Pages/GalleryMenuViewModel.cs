@@ -16,7 +16,8 @@ public partial class GalleryMenuViewModel : ReactiveViewModel
         new("Text Input", "Text fields, placeholder text, submission handling", "/textinput"),
         new("Clipboard", "OSC 52 copy, toasts, and paste validation", "/clipboard"),
         new("Layouts", "Vertical, horizontal, grid, panels, borders", "/layouts"),
-        new("Animations", "Spinners, streaming text, progress indicators", "/animations")
+        new("Animations", "Spinners, streaming text, progress indicators", "/animations"),
+        new("File Picker", "File/folder selection, directory navigation, fuzzy filtering", "/filepicker")
     };
 
     public void NavigateToGallery(string route)
