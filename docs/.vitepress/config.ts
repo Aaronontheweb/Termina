@@ -63,6 +63,8 @@ export default defineConfig({
           collapsed: false,
           items: [
             { text: 'TextInputNode', link: '/components/text-input-node' },
+            { text: 'TextAreaNode', link: '/components/text-area-node' },
+            { text: 'CopyableTextNode', link: '/components/copyable-text-node' },
             { text: 'SelectionListNode', link: '/components/selection-list-node' },
             { text: 'FilePickerNode', link: '/components/file-picker-node' }
           ]
