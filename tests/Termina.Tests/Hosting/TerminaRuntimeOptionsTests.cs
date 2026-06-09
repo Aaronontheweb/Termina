@@ -77,19 +77,21 @@ public class TerminaRuntimeOptionsTests
     }
 
     [Fact]
-    public void EscapeSequenceParser_OnlyUsesKittyAlternateRoutingWhenReportAllKeysVisible()
+    public void EscapeSequenceParser_CsiArrowIsKeyBeforeDeckmConfirmed_AndKeyWithKitty()
     {
+        // Without DECCKM confirmed, CSI A is a keyboard arrow.
         var parser = new EscapeSequenceParser { KittyReportAllKeysVisible = false };
         var events = FeedString(parser, "\x1b[A");
 
-        var scroll = Assert.Single(events);
-        Assert.IsType<MouseScrollEvent>(scroll);
+        var key1 = Assert.Single(events);
+        Assert.IsType<KeyPressed>(key1);
 
+        // With Kitty active, CSI A is also a keyboard arrow.
         parser = new EscapeSequenceParser { KittyReportAllKeysVisible = true };
         events = FeedString(parser, "\x1b[A");
 
-        var key = Assert.Single(events);
-        Assert.IsType<KeyPressed>(key);
+        var key2 = Assert.Single(events);
+        Assert.IsType<KeyPressed>(key2);
     }
 
     private static TerminaApplication CreateApp(VirtualTerminal terminal, TerminaRuntimeOptions? options = null)

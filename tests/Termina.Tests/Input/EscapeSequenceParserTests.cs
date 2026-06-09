@@ -104,28 +104,27 @@ public class EscapeSequenceParserTests
     // --- Mouse click events silently consumed ---
 
     [Fact]
-    public void CsiArrowUp_EmitsMouseScrollEventPositive()
+    public void CsiArrowUp_EmitsKeyPressedBeforeDeckmConfirmed()
     {
-        // Under ?1007h alternate-scroll mode, wheel-up arrives at the parser as ESC[A
-        // (real keyboard arrows in DECCKM/?1h mode use SS3 form ESC O A and are decoded
-        // directly by Console.ReadKey to ConsoleKey.UpArrow without entering the parser).
+        // Before DECCKM is confirmed (no SS3 arrow key seen yet), CSI A/B are treated
+        // as keyboard arrows — the parser cannot safely assume the terminal honored DECCKM.
         var parser = new EscapeSequenceParser();
         var events = FeedSequence(parser, new[] { EscKey(), Key('['), Key('A') });
 
-        var scroll = Assert.Single(events);
-        var mse = Assert.IsType<MouseScrollEvent>(scroll);
-        Assert.Equal(+1, mse.Delta);
+        var press = Assert.Single(events);
+        var kp = Assert.IsType<KeyPressed>(press);
+        Assert.Equal(ConsoleKey.UpArrow, kp.KeyInfo.Key);
     }
 
     [Fact]
-    public void CsiArrowDown_EmitsMouseScrollEventNegative()
+    public void CsiArrowDown_EmitsKeyPressedBeforeDeckmConfirmed()
     {
         var parser = new EscapeSequenceParser();
         var events = FeedSequence(parser, new[] { EscKey(), Key('['), Key('B') });
 
-        var scroll = Assert.Single(events);
-        var mse = Assert.IsType<MouseScrollEvent>(scroll);
-        Assert.Equal(-1, mse.Delta);
+        var press = Assert.Single(events);
+        var kp = Assert.IsType<KeyPressed>(press);
+        Assert.Equal(ConsoleKey.DownArrow, kp.KeyInfo.Key);
     }
 
     [Theory]
