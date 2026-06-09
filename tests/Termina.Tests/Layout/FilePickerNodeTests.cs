@@ -63,7 +63,8 @@ public class FilePickerNodeTests
             .AddDirectory("/root", RootEntries)
             .AddDirectory("/root/src", SrcEntries)
             .AddDirectory("/root/src/Layout")
-            .AddDirectory("/root/tests");
+            .AddDirectory("/root/tests")
+            .AddDirectory("/root/.hidden");
     }
 
     private static FilePickerNode CreatePicker(
@@ -274,15 +275,11 @@ public class FilePickerNodeTests
         using var picker = CreatePicker(showHidden: false);
         picker.OnFocused();
 
-        // Navigate to end — should reach README.md (4 items: src, tests, Program.cs, README.md)
-        picker.HandleInput(Key(ConsoleKey.End));
-
-        IReadOnlyList<string>? selected = null;
-        picker.SelectionConfirmed.Subscribe(paths => selected = paths);
+        // First entry should be "src" — ".hidden" sorts first but is filtered out
+        picker.HandleInput(Key(ConsoleKey.Home));
         picker.HandleInput(Key(ConsoleKey.Enter));
 
-        Assert.NotNull(selected);
-        Assert.Equal("/root/README.md", selected[0]);
+        Assert.Equal("/root/src", picker.CurrentPath);
     }
 
     [Fact]
@@ -291,16 +288,11 @@ public class FilePickerNodeTests
         using var picker = CreatePicker(showHidden: true);
         picker.OnFocused();
 
-        // With hidden shown: .hidden, src, tests, .gitignore, Program.cs, README.md
-        // Navigate to end
-        picker.HandleInput(Key(ConsoleKey.End));
-
-        IReadOnlyList<string>? selected = null;
-        picker.SelectionConfirmed.Subscribe(paths => selected = paths);
+        // With hidden shown, ".hidden" sorts first among directories
+        picker.HandleInput(Key(ConsoleKey.Home));
         picker.HandleInput(Key(ConsoleKey.Enter));
 
-        Assert.NotNull(selected);
-        Assert.Equal("/root/README.md", selected[0]);
+        Assert.Equal("/root/.hidden", picker.CurrentPath);
     }
 
     #endregion
@@ -326,6 +318,80 @@ public class FilePickerNodeTests
         // Second Escape cancels the picker (back in browsing mode)
         picker.HandleInput(Key(ConsoleKey.Escape));
         Assert.True(cancelled);
+    }
+
+    [Fact]
+    public void Filter_CursorMove_DoesNotResetHighlight()
+    {
+        using var picker = CreatePicker();
+        picker.OnFocused();
+
+        // Filter 'e' matches "tests" (dir) and "README.md" (file)
+        picker.HandleInput(CharKey('e'));
+
+        // Highlight the second match (README.md)
+        picker.HandleInput(Key(ConsoleKey.DownArrow));
+
+        // Cursor movement in the filter text must not reset the list highlight
+        picker.HandleInput(Key(ConsoleKey.LeftArrow));
+
+        IReadOnlyList<string>? selected = null;
+        picker.SelectionConfirmed.Subscribe(paths => selected = paths);
+        picker.HandleInput(Key(ConsoleKey.Enter));
+
+        // If the highlight had been reset, Enter would navigate into "tests" instead
+        Assert.NotNull(selected);
+        Assert.Equal("/root/README.md", selected[0]);
+    }
+
+    [Fact]
+    public void Filter_UnhandledKey_BubblesAndKeepsFilterOpen()
+    {
+        using var picker = CreatePicker();
+        picker.OnFocused();
+
+        var cancelled = false;
+        picker.Cancelled.Subscribe(_ => cancelled = true);
+
+        // '/' opens an empty filter
+        picker.HandleInput(new ConsoleKeyInfo('/', ConsoleKey.None, false, false, false));
+
+        // An unhandled key (F5) must bubble (return false) and must NOT close the filter
+        var handled = picker.HandleInput(Key(ConsoleKey.F5));
+        Assert.False(handled);
+
+        // Filter is still open: first Escape clears it (no cancel)...
+        picker.HandleInput(Key(ConsoleKey.Escape));
+        Assert.False(cancelled);
+
+        // ...second Escape cancels
+        picker.HandleInput(Key(ConsoleKey.Escape));
+        Assert.True(cancelled);
+    }
+
+    [Fact]
+    public void Filter_AcceptsSpaceCharacter()
+    {
+        var fs = new FakeFileSystemProvider()
+            .AddDirectory("/docs",
+                new FileSystemEntry("my file.txt", "/docs/my file.txt", false),
+                new FileSystemEntry("myother.txt", "/docs/myother.txt", false));
+
+        using var picker = new FilePickerNode("/docs").WithFileSystemProvider(fs);
+        picker.OnFocused();
+
+        // Type "my f" — the space must land in the filter text, not toggle selection
+        picker.HandleInput(CharKey('m'));
+        picker.HandleInput(CharKey('y'));
+        picker.HandleInput(new ConsoleKeyInfo(' ', ConsoleKey.Spacebar, false, false, false));
+        picker.HandleInput(CharKey('f'));
+
+        IReadOnlyList<string>? selected = null;
+        picker.SelectionConfirmed.Subscribe(paths => selected = paths);
+        picker.HandleInput(Key(ConsoleKey.Enter));
+
+        Assert.NotNull(selected);
+        Assert.Equal("/docs/my file.txt", selected[0]);
     }
 
     [Fact]
@@ -468,6 +534,58 @@ public class FilePickerNodeTests
 
     #endregion
 
+    #region Load Lifecycle
+
+    [Fact]
+    public void WithStartPath_AfterLoad_ReloadsOnNextFocus()
+    {
+        using var picker = CreatePicker();
+        picker.OnFocused(); // loads /root
+
+        picker.WithStartPath("/root/src");
+        picker.OnBlurred();
+        picker.OnFocused(); // must reload for the new path
+
+        Assert.Equal("/root/src", picker.CurrentPath);
+
+        // First entry in src is the Layout directory
+        picker.HandleInput(Key(ConsoleKey.Enter));
+        Assert.Equal("/root/src/Layout", picker.CurrentPath);
+    }
+
+    [Fact]
+    public void NonexistentStartPath_DoesNotRetryLoadOnEveryFocus()
+    {
+        var fs = new CountingFileSystemProvider(CreateTestFs());
+        using var picker = new FilePickerNode("/nope").WithFileSystemProvider(fs);
+
+        picker.OnFocused();
+        picker.OnBlurred();
+        picker.OnFocused();
+        picker.OnBlurred();
+        picker.OnFocused();
+
+        // The failed load latches; repeated focus must not re-probe the filesystem
+        Assert.Equal(1, fs.DirectoryExistsCalls);
+    }
+
+    private sealed class CountingFileSystemProvider(IFileSystemProvider inner) : IFileSystemProvider
+    {
+        public int DirectoryExistsCalls { get; private set; }
+
+        public IReadOnlyList<FileSystemEntry> GetEntries(string directoryPath) => inner.GetEntries(directoryPath);
+
+        public bool DirectoryExists(string path)
+        {
+            DirectoryExistsCalls++;
+            return inner.DirectoryExists(path);
+        }
+
+        public string? GetParentDirectory(string path) => inner.GetParentDirectory(path);
+    }
+
+    #endregion
+
     #region Multi-Select
 
     [Fact]
@@ -513,6 +631,102 @@ public class FilePickerNodeTests
         picker.HandleInput(Key(ConsoleKey.Enter));
 
         Assert.Equal("/root/src", changedTo);
+    }
+
+    [Fact]
+    public void MultiSelect_Enter_OnUntoggledDirectory_Navigates()
+    {
+        using var picker = CreatePicker(selectionMode: FilePickerSelectionMode.Multi);
+        picker.OnFocused();
+
+        // Toggle Program.cs
+        picker.HandleInput(Key(ConsoleKey.DownArrow)); // tests
+        picker.HandleInput(Key(ConsoleKey.DownArrow)); // Program.cs
+        picker.HandleInput(Key(ConsoleKey.Spacebar));  // toggle, moves to README.md
+
+        // Enter on the untoggled "src" directory must navigate, not confirm
+        picker.HandleInput(Key(ConsoleKey.Home));
+        picker.HandleInput(Key(ConsoleKey.Enter));
+
+        Assert.Equal("/root/src", picker.CurrentPath);
+    }
+
+    [Fact]
+    public void MultiSelect_SelectionsPersistAcrossNavigation()
+    {
+        using var picker = CreatePicker(selectionMode: FilePickerSelectionMode.Multi);
+        picker.OnFocused();
+
+        // Toggle Program.cs in /root
+        picker.HandleInput(Key(ConsoleKey.DownArrow)); // tests
+        picker.HandleInput(Key(ConsoleKey.DownArrow)); // Program.cs
+        picker.HandleInput(Key(ConsoleKey.Spacebar));
+
+        // Navigate into src and back up
+        picker.HandleInput(Key(ConsoleKey.Home));
+        picker.HandleInput(Key(ConsoleKey.Enter));     // into /root/src
+        picker.HandleInput(Key(ConsoleKey.Backspace)); // back to /root
+
+        // Enter on README.md confirms the persisted toggle plus the highlighted file
+        picker.HandleInput(Key(ConsoleKey.End));
+
+        IReadOnlyList<string>? selected = null;
+        picker.SelectionConfirmed.Subscribe(paths => selected = paths);
+        picker.HandleInput(Key(ConsoleKey.Enter));
+
+        Assert.NotNull(selected);
+        Assert.Equal(2, selected.Count);
+        Assert.Contains("/root/Program.cs", selected);
+        Assert.Contains("/root/README.md", selected);
+    }
+
+    [Fact]
+    public void MultiSelect_Confirm_DoesNotMutateToggles()
+    {
+        using var picker = CreatePicker(selectionMode: FilePickerSelectionMode.Multi);
+        picker.OnFocused();
+
+        IReadOnlyList<string>? selected = null;
+        picker.SelectionConfirmed.Subscribe(paths => selected = paths);
+
+        // Enter on Program.cs with nothing toggled — confirms just that file
+        picker.HandleInput(Key(ConsoleKey.DownArrow)); // tests
+        picker.HandleInput(Key(ConsoleKey.DownArrow)); // Program.cs
+        picker.HandleInput(Key(ConsoleKey.Enter));
+
+        Assert.NotNull(selected);
+        Assert.Single(selected);
+        Assert.Equal("/root/Program.cs", selected[0]);
+
+        // A second confirm on README.md must NOT include Program.cs
+        picker.HandleInput(Key(ConsoleKey.DownArrow)); // README.md
+        picker.HandleInput(Key(ConsoleKey.Enter));
+
+        Assert.Single(selected);
+        Assert.Equal("/root/README.md", selected[0]);
+    }
+
+    [Fact]
+    public void MultiSelect_AllMode_TogglesDirsAndFiles()
+    {
+        using var picker = CreatePicker(
+            mode: FilePickerMode.All,
+            selectionMode: FilePickerSelectionMode.Multi);
+        picker.OnFocused();
+
+        // Toggle src (dir) and tests (dir), then confirm via Enter on Program.cs (file)
+        picker.HandleInput(Key(ConsoleKey.Spacebar)); // toggle src, moves to tests
+        picker.HandleInput(Key(ConsoleKey.Spacebar)); // toggle tests, moves to Program.cs
+
+        IReadOnlyList<string>? selected = null;
+        picker.SelectionConfirmed.Subscribe(paths => selected = paths);
+        picker.HandleInput(Key(ConsoleKey.Enter));
+
+        Assert.NotNull(selected);
+        Assert.Equal(3, selected.Count);
+        Assert.Contains("/root/src", selected);
+        Assert.Contains("/root/tests", selected);
+        Assert.Contains("/root/Program.cs", selected);
     }
 
     [Fact]

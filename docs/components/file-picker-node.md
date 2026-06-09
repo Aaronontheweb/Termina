@@ -54,7 +54,7 @@ Layouts.FilePicker().WithMode(FilePickerMode.Directories);
 Layouts.FilePicker().WithMode(FilePickerMode.All);
 ```
 
-Because Enter always opens a directory, **Space** is the selection gesture for folders. This keeps deep navigation possible in directory-only mode.
+Because Enter opens an untoggled directory, **Space** is the selection gesture for folders. This keeps deep navigation possible in directory-only mode. In multi-select, Enter on a directory you have *toggled* (its `[x]` is visible on the highlighted row) confirms the selection instead.
 
 ## Selection Modes
 
@@ -85,9 +85,9 @@ picker.SelectionConfirmed.Subscribe(paths => {
 ```
 
 - Space toggles the highlighted entry and moves the cursor down.
-- Enter confirms all toggled entries. If the highlighted entry is a selectable file, it is included in the confirmation.
-- Enter on a directory with toggled items confirms the toggled set; with nothing toggled it navigates into the directory.
-- Selections are scoped to the current directory — navigating clears any toggled items.
+- Enter on a file confirms all toggled entries plus the highlighted file.
+- Enter on a *toggled* directory confirms the toggled set; an untoggled directory opens, so you can keep browsing.
+- Selections persist across directory navigation — the footer shows a running count (e.g. `3 selected`), and confirmation emits the full cross-directory set.
 
 ## Keyboard Shortcuts
 
@@ -97,7 +97,7 @@ picker.SelectionConfirmed.Subscribe(paths => {
 |-----|--------|
 | `↑/↓` | Move highlight |
 | `Home` / `End` | Jump to first/last entry |
-| `Enter` | Open directory / confirm selection |
+| `Enter` | Open directory / confirm selection (a toggled directory confirms in multi-select) |
 | `Backspace` | Go up one directory |
 | `Space` | Select (single) or toggle (multi) |
 | `/` or any letter | Open the filter bar |
@@ -167,7 +167,11 @@ public class FakeFileSystemProvider : IFileSystemProvider
 
     public FakeFileSystemProvider AddDirectory(string path, params FileSystemEntry[] entries)
     {
-        _dirs[path] = entries.ToList();
+        // The GetEntries contract requires directories first, then files, alphabetical
+        _dirs[path] = entries
+            .OrderBy(e => !e.IsDirectory)
+            .ThenBy(e => e.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
         return this;
     }
 
@@ -278,7 +282,7 @@ Page-level `KeyBindings` run in the capture phase, *before* the focused componen
 |------------|------|-------------|
 | `SelectionConfirmed` | `Observable<IReadOnlyList<string>>` | Emits selected full paths on confirmation |
 | `Cancelled` | `Observable<Unit>` | Emits when Escape is pressed while browsing |
-| `DirectoryChanged` | `Observable<string>` | Emits the new path on every directory load (including the initial one) |
+| `DirectoryChanged` | `Observable<string>` | Emits the new path when the user navigates (the initial lazy load does not emit) |
 | `Invalidated` | `Observable<Unit>` | Emits when a redraw is needed |
 
 ## API Reference

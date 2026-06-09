@@ -89,7 +89,23 @@ public sealed class DefaultFileSystemProvider : IFileSystemProvider
 
     public string? GetParentDirectory(string path)
     {
-        var parent = Directory.GetParent(path);
-        return parent?.FullName;
+        if (string.IsNullOrWhiteSpace(path))
+            return null;
+
+        try
+        {
+            // Trim trailing separators: Directory.GetParent("/home/user/")
+            // would otherwise return "/home/user" — the same directory.
+            var trimmed = Path.TrimEndingDirectorySeparator(path);
+            return Directory.GetParent(trimmed)?.FullName;
+        }
+        catch (ArgumentException)
+        {
+            return null;
+        }
+        catch (IOException)
+        {
+            return null;
+        }
     }
 }
