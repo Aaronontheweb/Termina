@@ -11,7 +11,7 @@
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="$(MicrosoftExtensionsVersion)" />
     <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="$(MicrosoftExtensionsVersion)" />
     <PackageVersion Include="Akka.Hosting" Version="1.5.68" />
-    <PackageVersion Include="R3" Version="1.3.0" />
+    <PackageVersion Include="R3" Version="1.3.1" />
   </ItemGroup>
   <!-- Transitive dependency override (security): Akka.Hosting pulls in
        OpenTelemetry.Api 1.9.0 transitively, which is affected by CVE-2026-40894
@@ -33,7 +33,7 @@
   </ItemGroup>
   <!-- SourceLink support -->
   <ItemGroup>
-    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.201" />
+    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.300" />
   </ItemGroup>
   <!-- Source generator dependencies -->
   <ItemGroup>
