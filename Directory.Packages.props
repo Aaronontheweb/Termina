@@ -33,7 +33,7 @@
   </ItemGroup>
   <!-- SourceLink support -->
   <ItemGroup>
-    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.201" />
+    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.300" />
   </ItemGroup>
   <!-- Source generator dependencies -->
   <ItemGroup>
