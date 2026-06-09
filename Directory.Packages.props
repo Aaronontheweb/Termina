@@ -3,7 +3,7 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <!-- NuGet package versions -->
     <SystemReactiveVersion>6.1.0</SystemReactiveVersion>
-    <MicrosoftExtensionsVersion>10.0.8</MicrosoftExtensionsVersion>
+    <MicrosoftExtensionsVersion>10.0.9</MicrosoftExtensionsVersion>
   </PropertyGroup>
   <!-- App dependencies -->
   <ItemGroup>
