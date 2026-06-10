@@ -384,7 +384,7 @@ public sealed class ModalNode : LayoutNode, IFocusable, IInvalidatingNode
     public override void OnActivate()
     {
         // Activate content if it's a LayoutNode
-        if (_content is LayoutNode contentNode)
+        if (_content is IActivatableNode contentNode)
         {
             contentNode.OnActivate();
         }
@@ -395,7 +395,7 @@ public sealed class ModalNode : LayoutNode, IFocusable, IInvalidatingNode
     public override void OnDeactivate()
     {
         // Deactivate content if it's a LayoutNode
-        if (_content is LayoutNode contentNode)
+        if (_content is IActivatableNode contentNode)
         {
             contentNode.OnDeactivate();
         }

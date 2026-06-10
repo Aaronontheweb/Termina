@@ -1,3 +1,20 @@
+#### 0.12.0 June 9th 2026 ####
+
+**New Features**:
+
+- **FilePickerNode for interactive file/folder selection** ([#284](https://github.com/Aaronontheweb/termina/pull/284))
+  - New layout node providing an interactive terminal-based file picker with breadcrumb navigation, fuzzy filtering, and configurable selection modes (Files, Directories, or All)
+  - Supports both single-select and multi-select modes with Space/Enter keyboard shortcuts
+  - Hidden file toggle and glob-based file filters via `FileSystemName.MatchesSimpleExpression`
+  - `IFileSystemProvider` abstraction enables deterministic unit testing of file picker behavior
+  - Includes a Gallery demo page demonstrating file picker and folder picker side by side
+
+**Dependency Updates**:
+
+- Updated R3 reactive framework from 1.3.0 to 1.3.1 ([#282](https://github.com/Aaronontheweb/termina/pull/282))
+
+---
+
 #### 0.11.1 June 8th 2026 ####
 
 **Bug Fix** — DECCKM arrow disambiguation:

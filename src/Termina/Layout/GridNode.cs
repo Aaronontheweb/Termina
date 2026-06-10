@@ -889,7 +889,7 @@ public sealed class GridNode : LayoutNode, IFocusable, IInvalidatingNode
         {
             for (var c = 0; c < _cols; c++)
             {
-                if (_cells[r, c] is LayoutNode node)
+                if (_cells[r, c] is IActivatableNode node)
                     node.OnActivate();
             }
         }
@@ -903,7 +903,7 @@ public sealed class GridNode : LayoutNode, IFocusable, IInvalidatingNode
         {
             for (var c = 0; c < _cols; c++)
             {
-                if (_cells[r, c] is LayoutNode node)
+                if (_cells[r, c] is IActivatableNode node)
                     node.OnDeactivate();
             }
         }

@@ -65,7 +65,7 @@ public class GalleryMenuPage : ReactivePage<GalleryMenuViewModel>
                             .WithChild(_menuList))
                     .Fill())
             .WithChild(
-                new TextNode("[↑/↓] Navigate  [Enter] Select  [1-5] Quick Select  [Q] Quit")
+                new TextNode("[↑/↓] Navigate  [Enter] Select  [1-6] Quick Select  [Q] Quit")
                     .WithForeground(Color.BrightBlack)
                     .Height(1));
     }

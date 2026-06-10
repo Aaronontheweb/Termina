@@ -283,42 +283,44 @@ When using `NavigationBehavior.PreserveState`, layout nodes are preserved across
 
 ### Implementing Lifecycle Methods
 
-Extend `LayoutNode` and override `OnActivate()` and `OnDeactivate()`:
+Lifecycle dispatch goes through the `IActivatableNode` interface. `LayoutNode` implements it, so subclasses simply override `OnActivate()` and `OnDeactivate()`. Components that implement the layout interfaces directly — without extending `LayoutNode` — should implement `IActivatableNode` themselves to participate (this is what `FilePickerNode` and `SelectionListNode` do).
 
 ```csharp
 public class AnimatedNode : LayoutNode
 {
-    private readonly Timer _timer;
+    private readonly TimeProvider _timeProvider;
+    private IDisposable? _timer;
     private int _frame;
 
-    public AnimatedNode()
+    public AnimatedNode(TimeProvider? timeProvider = null)
     {
-        _timer = new Timer(100);
-        _timer.Elapsed += (_, _) =>
-        {
-            _frame++;
-            // Trigger UI update
-        };
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public override void OnActivate()
     {
         // Resume animation when page becomes active
-        _timer.Start();
+        _timer ??= Observable.Interval(TimeSpan.FromMilliseconds(100), _timeProvider)
+            .Subscribe(_ =>
+            {
+                _frame++;
+                // Trigger UI update
+            });
         base.OnActivate();
     }
 
     public override void OnDeactivate()
     {
         // Pause animation when navigating away
-        _timer.Stop();
+        _timer?.Dispose();
+        _timer = null;
         base.OnDeactivate();
     }
 
     public override void Dispose()
     {
         // Final cleanup when component is destroyed
-        _timer.Dispose();
+        _timer?.Dispose();
         base.Dispose();
     }
 }
@@ -349,36 +351,30 @@ Key differences:
 ```csharp
 public class LiveDataNode : LayoutNode, IInvalidatingNode
 {
-    private readonly IObservable<string> _source;
+    private readonly Observable<string> _source;
     private readonly Subject<Unit> _invalidated = new();
     private IDisposable? _subscription;
     private string _currentValue = "";
 
-    public IObservable<Unit> Invalidated => _invalidated;
+    public Observable<Unit> Invalidated => _invalidated.AsObservable();
 
-    public LiveDataNode(IObservable<string> source)
+    public LiveDataNode(Observable<string> source)
     {
         _source = source;
+        _subscription = SubscribeToSource();
+    }
 
-        // Create initial subscription
-        _subscription = source.Subscribe(value =>
+    private IDisposable SubscribeToSource() =>
+        _source.Subscribe(value =>
         {
             _currentValue = value;
             _invalidated.OnNext(Unit.Default);
         });
-    }
 
     public override void OnActivate()
     {
-        // Recreate subscription if it was disposed during deactivation
-        if (_subscription == null || _subscription is BooleanDisposable { IsDisposed: true })
-        {
-            _subscription = _source.Subscribe(value =>
-            {
-                _currentValue = value;
-                _invalidated.OnNext(Unit.Default);
-            });
-        }
+        // Recreate the subscription if it was paused during deactivation
+        _subscription ??= SubscribeToSource();
         base.OnActivate();
     }
 
@@ -403,7 +399,7 @@ public class LiveDataNode : LayoutNode, IInvalidatingNode
 
 ### Container Lifecycle Propagation
 
-If your custom container holds child nodes, propagate lifecycle calls:
+If your custom container holds child nodes, propagate lifecycle calls. Dispatch on `IActivatableNode` — not the concrete `LayoutNode` class — so interface-based children (like `FilePickerNode`) receive lifecycle calls too:
 
 ```csharp
 public class CustomContainer : LayoutNode
@@ -415,7 +411,7 @@ public class CustomContainer : LayoutNode
         // Activate all children
         foreach (var child in _children)
         {
-            if (child is LayoutNode node)
+            if (child is IActivatableNode node)
                 node.OnActivate();
         }
         base.OnActivate();
@@ -426,7 +422,7 @@ public class CustomContainer : LayoutNode
         // Deactivate all children
         foreach (var child in _children)
         {
-            if (child is LayoutNode node)
+            if (child is IActivatableNode node)
                 node.OnDeactivate();
         }
         base.OnDeactivate();

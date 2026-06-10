@@ -80,11 +80,11 @@ public sealed class ConditionalNode : LayoutNode, IInvalidatingNode
         }
 
         // Activate both branches (both are always kept in memory)
-        if (_thenNode is LayoutNode thenLayoutNode)
+        if (_thenNode is IActivatableNode thenLayoutNode)
         {
             thenLayoutNode.OnActivate();
         }
-        if (_elseNode is LayoutNode elseLayoutNode)
+        if (_elseNode is IActivatableNode elseLayoutNode)
         {
             elseLayoutNode.OnActivate();
         }
@@ -98,11 +98,11 @@ public sealed class ConditionalNode : LayoutNode, IInvalidatingNode
         _isActive = false;
 
         // Deactivate both branches
-        if (_thenNode is LayoutNode thenLayoutNode)
+        if (_thenNode is IActivatableNode thenLayoutNode)
         {
             thenLayoutNode.OnDeactivate();
         }
-        if (_elseNode is LayoutNode elseLayoutNode)
+        if (_elseNode is IActivatableNode elseLayoutNode)
         {
             elseLayoutNode.OnDeactivate();
         }
