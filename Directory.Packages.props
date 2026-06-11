@@ -17,7 +17,7 @@
        OpenTelemetry.Api 1.9.0 transitively, which is affected by CVE-2026-40894
        (GHSA-g94r-2vxg-569j). Pin it up to the first patched release. -->
   <ItemGroup>
-    <PackageVersion Include="OpenTelemetry.Api" Version="1.15.3" />
+    <PackageVersion Include="OpenTelemetry.Api" Version="1.16.0" />
   </ItemGroup>
   <!-- Test dependencies -->
   <ItemGroup>
