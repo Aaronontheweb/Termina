@@ -45,16 +45,19 @@ public sealed class GraphNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     }
 
     /// <summary>
-    /// Push new data to render.
+    /// Push new data to render. Immediately fires <see cref="Invalidated"/> so the node
+    /// repaints as soon as data arrives, regardless of the internal timer interval.
     /// </summary>
-    public void SetData(double[] data)
+    public GraphNode SetData(double[] data)
     {
         _data = data;
+        _invalidated.OnNext(Unit.Default);
+        return this;
     }
 
     public void Start()
     {
-        if (IsAnimating)
+        if (IsAnimating || _intervalMs <= 0)
         {
             return;
         }

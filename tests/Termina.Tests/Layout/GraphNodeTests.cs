@@ -171,6 +171,32 @@ public class GraphNodeTests
         Assert.True(ctx.WrittenCells.Count > 0);
     }
 
+    [Fact]
+    public void SetData_FiresInvalidated()
+    {
+        var graph = new GraphNode(intervalMs: 0);
+        var invalidated = false;
+        graph.Invalidated.Subscribe(_ => invalidated = true);
+
+        graph.SetData([1, 2, 3]);
+
+        Assert.True(invalidated);
+    }
+
+    [Fact]
+    public void IntervalZero_DisablesInternalTimer()
+    {
+        var time = new FakeTimeProvider();
+        var graph = new GraphNode(intervalMs: 0, timeProvider: time);
+        var fired = 0;
+        graph.Invalidated.Subscribe(_ => fired++);
+
+        time.Advance(TimeSpan.FromSeconds(10));
+
+        Assert.Equal(0, fired);
+        Assert.False(graph.IsAnimating);
+    }
+
     /// <summary>
     /// Minimal render context for testing that captures written content and colors.
     /// </summary>
