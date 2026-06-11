@@ -110,6 +110,9 @@ public class TodoListPage : ReactivePage<TodoListViewModel>
 
         _addModal = Layouts.Modal()
             .WithTitle("Add New Task")
+            .WithTitleColor(Color.Cyan)
+            .WithFooter("Enter: Add | Esc: Cancel")
+            .WithFooterColor(Color.Gray)
             .WithBorder(BorderStyle.Rounded)
             .WithBorderColor(Color.Cyan)
             .WithBackdrop(BackdropStyle.Dim)
@@ -120,6 +123,9 @@ public class TodoListPage : ReactivePage<TodoListViewModel>
 
         _priorityModal = Layouts.Modal()
             .WithTitle("Select Priority")
+            .WithTitleColor(Color.Yellow)
+            .WithFooter("Enter: Select | Esc: Cancel")
+            .WithFooterColor(Color.Gray)
             .WithBorder(BorderStyle.Rounded)
             .WithBorderColor(Color.Yellow)
             .WithBackdrop(BackdropStyle.Dim)
