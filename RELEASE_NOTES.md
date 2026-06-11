@@ -1,3 +1,19 @@
+#### 0.12.1 June 11th 2026 ####
+
+**New Features**:
+
+- **WithFooter and WithFooterColor API on ModalNode** ([#292](https://github.com/Aaronontheweb/termina/pull/292))
+  - New `WithFooter(string)` and `WithFooterColor(Color)` builder methods on `ModalNode` for adding a footer line to modal dialogs
+  - Footer renders on the bottom border line with automatic text truncation to fit modal width
+  - Optional color customization via `WithFooterColor` — falls back to reset terminal colors when not specified
+  - Demonstrated with a TodoListPage demo showcasing modals with actionable footers
+
+**Documentation**:
+
+- Updated ModalNode component docs with WithFooter API reference and usage example ([#293](https://github.com/Aaronontheweb/termina/pull/293))
+
+---
+
 #### 0.12.0 June 9th 2026 ####
 
 **New Features**:

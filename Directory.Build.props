@@ -10,12 +10,18 @@
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <VersionPrefix>0.11.1</VersionPrefix>
-    <PackageReleaseNotes>**Bug Fix** — DECCKM arrow disambiguation:
+    <VersionPrefix>0.12.1</VersionPrefix>
+    <PackageReleaseNotes>**New Features**:
 
-- CSI A/B no longer misrouted as wheel events in terminals that ignore DECCKM.
-- Added DeckmConfirmed auto-detection: CSI A/B are keyboard arrows until an SS3 arrow key proves the terminal honors DECCKM.
-- Narrowed DECCKM confirmation to SS3 arrow keys only — VT220 F1-F4 (SS3 P/Q/R/S) no longer false-positive.
+- **WithFooter and WithFooterColor API on ModalNode** ([#292](https://github.com/Aaronontheweb/termina/pull/292))
+  - New `WithFooter(string)` and `WithFooterColor(Color)` builder methods on `ModalNode` for adding a footer line to modal dialogs
+  - Footer renders on the bottom border line with automatic text truncation to fit modal width
+  - Optional color customization via `WithFooterColor` — falls back to reset terminal colors when not specified
+  - Demonstrated with a TodoListPage demo showcasing modals with actionable footers
+
+**Documentation**:
+
+- Updated ModalNode component docs with WithFooter API reference and usage example ([#293](https://github.com/Aaronontheweb/termina/pull/293))
 
 ---</PackageReleaseNotes>
   </PropertyGroup>
