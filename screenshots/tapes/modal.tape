@@ -17,7 +17,7 @@ Type "a"
 Sleep 1200ms
 Show
 
-# Frame 1: the "Add New Task" modal over a dimmed backdrop.
+# Frame 1: the "Add New Task" modal with footer visible.
 Sleep 1500ms
 Type "Deploy release to production"
 Sleep 1500ms
