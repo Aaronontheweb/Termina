@@ -82,6 +82,28 @@ Layouts.Modal()
     .WithContent(content)
 ```
 
+## Footer
+
+The modal footer renders on the bottom border line — ideal for keyboard hints, status text, or context info without consuming content area space:
+
+```csharp
+var modal = Layouts.Modal()
+    .WithTitle("Add New Task")
+    .WithTitleColor(Color.Cyan)
+    .WithFooter("Enter: Add | Esc: Cancel")
+    .WithFooterColor(Color.Gray)
+    .WithBorder(BorderStyle.Rounded)
+    .WithBorderColor(Color.Cyan)
+    .WithBackdrop(BackdropStyle.Dim)
+    .WithContent(textInput);
+
+// ╭─ Add New Task ───────────────────────────────────╮
+// │                                                    │
+// │  Enter task description...                         │
+// │                                                    │
+// ╰─ Enter: Add | Esc: Cancel ───────────────────────╯
+```
+
 ## With Interactive Content
 
 Modals forward keyboard input to focusable content like TextInputNode or SelectionListNode:
@@ -227,6 +249,8 @@ public class MyPage : ReactivePage<MyViewModel>
 | `.WithTitleColor(Color)` | Set title color |
 | `.WithBorder(BorderStyle)` | Set border style |
 | `.WithBorderColor(Color)` | Set border color |
+| `.WithFooter(string)` | Set footer text (rendered on bottom border line) |
+| `.WithFooterColor(Color)` | Set footer text color |
 | `.WithBackdrop(BackdropStyle)` | Set backdrop style |
 | `.WithBackdropColor(Color)` | Set backdrop color |
 | `.WithBackdropChar(char)` | Set backdrop character (Dim style) |
