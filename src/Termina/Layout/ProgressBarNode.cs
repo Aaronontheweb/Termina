@@ -86,8 +86,11 @@ public sealed class ProgressBarNode : LayoutNode, IInvalidatingNode
 
     public override void Dispose()
     {
-        _invalidated.OnCompleted();
-        _invalidated.Dispose();
+        if (!_invalidated.IsDisposed)
+        {
+            _invalidated.OnCompleted();
+            _invalidated.Dispose();
+        }
         base.Dispose();
     }
 }
