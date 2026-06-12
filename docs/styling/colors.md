@@ -95,6 +95,37 @@ new TextNode("Styled")
     .WithBackground(Color.Blue)
 ```
 
+## Color Interpolation
+
+`Color.Lerp` linearly interpolates between two RGB colors:
+
+```csharp
+var midpoint = Color.Lerp(Color.FromRgb(255, 0, 0), Color.FromRgb(0, 0, 255), 0.5f);
+// Result: purple (127, 0, 127)
+```
+
+If either color is not in RGB mode, `Lerp` returns the first color unchanged.
+
+## Gradients
+
+The `Gradient` record defines a series of color stops and interpolates between them. Use gradients with `GraphNode` and `ProgressBarNode` for smooth color transitions.
+
+```csharp
+// Evenly spaced stops
+var gradient = Gradient.Create(Color.Red, Color.Yellow, Color.Green);
+
+// Custom stop positions
+var custom = Gradient.Create(
+    (0.0f, Color.FromRgb(255, 0, 0)),
+    (0.3f, Color.FromRgb(255, 200, 0)),
+    (1.0f, Color.FromRgb(0, 255, 0)));
+
+// Sample at any position (0–1)
+Color color = gradient.Sample(0.5f);
+```
+
+At least two colors are required. Positions outside the 0–1 range are clamped.
+
 ## Color Support by Component
 
 | Component | Foreground | Background | Other |
@@ -104,6 +135,8 @@ new TextNode("Styled")
 | SpinnerNode | - | - | Spinner, Label |
 | TextInputNode | ✓ | ✓ | Placeholder, Cursor, Selection |
 | StreamingTextNode | ✓ | ✓ | Prefix |
+| GraphNode | - | - | Gradient, Single color |
+| ProgressBarNode | - | - | Gradient, Single color, Empty color |
 
 ## Terminal Compatibility
 

@@ -42,6 +42,7 @@ builder.Services.AddTermina("/menu", termina =>
     termina.RegisterRoute<AnimationsGalleryPage, AnimationsGalleryViewModel>("/animations", NavigationBehavior.PreserveState);
     termina.RegisterRoute<FilePickerGalleryPage, FilePickerGalleryViewModel>("/filepicker", NavigationBehavior.PreserveState);
     termina.RegisterRoute<ToastGalleryPage, ToastGalleryViewModel>("/toasts", NavigationBehavior.PreserveState);
+    termina.RegisterRoute<GraphGalleryPage, GraphGalleryViewModel>("/graphs", NavigationBehavior.PreserveState);
 });
 
 var host = builder.Build();
