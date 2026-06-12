@@ -44,6 +44,26 @@ toastService.Show(
 
 This keeps feedback decoupled from the component that triggered it.
 
+### Custom Colors and Icons
+
+Toast border color and icon are configurable via `ToastOptions`. When omitted, the defaults are a green border (`Color.BrightGreen`) and a checkmark icon (`✓`).
+
+```csharp
+// Success toast with green border and checkmark
+toastService.Show("Saved", new ToastOptions(Color: Color.BrightGreen, Icon: "✓"));
+
+// Error toast with red border and cross
+toastService.Show("Failed to save", new ToastOptions(Color: Color.BrightRed, Icon: "✗"));
+
+// Warning toast with yellow border
+toastService.Show("Check your input", new ToastOptions(
+    Color: Color.BrightYellow,
+    Icon: "⚠",
+    Position: ToastPosition.TopCenter));
+```
+
+Both `Color` and `Icon` are optional. You can set one without the other — for example, change the border color while keeping the default checkmark icon, or supply a custom icon while keeping the default green border.
+
 ## Inline Feedback
 
 If you do not want a global toast, components like `CopyableTextNode` can show local feedback instead.
