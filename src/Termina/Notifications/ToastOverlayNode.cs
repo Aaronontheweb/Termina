@@ -35,7 +35,8 @@ internal sealed class ToastOverlayNode : LayoutNode, IInvalidatingNode
         if (!bounds.HasArea || _currentToast is null)
             return;
 
-        var message = $" {char.ConvertFromUtf32(0x2713)} {_currentToast.Message} ";
+        var icon = _currentToast.Icon ?? char.ConvertFromUtf32(0x2713);
+        var message = $" {icon} {_currentToast.Message} ";
         var width = Math.Min(bounds.Width, message.Length + 2);
         var height = 3;
         if (width <= 0 || bounds.Height < height)
@@ -45,7 +46,8 @@ internal sealed class ToastOverlayNode : LayoutNode, IInvalidatingNode
         var panelBounds = new Rect(x, y, width, height);
         var panelContext = context.CreateSubContext(panelBounds);
 
-        panelContext.SetForeground(Color.BrightGreen);
+        var borderColor = _currentToast.Color ?? Color.BrightGreen;
+        panelContext.SetForeground(borderColor);
         panelContext.WriteAt(0, 0, '╭');
         panelContext.WriteAt(1, 0, new string('─', Math.Max(0, width - 2)));
         panelContext.WriteAt(width - 1, 0, '╮');
@@ -55,7 +57,7 @@ internal sealed class ToastOverlayNode : LayoutNode, IInvalidatingNode
         panelContext.SetForeground(Color.White);
         panelContext.WriteAt(1, 1, message.Length > width - 2 ? message[..(width - 2)] : message.PadRight(width - 2));
         panelContext.ResetColors();
-        panelContext.SetForeground(Color.BrightGreen);
+        panelContext.SetForeground(borderColor);
         panelContext.WriteAt(width - 1, 1, '│');
 
         panelContext.WriteAt(0, 2, '╰');
