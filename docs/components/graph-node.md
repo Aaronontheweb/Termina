@@ -2,6 +2,12 @@
 
 A reactive, self-invalidating layout node that renders live scrolling graphs with optional gradient coloring. Implements `IAnimatedNode` so only the graph region repaints — not the parent layout.
 
+::: details Demo — Live graph with gradient coloring, cycling through all 4 styles
+
+![Graph Gallery demo cycling through Blocks, Outline, Braille, and ASCII styles with gradient coloring](/graphs-progress-gallery-panorama.gif)
+
+:::
+
 ## Basic Usage
 
 ```csharp

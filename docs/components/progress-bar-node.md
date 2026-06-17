@@ -4,6 +4,14 @@ A single-row progress bar with gradient fill, customizable characters, and an op
 
 ## Basic Usage
 
+### Animated Demo — Gradient progress bar with color cycling
+
+::: details Demo — Animated gradient progress bar
+
+![Progress bar with gradient fill animating](/graphs-progress-gallery-panorama.gif)
+
+:::
+
 ```csharp
 new ProgressBarNode()
     .WithColor(Color.Green)
