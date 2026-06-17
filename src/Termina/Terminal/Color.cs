@@ -131,6 +131,22 @@ public readonly struct Color : IEquatable<Color>
 
     public static bool operator !=(Color left, Color right) => !left.Equals(right);
 
+    /// <summary>
+    /// Linearly interpolate between two RGB colors.
+    /// If either color is not RGB mode, returns <paramref name="a"/> unchanged.
+    /// </summary>
+    public static Color Lerp(Color a, Color b, float t)
+    {
+        if (a.Mode != ColorMode.Rgb || b.Mode != ColorMode.Rgb)
+            return a;
+
+        t = Math.Clamp(t, 0f, 1f);
+        var r = (byte)(a.R + (b.R - a.R) * t);
+        var g = (byte)(a.G + (b.G - a.G) * t);
+        var bl = (byte)(a.B + (b.B - a.B) * t);
+        return FromRgb(r, g, bl);
+    }
+
     public override string ToString() => Mode switch
     {
         ColorMode.Default => "Default",

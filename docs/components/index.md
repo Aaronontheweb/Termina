@@ -13,6 +13,8 @@ Termina provides a set of built-in layout nodes (components) for building termin
 | [TextNode](/components/text-node) | Renders styled text with word wrapping |
 | [PanelNode](/components/panel-node) | Bordered container with title |
 | [SpinnerNode](/components/spinner-node) | Animated loading indicator |
+| [GraphNode](/components/graph-node) | Live scrolling graph with gradient coloring |
+| [ProgressBarNode](/components/progress-bar-node) | Progress bar with gradient fill and label |
 | [StreamingTextNode](/components/streaming-text-node) | Streaming text with scrolling |
 
 ## Input Components

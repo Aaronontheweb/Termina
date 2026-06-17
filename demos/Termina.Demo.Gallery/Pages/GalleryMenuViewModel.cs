@@ -18,7 +18,8 @@ public partial class GalleryMenuViewModel : ReactiveViewModel
         new("Layouts", "Vertical, horizontal, grid, panels, borders", "/layouts"),
         new("Animations", "Spinners, streaming text, progress indicators", "/animations"),
         new("File Picker", "File/folder selection, directory navigation, fuzzy filtering", "/filepicker"),
-        new("Toast Notifications", "Colors, icons, positions, and presets", "/toasts")
+        new("Toast Notifications", "Colors, icons, positions, and presets", "/toasts"),
+        new("Graphs & Progress", "Live graphs, gradient colors, progress bars", "/graphs")
     };
 
     public void NavigateToGallery(string route)

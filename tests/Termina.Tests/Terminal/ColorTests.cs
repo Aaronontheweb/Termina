@@ -229,4 +229,84 @@ public class ColorTests
     {
         Assert.Equal("RGB(255,128,64)", Color.FromRgb(255, 128, 64).ToString());
     }
+
+    [Fact]
+    public void Lerp_BothRgb_InterpolatesMidpoint()
+    {
+        var a = Color.FromRgb(0, 0, 0);
+        var b = Color.FromRgb(200, 100, 50);
+
+        var result = Color.Lerp(a, b, 0.5f);
+
+        Assert.Equal(ColorMode.Rgb, result.Mode);
+        Assert.Equal(100, result.R);
+        Assert.Equal(50, result.G);
+        Assert.Equal(25, result.B);
+    }
+
+    [Fact]
+    public void Lerp_AtZero_ReturnsFirstColor()
+    {
+        var a = Color.FromRgb(10, 20, 30);
+        var b = Color.FromRgb(200, 100, 50);
+
+        var result = Color.Lerp(a, b, 0f);
+
+        Assert.Equal(a, result);
+    }
+
+    [Fact]
+    public void Lerp_AtOne_ReturnsSecondColor()
+    {
+        var a = Color.FromRgb(10, 20, 30);
+        var b = Color.FromRgb(200, 100, 50);
+
+        var result = Color.Lerp(a, b, 1f);
+
+        Assert.Equal(b, result);
+    }
+
+    [Fact]
+    public void Lerp_ClampsBelowZero()
+    {
+        var a = Color.FromRgb(0, 0, 0);
+        var b = Color.FromRgb(200, 100, 50);
+
+        var result = Color.Lerp(a, b, -0.5f);
+
+        Assert.Equal(a, result);
+    }
+
+    [Fact]
+    public void Lerp_ClampsAboveOne()
+    {
+        var a = Color.FromRgb(0, 0, 0);
+        var b = Color.FromRgb(200, 100, 50);
+
+        var result = Color.Lerp(a, b, 1.5f);
+
+        Assert.Equal(b, result);
+    }
+
+    [Fact]
+    public void Lerp_NonRgbColor_ReturnsFirst()
+    {
+        var a = Color.FromIndex(5);
+        var b = Color.FromRgb(200, 100, 50);
+
+        var result = Color.Lerp(a, b, 0.5f);
+
+        Assert.Equal(a, result);
+    }
+
+    [Fact]
+    public void Lerp_DefaultColor_ReturnsFirst()
+    {
+        var a = Color.Default;
+        var b = Color.FromRgb(200, 100, 50);
+
+        var result = Color.Lerp(a, b, 0.5f);
+
+        Assert.Equal(a, result);
+    }
 }
