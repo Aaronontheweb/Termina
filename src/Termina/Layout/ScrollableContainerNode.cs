@@ -294,6 +294,12 @@ public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode
         if (!bounds.HasArea)
             return;
 
+        // Offset the rendering context to this node's slot so inner writes
+        // land at the correct terminal row instead of always writing at row 0.
+        // This is the same pattern every other node uses (PanelNode,
+        // StreamingTextNode, SelectionListNode, etc.).
+        var boundsContext = context.CreateSubContext(bounds);
+
         _viewportHeight = bounds.Height;
         var contentWidth = ShowScrollbar && bounds.Width > 1
             ? bounds.Width - 1
@@ -301,7 +307,7 @@ public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode
 
         // Create a clipped/scrolled render context for content
         var contentBounds = new Rect(0, 0, contentWidth, bounds.Height);
-        var scrolledContext = new ScrolledRenderContext(context, 0, -_scrollOffset, contentWidth, _contentHeight);
+        var scrolledContext = new ScrolledRenderContext(boundsContext, 0, -_scrollOffset, contentWidth, _contentHeight);
 
         // Render content
         _content.Render(scrolledContext, new Rect(0, 0, contentWidth, _contentHeight));
@@ -309,7 +315,7 @@ public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode
         // Draw scrollbar if needed
         if (ShowScrollbar && _contentHeight > _viewportHeight)
         {
-            DrawScrollbar(context, bounds);
+            DrawScrollbar(boundsContext, bounds);
         }
     }
 
