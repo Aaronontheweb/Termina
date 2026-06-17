@@ -97,6 +97,9 @@ public class ScrollableContainerNodeBoundsTests
 
         var header = new TextNode("HEADER").Height(1);
         var scrollable = new ScrollableContainerNode()
+            // Pin scroll position to manual control so the offset comes from
+            // ScrollDown() and not the auto-tail policy.
+            .WithAutoScroll(AutoScrollPolicy.None)
             .WithContent(
                 Layouts.Vertical(
                     new TextNode("Line1"),
@@ -109,12 +112,20 @@ public class ScrollableContainerNodeBoundsTests
                     new TextNode("Line8")
                 )
             );
-        scrollable.ScrollDown(); scrollable.ScrollDown(); scrollable.ScrollDown(); // ScrollDown() takes no args
         scrollable.Height(5);
 
         var layout = Layouts.Vertical().WithChild(header).WithChild(scrollable);
         var available = new Size(20, 8);
+
+        // Measure first so viewport/content heights are populated; otherwise
+        // ScrollDown() is a no-op (CanScrollDown is false while MaxScroll == 0).
         layout.Measure(available);
+
+        // 8 lines of content in a 5-row viewport => MaxScroll == 3.
+        scrollable.ScrollDown();
+        scrollable.ScrollDown();
+        scrollable.ScrollDown();
+        Assert.Equal(3, scrollable.ScrollOffset);
 
         var rootContext = new RegionRenderContext(terminal, 0, 0, 20, 8);
         layout.Render(rootContext, new Rect(0, 0, 20, 8));
@@ -122,8 +133,12 @@ public class ScrollableContainerNodeBoundsTests
         // Header preserved at row 0
         Assert.Equal('H', terminal.GetChar(0, 0));
 
-        // Scrolled content visible
-        Assert.True(terminal.Contains("Line4"));
+        // Scrolling shifted the viewport: the last line is now visible...
+        Assert.True(terminal.Contains("Line8"), "Line8 should be visible after scrolling to the bottom");
+
+        // ...and the scrolled-past lines are gone (they were visible at offset 0).
+        Assert.False(terminal.Contains("Line1"), "Line1 should be scrolled out of view");
+        Assert.False(terminal.Contains("Line2"), "Line2 should be scrolled out of view");
     }
 
     /// <summary>
