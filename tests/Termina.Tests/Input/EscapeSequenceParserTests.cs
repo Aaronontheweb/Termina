@@ -578,6 +578,22 @@ public class EscapeSequenceParserTests
     }
 
     [Fact]
+    public void CsiZ_Backtab_EmitsTabWithShift()
+    {
+        var parser = new EscapeSequenceParser();
+        var events = new List<IInputEvent>();
+
+        events.AddRange(parser.Process(EscKey()));
+        events.AddRange(FeedString(parser, "[Z"));
+
+        Assert.False(parser.IsBufferingEscape);
+
+        var press = Assert.IsType<KeyPressed>(Assert.Single(events));
+        Assert.Equal(ConsoleKey.Tab, press.KeyInfo.Key);
+        Assert.True(press.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Shift));
+    }
+
+    [Fact]
     public void BracketedPaste_StillWorks_WithTildeFlushGuard()
     {
         // Guards against the tilde-flush returning false for the paste start "[200~" or end

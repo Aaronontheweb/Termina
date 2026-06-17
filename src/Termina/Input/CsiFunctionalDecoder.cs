@@ -25,7 +25,7 @@ internal static class CsiFunctionalDecoder
         {
             var key = FinalToTerminaKey(final);
             if (key != TerminaKey.None)
-                result = new KeyStroke(key);
+                result = new KeyStroke(key, Modifiers: FinalToKeyModifiers(final));
 
             return true;
         }
@@ -47,7 +47,7 @@ internal static class CsiFunctionalDecoder
             // as CSI form; misrouting them as wheel breaks all navigation.
             var key = FinalToTerminaKey(final);
             if (key != TerminaKey.None)
-                result = new KeyStroke(key);
+                result = new KeyStroke(key, Modifiers: FinalToKeyModifiers(final));
         }
 
         return true;
@@ -61,7 +61,7 @@ internal static class CsiFunctionalDecoder
     /// equivalent <see cref="ConsoleKey"/>.
     /// </remarks>
     public static bool IsFunctionalFinal(char c) =>
-        c is 'A' or 'B' or 'C' or 'D' or 'E' or 'F' or 'H' or 'P' or 'Q' or 'R' or 'S';
+        c is 'A' or 'B' or 'C' or 'D' or 'E' or 'F' or 'H' or 'P' or 'Q' or 'R' or 'S' or 'Z';
 
     /// <summary>Maps a CSI functional final char to a <see cref="ConsoleKey"/>.</summary>
     public static ConsoleKey FinalToKey(char c) => c switch
@@ -76,7 +76,20 @@ internal static class CsiFunctionalDecoder
         'Q' => ConsoleKey.F2,
         'R' => ConsoleKey.F3,
         'S' => ConsoleKey.F4,
+        'Z' => ConsoleKey.Tab,
         _ => ConsoleKey.None,
+    };
+
+    public static ConsoleModifiers FinalToModifiers(char c) => c switch
+    {
+        'Z' => ConsoleModifiers.Shift,
+        _ => 0,
+    };
+
+    private static KeyModifiers FinalToKeyModifiers(char c) => c switch
+    {
+        'Z' => KeyModifiers.Shift,
+        _ => KeyModifiers.None,
     };
 
     private static TerminaKey FinalToTerminaKey(char c) => c switch
@@ -91,6 +104,7 @@ internal static class CsiFunctionalDecoder
         'Q' => TerminaKey.F2,
         'R' => TerminaKey.F3,
         'S' => TerminaKey.F4,
+        'Z' => TerminaKey.Tab,
         _ => TerminaKey.None,
     };
 }
