@@ -117,6 +117,40 @@ public class CsiFunctionalDecoderTests
         Assert.NotEqual(TerminaKey.None, keyStroke.Key);
     }
 
+    [Fact]
+    public void TryDecodeBareFinal_BacktabZ_ReturnsTabWithShift()
+    {
+        var decoded = CsiFunctionalDecoder.TryDecodeBareFinal(
+            'Z',
+            Context(kittyReportAllKeysVisible: false, deckmConfirmed: false),
+            out var inputEvent);
+
+        Assert.True(decoded);
+        var keyStroke = Assert.IsType<KeyStroke>(inputEvent);
+        Assert.Equal(TerminaKey.Tab, keyStroke.Key);
+        Assert.Equal(KeyModifiers.Shift, keyStroke.Modifiers);
+    }
+
+    [Fact]
+    public void TryDecodeBareFinal_BacktabZ_KittyVisible_ReturnsTabWithShift()
+    {
+        var decoded = CsiFunctionalDecoder.TryDecodeBareFinal(
+            'Z',
+            Context(kittyReportAllKeysVisible: true),
+            out var inputEvent);
+
+        Assert.True(decoded);
+        var keyStroke = Assert.IsType<KeyStroke>(inputEvent);
+        Assert.Equal(TerminaKey.Tab, keyStroke.Key);
+        Assert.Equal(KeyModifiers.Shift, keyStroke.Modifiers);
+    }
+
+    [Fact]
+    public void IsFunctionalFinal_Z_ReturnsTrue()
+    {
+        Assert.True(CsiFunctionalDecoder.IsFunctionalFinal('Z'));
+    }
+
     [Theory]
     [InlineData('~')]
     [InlineData('u')]
