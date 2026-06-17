@@ -1,140 +1,58 @@
-#### 0.12.1 June 11th 2026 ####
+# Release Notes — Termina 0.13.0
 
-**New Features**:
+**Release date:** 2026-06-17
 
-- **WithFooter and WithFooterColor API on ModalNode** ([#292](https://github.com/Aaronontheweb/termina/pull/292))
-  - New `WithFooter(string)` and `WithFooterColor(Color)` builder methods on `ModalNode` for adding a footer line to modal dialogs
-  - Footer renders on the bottom border line with automatic text truncation to fit modal width
-  - Optional color customization via `WithFooterColor` — falls back to reset terminal colors when not specified
-  - Demonstrated with a TodoListPage demo showcasing modals with actionable footers
+## Features
 
-**Documentation**:
+### Gradient primitives, GraphNode, and ProgressBarNode (#298) — Jan (@st0o0)
 
-- Updated ModalNode component docs with WithFooter API reference and usage example ([#293](https://github.com/Aaronontheweb/termina/pull/293))
+A major visual components update with gradient coloring support across the board.
 
----
+- **`Color.Lerp`** — Linear RGB interpolation between two colors
+- **`Gradient`** — Immutable multi-stop gradient with color stop interpolation
+- **`GraphNode`** — Reactive, self-invalidating layout node for live scrolling graphs in four styles:
+  - `Blocks` — Filled block columns (▁▂▃▄▅▆▇█)
+  - `Outline` — Top edge only, sparkline feel
+  - `Braille` — Double vertical resolution using braille characters
+  - `Ascii` — ASCII fallback for terminals without Unicode
+  - All styles support gradient coloring by row height
+  - Configurable timer interval or data-driven updates
+- **`ProgressBarNode`** — Single-row progress bar with:
+  - Gradient fill across the bar width
+  - Configurable fill/empty characters and colors
+  - Optional formatted label (e.g., `"{0:P0}"` for percentage)
+- Full API docs and interactive gallery demo
 
-#### 0.12.0 June 9th 2026 ####
+### Color and icon support for toast notifications (#296) — Jan (@st0o0)
 
-**New Features**:
+Toast notifications can now be customized with colors, icons, and positions.
 
-- **FilePickerNode for interactive file/folder selection** ([#284](https://github.com/Aaronontheweb/termina/pull/284))
-  - New layout node providing an interactive terminal-based file picker with breadcrumb navigation, fuzzy filtering, and configurable selection modes (Files, Directories, or All)
-  - Supports both single-select and multi-select modes with Space/Enter keyboard shortcuts
-  - Hidden file toggle and glob-based file filters via `FileSystemName.MatchesSimpleExpression`
-  - `IFileSystemProvider` abstraction enables deterministic unit testing of file picker behavior
-  - Includes a Gallery demo page demonstrating file picker and folder picker side by side
+- **`ToastOptions.Color`** — Optional color override for toast border
+- **`ToastOptions.Icon`** — Optional icon string displayed in the toast
+- Built-in presets:
+  - **Success** — Green border, ✓ icon, Top Right
+  - **Error** — Red border, ✗ icon, Top Right
+  - **Warning** — Yellow border, ⚠ icon, Top Center
+  - **Info** — Cyan border, ℹ icon, Bottom Right
+  - **Custom** — Magenta border, 🚀 icon, Bottom Center
+  - **Default** — No overrides (unchanged behavior)
 
-**Dependency Updates**:
+## Bug Fixes
 
-- Updated R3 reactive framework from 1.3.0 to 1.3.1 ([#282](https://github.com/Aaronontheweb/termina/pull/282))
+### Parse CSI Z (backtab) as Shift+Tab (#297) — Jan (@st0o0)
 
----
+In legacy terminal mode, the CSI Z escape sequence (`ESC [ Z`) was silently dropped. It now correctly maps to `Shift+Tab`, restoring expected backward-tab behavior.
 
-#### 0.11.1 June 8th 2026 ####
+### ScrollableContainerNode ignoring bounds.Y (#301)
 
-**Bug Fix** — DECCKM arrow disambiguation:
+`ScrollableContainerNode` was ignoring `bounds.Y` during layout, causing it to overwrite content above the scrollable area. The layout calculation now correctly respects vertical bounds.
 
-- **CSI A/B no longer misrouted as wheel events in terminals that ignore DECCKM** ([#280](https://github.com/Aaronontheweb/termina/pull/280))
-  - `CsiFunctionalDecoder` unconditionally treated bare CSI A/B as alternate-scroll wheel events when Kitty was inactive, assuming the terminal honored DECCKM (`?1h`) and sent real arrows as SS3. Terminals that ignore DECCKM (VHS, some PTY wrappers) keep sending arrows as CSI form, so arrow navigation broke silently.
-  - Added a `DeckmConfirmed` flag to `TerminalModeContext`. The parser sets it when it first sees an SS3 arrow key — proof the terminal honored DECCKM. `CsiFunctionalDecoder` only routes CSI A/B as wheel after this confirmation; until then they are keyboard arrows.
-  - Narrowed the DECCKM confirmation to SS3 arrow keys only (A/B/C/D). SS3 F1-F4 (P/Q/R/S) use the SS3 encoding as a VT220 legacy independent of DECCKM and no longer false-positive the detection.
+## Docs
 
----
-
-#### 0.11.0 June 7th 2026 ####
-
-**Terminal Input Reliability and Native Copy/Paste Support**
-
-- Added an internal semantic input pipeline that decodes terminal protocol input before adapting back to Termina's existing public input events.
-- Extracted protocol-specific decoders for SGR mouse input, SS3 keyboard input, CSI functional keys, legacy CSI keyboard sequences, Kitty keyboard formats, bracketed paste, and unknown-sequence fallback handling.
-- Preserved the existing public input surface: `KeyPressed`, `MouseScrollEvent`, `PasteEvent`, and `ResizeEvent`.
-- Expanded Linux terminal conformance coverage for baseline PTY, tmux, kitty, and kitty plus tmux scenarios.
-- Added real terminal selection, explicit clipboard copy, and paste-into-focused-input coverage to validate native terminal clipboard workflows.
-- Hardened file trace disposal so buffered trace events drain deterministically.
-
-**Upgrade Notes**
-
-- Existing applications continue using `LegacyMouseTracking` by default.
-- Applications that need native terminal text selection should opt into raw input plus alternate-scroll.
-- Built-in text inputs handle bracketed paste automatically.
-- Custom focusable input components should implement `IPasteReceiver` to receive focused paste content.
-- For tmux, enable passthrough with `set -g allow-passthrough on`.
-- When tmux mouse mode captures selection, use Shift-drag plus the terminal copy shortcut, usually `Ctrl+Shift+C`.
-- See the [0.11.0 upgrade advisory](https://aaronstannard.com/termina/guide/upgrade-0.11.html) for the recommended runtime configuration and tmux workflow.
+- Embedded animated GIF demos for Toast and Graph/Progress components (#302)
 
 ---
 
-#### 0.10.2 May 30th 2026 ####
+### Contributors
 
-**Bug Fixes** — Input parsing, rendering, and tracing:
-
-- **Unrecognized CSI tilde sequences now flush correctly** ([#232](https://github.com/Aaronontheweb/termina/pull/232))
-  - Fix for `[5~` (PgUp), `[6~` (PgDn) and other bracketed CSI sequences being silently swallowed by the escape sequence parser. These were causing the parser to stay stuck in `InBracketSequence` mode, blocking all subsequent input. Sequences now flush as raw `KeyPressed` events for application handling.
-
-- **Legacy CSI tilde key decoding** — Maps legacy CSI tilde key sequences to semantic `ConsoleKey` events while preserving unknown tilde raw flush behavior.
-
-- **`TextInputNode` placeholder background color fixed** ([#233](https://github.com/Aaronontheweb/termina/pull/233))
-  - Placeholders now render with the correct background fill against the configured `Background` color instead of inheriting the terminal's default.
-
-- **`FileTraceListener` UTF-8 encoding fixed** ([#234](https://github.com/Aaronontheweb/termina/pull/234))
-  - Switched from `Encoding.Default` to UTF-8 (without BOM), preventing `ArgumentException` on Unicode characters (e.g., ➭ U+27AD) and the resulting consumer task faults, channel fill, and OOM issues in trace output.
-  - `DisposeAsync` drain order fixed — `_disposed` flag is now set *after* waiting for the consumer to drain, preventing buffered events from being skipped and leaving trace files empty.
-
-**Test Fixes**
-- **`SelectionItemContent` invalidation test made deterministic** ([#236](https://github.com/Aaronontheweb/termina/pull/236))
-
----
-
-#### 0.10.1 May 24th 2026 ####
-
-**Bug Fixes** — `StreamingTextNode` thread-safety and disposal hardening:
-
-- **`RebuildBuffer` correctly inserts a newline before block segments after `Clear()`** ([#224](https://github.com/Aaronontheweb/termina/pull/224))
-  - Pre-fix, after `Clear()` reset `HasContentOnCurrentLine`, the first re-added block segment skipped its leading newline during rebuild, causing block content to collide with prior content on the same line.
-  - Moves the block-newline check inline, evaluated *after* prior elements are re-appended so the buffer state reflects the in-progress reconstruction.
-
-- **Animation callbacks now hold `_contentLock`** ([#225](https://github.com/Aaronontheweb/termina/pull/225))
-  - Animation `Invalidated` callbacks from `IAnimatedTextSegment` (e.g. `SpinnerSegment` on the R3 timer thread) previously called `RebuildBuffer` without locking, racing with public mutators (`Append`/`AppendTracked`/`Remove`/`Replace`/`Clear`/`Dispose`) that all hold the lock. Symptoms ranged from `InvalidOperationException` ("Collection was modified") on the `foreach` inside `RebuildBuffer` to torn buffer state and `ObjectDisposedException` if `Dispose()` ran while a callback was queued behind the lock.
-  - Funnels both callback sites through a single `OnAnimationInvalidated()` helper that takes `_contentLock`, checks a new volatile `_disposed` flag, then runs `RebuildBuffer` + notification safely.
-  - `Dispose()` is now idempotent and sets `_disposed = true` first so in-flight callbacks bail before touching `_invalidated`.
-
-- **`NotifyChanged` hardened against post-Dispose race** ([#227](https://github.com/Aaronontheweb/termina/pull/227))
-  - Every public mutator released `_contentLock` before calling `NotifyChanged()`, so a racing `Dispose()` could complete `_invalidated.OnCompleted()/Dispose()` in the gap and the mutator's `OnNext` would throw `ObjectDisposedException`. Same shape applied to deliberate use-after-dispose calls.
-  - `NotifyChanged` now reads `_disposed` and try/catches `ObjectDisposedException`. `OnAnimationInvalidated` routes through `NotifyChanged` so the animation path inherits the same hardening.
-
-**Test improvements** ([#226](https://github.com/Aaronontheweb/termina/pull/226)):
-
-- Restructured the `Replace` thread-safety stress test so the ticker always fires on a live, permanently-tracked spinner (was mostly hitting an already-disposed segment after each `Replace`).
-- Added a reflection-based test that directly exercises the `_disposed` belt-and-suspenders guard inside `OnAnimationInvalidated` (the original `AfterDispose` test was passing for the wrong reason because subscription teardown was hiding the in-flight-callback path).
-
----
-
-#### 0.10.0 May 24th 2026 ####
-
-**New Features**:
-- **`ReactivePage.InvalidateLayout()` for runtime layout rebuilds** ([#220](https://github.com/Aaronontheweb/termina/pull/220))
-  - New `protected void InvalidateLayout()` method on `ReactivePage<TViewModel>` that discards the cached layout tree and rebuilds via `BuildLayout()`
-  - Solves the problem of layout values "baked in" at first navigation time (e.g. `SizeConstraint.Auto` records) being permanently frozen — consumers can now trigger a full rebuild when external state changes (terminal resize, etc.)
-  - Preserves user subscriptions, key bindings, and focus when the target node survives the rebuild
-  - Exception-safe: builds the new tree first, then atomically swaps — if `BuildLayout` throws, the existing layout is left intact
-  - Includes 17 comprehensive lifecycle tests covering disposed-guard, re-entrancy, idempotent dispose, and subscription cleanup
-
-- **Alternate-scroll wheel mode with Kitty keyboard protocol disambiguation** ([#215](https://github.com/Aaronontheweb/termina/pull/215))
-  - Replaces SGR mouse tracking with `?1007h` alternate-scroll mode for wheel events, combined with Kitty keyboard protocol (`report_all_keys`) for true key disambiguation
-  - On Ghostty, kitty, WezTerm, foot, and iTerm2 ≥ 3.5: scroll-wheel scrolls `IScrollable` components, arrow keys act as arrows even in always-focused text inputs, and native text selection (click-drag) still works
-  - New opt-in `TERMINA_UNIX_RAW_INPUT=1` environment variable enables raw Unix stdin for the protocol to work
-  - Dual Ctrl+C quit pattern replaces per-demo Ctrl+Q convention
-
-- **Harden alternate-scroll rollout and document runtime input modes** ([#217](https://github.com/Aaronontheweb/termina/pull/217))
-  - Restored legacy mouse tracking as the framework default — alternate-scroll is now opt-in via explicit app configuration
-  - Moved Kitty keyboard negotiation into `TerminaApplication` with safer raw-input fallback on non-interactive consoles
-  - Added comprehensive website docs covering runtime input modes, raw input, alternate-scroll, Kitty flags, and tmux passthrough
-
-**Bug Fixes**:
-- **`ResizeEvent` now forwards to `ViewModel.Input` observable** ([#219](https://github.com/Aaronontheweb/termina/pull/219))
-  - Fixed `TerminaApplication.ProcessEvent` swallowing `ResizeEvent` via early `return;` — the event now correctly falls through to `_inputSubject.OnNext(inputEvent)`
-  - Pages and ViewModels subscribing via `ViewModel.Input.OfType<ResizeEvent>()` now receive resize notifications as intended
-  - Enables consumers to recompute width- or height-sensitive layout on terminal resize
-
----
+Thanks to **Jan (@st0o0)** for these contributions!
