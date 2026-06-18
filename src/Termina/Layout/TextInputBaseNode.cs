@@ -23,6 +23,7 @@ namespace Termina.Layout;
 public abstract class TextInputBaseNode : LayoutNode, IAnimatedNode, IInvalidatingNode, IFocusable, IPasteReceiver
 {
     protected readonly TimeProvider _timeProvider;
+    protected readonly FrameProvider? _frameProvider;
     protected readonly int _cursorBlinkMs;
     protected IDisposable? _cursorTimerSubscription;
     protected readonly Subject<Unit> _invalidated = new();
@@ -169,10 +170,14 @@ public abstract class TextInputBaseNode : LayoutNode, IAnimatedNode, IInvalidati
         }
     }
 
-    protected TextInputBaseNode(int cursorBlinkMs = 530, TimeProvider? timeProvider = null)
+    protected TextInputBaseNode(
+        int cursorBlinkMs = 530,
+        TimeProvider? timeProvider = null,
+        FrameProvider? frameProvider = null)
     {
         _cursorBlinkMs = cursorBlinkMs;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _frameProvider = frameProvider;
     }
 
     /// <inheritdoc />
@@ -201,8 +206,11 @@ public abstract class TextInputBaseNode : LayoutNode, IAnimatedNode, IInvalidati
         {
             IsAnimating = true;
             _cursorVisible = true;
-            _cursorTimerSubscription ??= Observable
-                .Interval(TimeSpan.FromMilliseconds(_cursorBlinkMs), _timeProvider)
+            var ticks = Observable.Interval(TimeSpan.FromMilliseconds(_cursorBlinkMs), _timeProvider);
+            if (_frameProvider is not null)
+                ticks = ticks.ObserveOn(_frameProvider);
+
+            _cursorTimerSubscription ??= ticks
                 .Subscribe(_ =>
                 {
                     _cursorVisible = !_cursorVisible;

@@ -120,7 +120,8 @@ public class MyPage : ReactivePage<MyViewModel>
 
     protected override void OnBound()
     {
-        _textInput = new TextInputNode().WithPlaceholder("Enter command...");
+        _textInput = new TextInputNode(frameProvider: RenderFrameProvider)
+            .WithPlaceholder("Enter command...");
         _modal = Layouts.Modal().WithContent(_textInput);
 
         _textInput.Submitted
@@ -147,10 +148,11 @@ public class MyPage : ReactivePage<MyViewModel>
 
     protected override void OnBound()
     {
-        _promptInput = new TextInputNode().WithPlaceholder("Enter command...");
+        _promptInput = new TextInputNode(frameProvider: RenderFrameProvider)
+            .WithPlaceholder("Enter command...");
 
         // Route input from ViewModel to the text input
-        ViewModel.Input.OfType<KeyPressed>()
+        ViewModel.Input.OfType<IInputEvent, KeyPressed>()
             .Subscribe(key => _promptInput.HandleInput(key.KeyInfo))
             .DisposeWith(Subscriptions);
 
@@ -231,11 +233,22 @@ public sealed class CustomInputNode : LayoutNode, IFocusable, IPasteReceiver
 
 | Observable | Type | Description |
 |------------|------|-------------|
-| `TextChanged` | `IObservable<string>` | Emits when text changes |
-| `Submitted` | `IObservable<string>` | Emits when Enter is pressed |
-| `Invalidated` | `IObservable<Unit>` | Emits when redraw is needed |
+| `TextChanged` | `Observable<string>` | Emits when text changes |
+| `Submitted` | `Observable<string>` | Emits when Enter is pressed |
+| `Invalidated` | `Observable<Unit>` | Emits when redraw is needed |
 
 ## API Reference
+
+### Constructor
+
+```csharp
+public TextInputNode(
+    int cursorBlinkMs = 530,
+    TimeProvider? timeProvider = null,
+    FrameProvider? frameProvider = null)
+```
+
+Pass `frameProvider: RenderFrameProvider` in pages so cursor-blink invalidation is delivered on the Termina render loop.
 
 ### Properties
 

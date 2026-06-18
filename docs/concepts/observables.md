@@ -142,14 +142,25 @@ ViewModel.Items
     .AsLayout()
 ```
 
+When the observable can publish from a background callback or async continuation, marshal delivery through the Termina render loop:
+
+```csharp
+ViewModel.Items
+    .Select<List<Item>, ILayoutNode>(items => Layouts.Vertical(
+        items.Select(i => new TextNode(i.Name)).ToArray()))
+    .AsLayout(RenderFrameProvider)
+```
+
+See [Render Loop Threading](/concepts/render-loop-threading) for the full guidance.
+
 ### Conditional Display
 
 ```csharp
 ViewModel.IsLoading
     .Select<bool, ILayoutNode>(loading => loading
-        ? new SpinnerNode()
+        ? new SpinnerNode(frameProvider: RenderFrameProvider)
         : new TextNode("Ready"))
-    .AsLayout()
+    .AsLayout(RenderFrameProvider)
 ```
 
 ### Debounce Input

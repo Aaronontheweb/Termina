@@ -60,6 +60,7 @@ public sealed class SpinnerNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     };
 
     private readonly TimeProvider _timeProvider;
+    private readonly FrameProvider? _frameProvider;
     private readonly int _intervalMs;
     private readonly string[] _frames;
     private readonly Subject<Unit> _invalidated = new();
@@ -88,11 +89,13 @@ public sealed class SpinnerNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     public bool IsAnimating { get; private set; }
 
     public SpinnerNode(SpinnerStyle style = SpinnerStyle.Dots, int intervalMs = 80,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        FrameProvider? frameProvider = null)
     {
         _frames = Frames[style];
         _intervalMs = intervalMs;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _frameProvider = frameProvider;
 
         HeightConstraint = new SizeConstraint.Fixed(1);
         WidthConstraint = new SizeConstraint.Auto();
@@ -134,7 +137,11 @@ public sealed class SpinnerNode : LayoutNode, IAnimatedNode, IInvalidatingNode
         if (!IsAnimating)
         {
             IsAnimating = true;
-            _timerSubscription ??= Observable.Interval(TimeSpan.FromMilliseconds(_intervalMs), _timeProvider)
+            var ticks = Observable.Interval(TimeSpan.FromMilliseconds(_intervalMs), _timeProvider);
+            if (_frameProvider is not null)
+                ticks = ticks.ObserveOn(_frameProvider);
+
+            _timerSubscription ??= ticks
                 .Subscribe(_ =>
                 {
                     _currentFrame = (_currentFrame + 1) % _frames.Length;
@@ -228,4 +235,3 @@ public sealed class SpinnerNode : LayoutNode, IAnimatedNode, IInvalidatingNode
         base.Dispose();
     }
 }
-

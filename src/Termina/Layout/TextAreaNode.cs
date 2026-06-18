@@ -3,6 +3,7 @@
 
 using Termina.Rendering;
 using Termina.Terminal;
+using R3;
 
 namespace Termina.Layout;
 
@@ -25,8 +26,11 @@ public sealed class TextAreaNode : TextInputBaseNode
 
     private record struct WrappedLine(int TextStartIndex, int Length);
 
-    public TextAreaNode(int cursorBlinkMs = 530, TimeProvider? timeProvider = null)
-        : base(cursorBlinkMs, timeProvider)
+    public TextAreaNode(
+        int cursorBlinkMs = 530,
+        TimeProvider? timeProvider = null,
+        FrameProvider? frameProvider = null)
+        : base(cursorBlinkMs, timeProvider, frameProvider)
     {
         HeightConstraint = new SizeConstraint.Auto { Min = 1, Max = 10 };
         WidthConstraint = new SizeConstraint.Fill();

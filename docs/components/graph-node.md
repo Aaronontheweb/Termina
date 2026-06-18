@@ -63,6 +63,7 @@ new GraphNode().WithColor(Color.Green)
 
 ```csharp
 Observable.Interval(TimeSpan.FromMilliseconds(200), TimeProvider.System)
+    .ObserveOn(RenderFrameProvider)
     .Subscribe(_ =>
     {
         dataPoints.Add(GetNextValue());
@@ -77,11 +78,11 @@ The graph renders the rightmost `width` data points (or `width * 2` for Braille 
 The constructor accepts an interval for periodic self-invalidation. Set `intervalMs: 0` to disable the internal timer entirely and rely only on `SetData` for repaints:
 
 ```csharp
-// Timer-driven refresh (default 500ms)
-new GraphNode(intervalMs: 500)
+// Timer-driven refresh (default 500ms), invalidated on the Termina loop
+new GraphNode(intervalMs: 500, frameProvider: RenderFrameProvider)
 
 // Data-driven only — no timer overhead
-new GraphNode(intervalMs: 0)
+new GraphNode(intervalMs: 0, frameProvider: RenderFrameProvider)
 ```
 
 ## Testable Timing
@@ -102,7 +103,10 @@ timeProvider.Advance(TimeSpan.FromMilliseconds(100));
 ### Constructor
 
 ```csharp
-public GraphNode(int intervalMs = 500, TimeProvider? timeProvider = null)
+public GraphNode(
+    int intervalMs = 500,
+    TimeProvider? timeProvider = null,
+    FrameProvider? frameProvider = null)
 ```
 
 ### Methods

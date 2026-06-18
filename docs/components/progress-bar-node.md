@@ -74,8 +74,11 @@ new ProgressBarNode()
 
 ```csharp
 Observable.Interval(TimeSpan.FromMilliseconds(100), TimeProvider.System)
+    .ObserveOn(RenderFrameProvider)
     .Subscribe(_ => progressBar.WithValue(GetProgress()));
 ```
+
+`ProgressBarNode` itself does not own a timer. If a timer or backend callback drives it, marshal that source through `RenderFrameProvider` before calling `WithValue`.
 
 ## API Reference
 

@@ -16,6 +16,14 @@ ViewModel.CountChanged
     .AsLayout()
 ```
 
+If the source may publish from a background callback, timer, or async continuation, pass the page's frame provider:
+
+```csharp
+ViewModel.CountChanged
+    .Select(c => new TextNode($"Count: {c}"))
+    .AsLayout(RenderFrameProvider)
+```
+
 ## How It Works
 
 1. Subscribe to the source observable
@@ -145,6 +153,11 @@ IObservable<ILayoutNode>.AsLayout() -> ReactiveLayoutNode
 
 // Observable transform (via Select) + AsLayout
 observable.Select(transform).AsLayout()
+
+// Marshal observable delivery through a Termina frame provider
+observable.AsLayout(frameProvider)
+observable.Select(transform).AsLayout(frameProvider)
+observable.AsTextLayout(frameProvider)
 ```
 
 ## Source Code

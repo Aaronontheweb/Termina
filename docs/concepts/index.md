@@ -86,6 +86,7 @@ Page (capture) → Focused Component (bubble) → ViewModel
 - [Architecture](/concepts/architecture) - MVVM and reactive patterns
 - [Reactive Properties](/concepts/reactive-properties) - The `[Reactive]` attribute
 - [Observables & Rx](/concepts/observables) - Understanding `IObservable<T>`
+- [Render Loop Threading](/concepts/render-loop-threading) - Marshaling async work onto the Termina loop
 - [Source Generators](/concepts/source-generators) - How code generation works
 - [Routing](/concepts/routing) - ASP.NET-style route templates
 - [Navigation](/concepts/navigation) - Moving between pages

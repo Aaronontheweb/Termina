@@ -79,28 +79,28 @@ public class DashboardPage : ReactivePage<DashboardViewModel>
             new TextNode("CPU:").WithForeground(Color.Gray),
             ViewModel.CpuUsage
                 .Select<int, ILayoutNode>(cpu => BuildProgressBar(cpu, GetMetricColor(cpu)))
-                .AsLayout());
+                .AsLayout(RenderFrameProvider));
 
         // Memory row
         metricsGrid.AddRow(
             new TextNode("Memory:").WithForeground(Color.Gray),
             ViewModel.MemoryUsage
                 .Select<int, ILayoutNode>(mem => BuildProgressBar(mem, GetMetricColor(mem)))
-                .AsLayout());
+                .AsLayout(RenderFrameProvider));
 
         // Disk row
         metricsGrid.AddRow(
             new TextNode("Disk:").WithForeground(Color.Gray),
             ViewModel.DiskUsage
                 .Select<int, ILayoutNode>(disk => BuildProgressBar(disk, GetMetricColor(disk)))
-                .AsLayout());
+                .AsLayout(RenderFrameProvider));
 
         // Network row
         metricsGrid.AddRow(
             new TextNode("Network:").WithForeground(Color.Gray),
             ViewModel.NetworkUsage
                 .Select<int, ILayoutNode>(net => BuildProgressBar(net, GetMetricColor(net)))
-                .AsLayout());
+                .AsLayout(RenderFrameProvider));
 
         return metricsGrid;
     }
@@ -183,7 +183,7 @@ public class DashboardPage : ReactivePage<DashboardViewModel>
 
                 return (ILayoutNode)logsGrid;
             })
-            .AsLayout();
+            .AsLayout(RenderFrameProvider);
     }
 
     private static Color GetLevelColor(string level)
@@ -206,7 +206,7 @@ public class DashboardPage : ReactivePage<DashboardViewModel>
                     .Select<string, ILayoutNode>(status => new TextNode(status)
                         .WithForeground(Color.BrightYellow)
                         .NoWrap())
-                    .AsLayout()
+                    .AsLayout(RenderFrameProvider)
                     .Fill())
             .WithChild(
                 new TextNode("[↑/↓] Select  [R] Refresh  [C] Clear  [Esc] Quit")

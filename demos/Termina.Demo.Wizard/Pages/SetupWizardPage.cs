@@ -124,7 +124,7 @@ public class SetupWizardPage : ReactivePage<SetupWizardViewModel>
 
     private ILayoutNode BuildAuthStep()
     {
-        var usernameInput = new TextInputNode()
+        var usernameInput = new TextInputNode(frameProvider: RenderFrameProvider)
             .WithPlaceholder("Enter username...");
 
         usernameInput.Submitted.Subscribe(text =>

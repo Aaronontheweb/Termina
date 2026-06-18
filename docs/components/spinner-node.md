@@ -35,10 +35,10 @@ Control the animation interval:
 new SpinnerNode(SpinnerStyle.Dots)
 
 // Slower animation
-new SpinnerNode(SpinnerStyle.Dots, intervalMs: 150)
+new SpinnerNode(SpinnerStyle.Dots, intervalMs: 150, frameProvider: RenderFrameProvider)
 
 // Faster animation
-new SpinnerNode(SpinnerStyle.Dots, intervalMs: 50)
+new SpinnerNode(SpinnerStyle.Dots, intervalMs: 50, frameProvider: RenderFrameProvider)
 ```
 
 ## Styling
@@ -73,15 +73,21 @@ ViewModel.IsLoadingChanged
     .Select(loading => loading
         ? (ILayoutNode)new SpinnerNode().WithLabel("Loading...")
         : new EmptyNode())
-    .AsLayout()
+    .AsLayout(RenderFrameProvider)
 ```
+
+Pass `frameProvider: RenderFrameProvider` when using spinners in pages so timer-driven invalidation is delivered on the Termina render loop.
 
 ## API Reference
 
 ### Constructor
 
 ```csharp
-public SpinnerNode(SpinnerStyle style = SpinnerStyle.Dots, int intervalMs = 80)
+public SpinnerNode(
+    SpinnerStyle style = SpinnerStyle.Dots,
+    int intervalMs = 80,
+    TimeProvider? timeProvider = null,
+    FrameProvider? frameProvider = null)
 ```
 
 ### Properties
