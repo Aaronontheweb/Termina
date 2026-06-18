@@ -34,7 +34,7 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
             .WithPrefix("  ", Color.Gray)
             .WithScrollbar();
 
-        _promptInput = new TextInputNode(frameProvider: RenderFrameProvider)
+        _promptInput = new TextInputNode()
             .WithPlaceholder("Enter your question...")
             .WithForeground(Color.Cyan)
             .WithHistory();

@@ -22,7 +22,7 @@ namespace Termina.Layout;
 /// </remarks>
 public abstract class TextInputBaseNode : LayoutNode, IAnimatedNode, IInvalidatingNode, IFocusable, IPasteReceiver
 {
-    protected readonly TimeProvider _timeProvider;
+    protected readonly TimeProvider? _timeProvider;
     protected readonly FrameProvider? _frameProvider;
     protected readonly int _cursorBlinkMs;
     protected IDisposable? _cursorTimerSubscription;
@@ -176,7 +176,7 @@ public abstract class TextInputBaseNode : LayoutNode, IAnimatedNode, IInvalidati
         FrameProvider? frameProvider = null)
     {
         _cursorBlinkMs = cursorBlinkMs;
-        _timeProvider = timeProvider ?? TimeProvider.System;
+        _timeProvider = timeProvider;
         _frameProvider = frameProvider;
     }
 
@@ -206,9 +206,9 @@ public abstract class TextInputBaseNode : LayoutNode, IAnimatedNode, IInvalidati
         {
             IsAnimating = true;
             _cursorVisible = true;
-            var ticks = Observable.Interval(TimeSpan.FromMilliseconds(_cursorBlinkMs), _timeProvider);
-            if (_frameProvider is not null)
-                ticks = ticks.ObserveOn(_frameProvider);
+            var ticks = Observable.Interval(TimeSpan.FromMilliseconds(_cursorBlinkMs), GetTimeProvider());
+            if (GetFrameProvider() is { } frameProvider)
+                ticks = ticks.ObserveOn(frameProvider);
 
             _cursorTimerSubscription ??= ticks
                 .Subscribe(_ =>
@@ -218,6 +218,23 @@ public abstract class TextInputBaseNode : LayoutNode, IAnimatedNode, IInvalidati
                 });
         }
     }
+
+    /// <inheritdoc />
+    public override void SetRuntimeContext(LayoutRuntimeContext context)
+    {
+        var restart = IsAnimating && (_timeProvider is null || _frameProvider is null);
+        if (restart)
+            Stop();
+
+        base.SetRuntimeContext(context);
+
+        if (restart && _hasFocus)
+            Start();
+    }
+
+    private TimeProvider GetTimeProvider() => _timeProvider ?? RuntimeContext?.TimeProvider ?? TimeProvider.System;
+
+    private FrameProvider? GetFrameProvider() => _frameProvider ?? RuntimeContext?.RenderFrameProvider;
 
     /// <inheritdoc />
     public void Stop()

@@ -152,6 +152,7 @@ public class RenderFrameProviderTests
             intervalMs: 80,
             timeProvider: timeProvider,
             frameProvider: frameProvider);
+        spinner.OnActivate();
         var invalidations = 0;
         using var subscription = spinner.Invalidated.Subscribe(_ => invalidations++);
 

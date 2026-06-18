@@ -59,7 +59,7 @@ public sealed class SpinnerNode : LayoutNode, IAnimatedNode, IInvalidatingNode
         [SpinnerStyle.Circle] = ["◐", "◓", "◑", "◒"]
     };
 
-    private readonly TimeProvider _timeProvider;
+    private readonly TimeProvider? _timeProvider;
     private readonly FrameProvider? _frameProvider;
     private readonly int _intervalMs;
     private readonly string[] _frames;
@@ -94,14 +94,11 @@ public sealed class SpinnerNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     {
         _frames = Frames[style];
         _intervalMs = intervalMs;
-        _timeProvider = timeProvider ?? TimeProvider.System;
+        _timeProvider = timeProvider;
         _frameProvider = frameProvider;
 
         HeightConstraint = new SizeConstraint.Fixed(1);
         WidthConstraint = new SizeConstraint.Auto();
-
-        // Auto-start
-        Start();
     }
 
     /// <summary>
@@ -137,9 +134,9 @@ public sealed class SpinnerNode : LayoutNode, IAnimatedNode, IInvalidatingNode
         if (!IsAnimating)
         {
             IsAnimating = true;
-            var ticks = Observable.Interval(TimeSpan.FromMilliseconds(_intervalMs), _timeProvider);
-            if (_frameProvider is not null)
-                ticks = ticks.ObserveOn(_frameProvider);
+            var ticks = Observable.Interval(TimeSpan.FromMilliseconds(_intervalMs), GetTimeProvider());
+            if (GetFrameProvider() is { } frameProvider)
+                ticks = ticks.ObserveOn(frameProvider);
 
             _timerSubscription ??= ticks
                 .Subscribe(_ =>
@@ -149,6 +146,23 @@ public sealed class SpinnerNode : LayoutNode, IAnimatedNode, IInvalidatingNode
                 });
         }
     }
+
+    /// <inheritdoc />
+    public override void SetRuntimeContext(LayoutRuntimeContext context)
+    {
+        var restart = IsAnimating && (_timeProvider is null || _frameProvider is null);
+        if (restart)
+            Stop();
+
+        base.SetRuntimeContext(context);
+
+        if (restart)
+            Start();
+    }
+
+    private TimeProvider GetTimeProvider() => _timeProvider ?? RuntimeContext?.TimeProvider ?? TimeProvider.System;
+
+    private FrameProvider? GetFrameProvider() => _frameProvider ?? RuntimeContext?.RenderFrameProvider;
 
     /// <inheritdoc />
     public void Stop()

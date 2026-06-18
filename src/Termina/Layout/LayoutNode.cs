@@ -9,10 +9,16 @@ namespace Termina.Layout;
 /// <summary>
 /// Base class for layout nodes providing common functionality.
 /// </summary>
-public abstract class LayoutNode : ILayoutNode, IActivatableNode
+public abstract class LayoutNode : ILayoutNode, IActivatableNode, ILayoutRuntimeContextAware
 {
     private SizeConstraint _widthConstraint = new SizeConstraint.Auto();
     private SizeConstraint _heightConstraint = new SizeConstraint.Auto();
+
+    /// <summary>
+    /// Runtime services supplied by the owning Termina application.
+    /// Available after the layout tree is built and before activation.
+    /// </summary>
+    protected LayoutRuntimeContext? RuntimeContext { get; private set; }
 
     /// <inheritdoc />
     public SizeConstraint WidthConstraint
@@ -38,6 +44,22 @@ public abstract class LayoutNode : ILayoutNode, IActivatableNode
     public virtual void Dispose()
     {
         GC.SuppressFinalize(this);
+    }
+
+    /// <inheritdoc />
+    public virtual void SetRuntimeContext(LayoutRuntimeContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        RuntimeContext = context;
+    }
+
+    /// <summary>
+    /// Applies this node's runtime context to a child created after the initial layout tree walk.
+    /// </summary>
+    protected void ApplyRuntimeContextToChild(ILayoutNode child)
+    {
+        if (RuntimeContext is { } context)
+            LayoutRuntimeContextInjector.Apply(child, context);
     }
 
     /// <summary>
@@ -176,6 +198,7 @@ public abstract class ContainerNode : LayoutNode, IContainerNode, IInvalidatingN
     /// </summary>
     protected void AddChild(ILayoutNode child)
     {
+        ApplyRuntimeContextToChild(child);
         _children.Add(child);
         SubscribeToChildInvalidation(child);
     }
@@ -187,6 +210,7 @@ public abstract class ContainerNode : LayoutNode, IContainerNode, IInvalidatingN
     {
         foreach (var child in children)
         {
+            ApplyRuntimeContextToChild(child);
             _children.Add(child);
             SubscribeToChildInvalidation(child);
         }

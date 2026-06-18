@@ -88,6 +88,7 @@ public class GraphNodeTests
     {
         var timeProvider = new FakeTimeProvider();
         var graph = new GraphNode(intervalMs: 100, timeProvider: timeProvider);
+        graph.OnActivate();
 
         Assert.True(graph.IsAnimating);
 

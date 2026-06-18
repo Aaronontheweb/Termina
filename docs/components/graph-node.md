@@ -79,10 +79,10 @@ The constructor accepts an interval for periodic self-invalidation. Set `interva
 
 ```csharp
 // Timer-driven refresh (default 500ms), invalidated on the Termina loop
-new GraphNode(intervalMs: 500, frameProvider: RenderFrameProvider)
+new GraphNode(intervalMs: 500)
 
 // Data-driven only — no timer overhead
-new GraphNode(intervalMs: 0, frameProvider: RenderFrameProvider)
+new GraphNode(intervalMs: 0)
 ```
 
 ## Testable Timing

@@ -316,6 +316,8 @@ public abstract class ReactivePage<TViewModel> : IBindablePage, IDisposable
                 ?? throw new InvalidOperationException(
                     $"BuildLayout() returned null for page {GetType().FullName}.");
 
+            ApplyRuntimeContext(newRoot);
+
             var newNodes = CollectLayoutNodes(newRoot);
 
             // Tear down the old framework wiring before we touch the previous
@@ -405,6 +407,8 @@ public abstract class ReactivePage<TViewModel> : IBindablePage, IDisposable
                     $"BuildLayout() returned null for page {GetType().FullName}.");
         }
 
+        ApplyRuntimeContext(_layoutRoot);
+
         // Subscribe to layout invalidation events to trigger redraws. Lives in
         // _layoutSubscriptions so InvalidateLayout can replace it without
         // touching user-held entries in _subscriptions.
@@ -445,6 +449,15 @@ public abstract class ReactivePage<TViewModel> : IBindablePage, IDisposable
         }
 
         return visited;
+    }
+
+    private void ApplyRuntimeContext(ILayoutNode root)
+    {
+        var context = new LayoutRuntimeContext(
+            ViewModel.RenderFrameProvider,
+            ViewModel.TimeProvider,
+            ViewModel.RequestRedraw);
+        LayoutRuntimeContextInjector.Apply(root, context);
     }
 
     private static void DisconnectAbandonedNodes(ILayoutNode? root, HashSet<ILayoutNode> retainedNodes)

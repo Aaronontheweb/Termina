@@ -188,7 +188,7 @@ public TextAreaNode(
     FrameProvider? frameProvider = null)
 ```
 
-Pass `frameProvider: RenderFrameProvider` in pages so cursor-blink invalidation is delivered on the Termina render loop.
+Text areas attached to a page layout tree receive runtime context automatically, so cursor-blink invalidation is delivered on the Termina render loop. Pass explicit providers only for tests or nodes owned outside a Termina page tree.
 
 ### Properties
 

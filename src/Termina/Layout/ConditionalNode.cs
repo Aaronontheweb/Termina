@@ -47,6 +47,14 @@ public sealed class ConditionalNode : LayoutNode, IInvalidatingNode
     private ILayoutNode ActiveNode => _condition ? _thenNode : _elseNode;
 
     /// <inheritdoc />
+    public override void SetRuntimeContext(LayoutRuntimeContext context)
+    {
+        base.SetRuntimeContext(context);
+        ApplyRuntimeContextToChild(_thenNode);
+        ApplyRuntimeContextToChild(_elseNode);
+    }
+
+    /// <inheritdoc />
     internal override IEnumerable<ILayoutNode> GetChildNodes() => [ActiveNode];
 
     /// <inheritdoc />

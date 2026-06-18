@@ -116,7 +116,7 @@ The Page renders the chat interface.
 
 **Page Owns Layout Nodes**
 
-The Page creates and owns interactive layout nodes. Pass `RenderFrameProvider` to timer-backed nodes like `TextInputNode` so cursor blink invalidation is delivered on the Termina loop:
+The Page creates and owns interactive layout nodes. Timer-backed nodes like `TextInputNode` receive runtime context automatically once attached to the layout tree, so cursor blink invalidation is delivered on the Termina loop:
 
 ```csharp
 private StreamingTextNode _chatHistory = null!;
@@ -125,7 +125,7 @@ private TextInputNode _promptInput = null!;
 protected override void OnBound()
 {
     _chatHistory = StreamingTextNode.Create().WithPrefix("  ", Color.Gray);
-    _promptInput = new TextInputNode(frameProvider: RenderFrameProvider)
+    _promptInput = new TextInputNode()
         .WithPlaceholder("Enter your question...");
 
     // Subscribe to ViewModel's output streams

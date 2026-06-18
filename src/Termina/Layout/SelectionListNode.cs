@@ -29,7 +29,7 @@ namespace Termina.Layout;
 /// Optionally supports an "Other" option for custom text input.
 /// </para>
 /// </remarks>
-public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode, IActivatableNode
+public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode, IActivatableNode, ILayoutRuntimeContextAware
 {
     private readonly Subject<Unit> _invalidated = new();
     private readonly Subject<IReadOnlyList<T>> _selectionConfirmed = new();
@@ -42,6 +42,7 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode, IActiv
     private int _visibleRows = 10;
     private bool _isEditingOther;
     private TextInputNode? _otherInput;
+    private LayoutRuntimeContext? _runtimeContext;
     private string? _otherLabel;
     private Action<string>? _otherCallback;
     private bool _hasFocus;
@@ -118,6 +119,16 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode, IActiv
     /// Observable that emits when Escape is pressed.
     /// </summary>
     public Observable<Unit> Cancelled => _cancelled.AsObservable();
+
+    /// <inheritdoc />
+    public void SetRuntimeContext(LayoutRuntimeContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        _runtimeContext = context;
+        if (_otherInput is not null)
+            LayoutRuntimeContextInjector.Apply(_otherInput, context);
+    }
 
     /// <inheritdoc />
     public SizeConstraint WidthConstraint => SizeConstraint.FillRemaining();
@@ -464,6 +475,8 @@ public sealed class SelectionListNode<T> : IFocusable, IInvalidatingNode, IActiv
     {
         _otherInput ??= new TextInputNode()
             .WithPlaceholder("Enter custom value...");
+        if (_runtimeContext is not null)
+            LayoutRuntimeContextInjector.Apply(_otherInput, _runtimeContext);
 
         _otherInput.Clear();
         _isEditingOther = true;

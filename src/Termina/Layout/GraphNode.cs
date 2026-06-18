@@ -25,7 +25,7 @@ public sealed class GraphNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     ];
 
     private readonly Subject<Unit> _invalidated = new();
-    private readonly TimeProvider _timeProvider;
+    private readonly TimeProvider? _timeProvider;
     private readonly FrameProvider? _frameProvider;
     private readonly int _intervalMs;
     private IDisposable? _timerSubscription;
@@ -41,9 +41,8 @@ public sealed class GraphNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     public GraphNode(int intervalMs = 500, TimeProvider? timeProvider = null, FrameProvider? frameProvider = null)
     {
         _intervalMs = intervalMs;
-        _timeProvider = timeProvider ?? TimeProvider.System;
+        _timeProvider = timeProvider;
         _frameProvider = frameProvider;
-        Start();
     }
 
     /// <summary>
@@ -64,14 +63,30 @@ public sealed class GraphNode : LayoutNode, IAnimatedNode, IInvalidatingNode
             return;
         }
 
-        var ticks = Observable.Interval(TimeSpan.FromMilliseconds(_intervalMs), _timeProvider);
-        if (_frameProvider is not null)
-            ticks = ticks.ObserveOn(_frameProvider);
+        var ticks = Observable.Interval(TimeSpan.FromMilliseconds(_intervalMs), GetTimeProvider());
+        if (GetFrameProvider() is { } frameProvider)
+            ticks = ticks.ObserveOn(frameProvider);
 
         _timerSubscription ??= ticks
             .Subscribe(_ => { _invalidated.OnNext(Unit.Default); });
         IsAnimating = true;
     }
+
+    public override void SetRuntimeContext(LayoutRuntimeContext context)
+    {
+        var restart = IsAnimating && (_timeProvider is null || _frameProvider is null);
+        if (restart)
+            Stop();
+
+        base.SetRuntimeContext(context);
+
+        if (restart)
+            Start();
+    }
+
+    private TimeProvider GetTimeProvider() => _timeProvider ?? RuntimeContext?.TimeProvider ?? TimeProvider.System;
+
+    private FrameProvider? GetFrameProvider() => _frameProvider ?? RuntimeContext?.RenderFrameProvider;
 
     public void Stop()
     {

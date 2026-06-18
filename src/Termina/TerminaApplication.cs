@@ -307,6 +307,7 @@ public sealed class TerminaApplication
                 RequestRedraw,
                 Input,
                 RenderFrameProvider,
+                _runtimeOptions.TimeProvider,
                 Post,
                 InvokeAsync);
 

@@ -120,7 +120,7 @@ public class MyPage : ReactivePage<MyViewModel>
 
     protected override void OnBound()
     {
-        _textInput = new TextInputNode(frameProvider: RenderFrameProvider)
+        _textInput = new TextInputNode()
             .WithPlaceholder("Enter command...");
         _modal = Layouts.Modal().WithContent(_textInput);
 
@@ -148,7 +148,7 @@ public class MyPage : ReactivePage<MyViewModel>
 
     protected override void OnBound()
     {
-        _promptInput = new TextInputNode(frameProvider: RenderFrameProvider)
+        _promptInput = new TextInputNode()
             .WithPlaceholder("Enter command...");
 
         // Route input from ViewModel to the text input
@@ -248,7 +248,7 @@ public TextInputNode(
     FrameProvider? frameProvider = null)
 ```
 
-Pass `frameProvider: RenderFrameProvider` in pages so cursor-blink invalidation is delivered on the Termina render loop.
+Inputs attached to a page layout tree receive runtime context automatically, so cursor-blink invalidation is delivered on the Termina render loop. Pass explicit providers only for tests or nodes owned outside a Termina page tree.
 
 ### Properties
 
