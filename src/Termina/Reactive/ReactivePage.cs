@@ -78,6 +78,11 @@ public abstract class ReactivePage<TViewModel> : IBindablePage, IDisposable
     /// </summary>
     protected IFocusManager Focus { get; private set; } = null!;
 
+    /// <summary>
+    /// R3 frame provider bound to the owning Termina application render loop.
+    /// </summary>
+    protected FrameProvider RenderFrameProvider => ViewModel.RenderFrameProvider;
+
     private Action<string> _navigate = _ => { };
     private Action<string, object?> _navigateWithParams = (_, _) => { };
     private Action _shutdown = () => { };
@@ -106,6 +111,17 @@ public abstract class ReactivePage<TViewModel> : IBindablePage, IDisposable
     /// Requests application shutdown.
     /// </summary>
     protected void Shutdown() => _shutdown();
+
+    /// <summary>
+    /// Enqueue work to run on the owning Termina application's render loop.
+    /// </summary>
+    protected void Post(Action action) => ViewModel.Post(action);
+
+    /// <summary>
+    /// Enqueue work to run on the owning Termina application's render loop and await completion.
+    /// </summary>
+    protected Task InvokeAsync(Action action, CancellationToken cancellationToken = default) =>
+        ViewModel.InvokeAsync(action, cancellationToken);
 
     /// <summary>
     /// Key bindings for this page.

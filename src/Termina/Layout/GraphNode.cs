@@ -26,6 +26,7 @@ public sealed class GraphNode : LayoutNode, IAnimatedNode, IInvalidatingNode
 
     private readonly Subject<Unit> _invalidated = new();
     private readonly TimeProvider _timeProvider;
+    private readonly FrameProvider? _frameProvider;
     private readonly int _intervalMs;
     private IDisposable? _timerSubscription;
     private double[] _data = [];
@@ -37,10 +38,11 @@ public sealed class GraphNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     public Observable<Unit> Invalidated => _invalidated.AsObservable();
     public bool IsAnimating { get; private set; }
 
-    public GraphNode(int intervalMs = 500, TimeProvider? timeProvider = null)
+    public GraphNode(int intervalMs = 500, TimeProvider? timeProvider = null, FrameProvider? frameProvider = null)
     {
         _intervalMs = intervalMs;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _frameProvider = frameProvider;
         Start();
     }
 
@@ -62,7 +64,11 @@ public sealed class GraphNode : LayoutNode, IAnimatedNode, IInvalidatingNode
             return;
         }
 
-        _timerSubscription ??= Observable.Interval(TimeSpan.FromMilliseconds(_intervalMs), _timeProvider)
+        var ticks = Observable.Interval(TimeSpan.FromMilliseconds(_intervalMs), _timeProvider);
+        if (_frameProvider is not null)
+            ticks = ticks.ObserveOn(_frameProvider);
+
+        _timerSubscription ??= ticks
             .Subscribe(_ => { _invalidated.OnNext(Unit.Default); });
         IsAnimating = true;
     }

@@ -179,6 +179,17 @@ new TextAreaNode()
 
 ## API Reference
 
+### Constructor
+
+```csharp
+public TextAreaNode(
+    int cursorBlinkMs = 530,
+    TimeProvider? timeProvider = null,
+    FrameProvider? frameProvider = null)
+```
+
+Pass `frameProvider: RenderFrameProvider` in pages so cursor-blink invalidation is delivered on the Termina render loop.
+
 ### Properties
 
 | Property | Type | Default | Description |

@@ -113,7 +113,8 @@ public class StreamingChatViewModel : ReactiveViewModel
 
     private async Task InitializeAsync()
     {
-        _llmActor = await _llmActorProvider.GetAsync();
+        var llmActor = await _llmActorProvider.GetAsync();
+        await InvokeAsync(() => _llmActor = llmActor);
     }
 
     /// <summary>
@@ -224,87 +225,62 @@ public class StreamingChatViewModel : ReactiveViewModel
 
     private async Task ConsumeResponseStreamAsync(string prompt, string? decisionContext = null)
     {
-        if (_llmActor is null)
+        var llmActor = _llmActor;
+        if (llmActor is null)
         {
-            StatusMessage.Value = "Error: Actor not initialized";
-            IsGenerating.Value = false;
+            await InvokeAsync(() =>
+            {
+                StatusMessage.Value = "Error: Actor not initialized";
+                IsGenerating.Value = false;
+            });
             return;
         }
 
         var completedNormally = false;
         try
         {
-            var response = await _llmActor.Ask<LlmMessages.GenerateResponse>(
+            var response = await llmActor.Ask<LlmMessages.GenerateResponse>(
                 new LlmMessages.GenerateRequest(prompt, decisionContext),
                 TimeSpan.FromSeconds(30));
 
-            _generationCts = response.Cancellation;
+            await InvokeAsync(() => _generationCts = response.Cancellation);
 
-            await foreach (var token in response.TokenStream.WithCancellation(_generationCts.Token))
+            await foreach (var token in response.TokenStream.WithCancellation(response.Cancellation.Token))
             {
-                switch (token)
+                var stopStreaming = false;
+                var tokenCompletedNormally = false;
+
+                await InvokeAsync(() =>
                 {
-                    case LlmMessages.ThinkingToken thinking:
-                        // On first thinking token, replace spinner with thinking block
-                        if (!_thinkingBlockShown)
-                        {
-                            _chatOutput.OnNext(new ReplaceTrackedSegment(
-                                ThinkingSpinnerId,
-                                new StaticTextSegment("", TextStyle.Default),
-                                KeepTracked: false));
-                            _currentSpinner?.Dispose();
-                            _currentSpinner = null;
+                    switch (token)
+                    {
+                        case LlmMessages.ThinkingToken thinking:
+                            HandleThinkingToken(thinking);
+                            break;
 
-                            // Add thinking block that will update in place
-                            var thinkingSegment = new StaticTextSegment(
-                                $"💭 {thinking.Text}",
-                                new TextStyle { Foreground = Color.BrightBlack, Decoration = TextDecoration.Italic }).AsBlock();
-                            _chatOutput.OnNext(new AppendTrackedSegment(ThinkingBlockId, thinkingSegment));
-                            _thinkingBlockShown = true;
-                        }
-                        else
-                        {
-                            // Update existing thinking block
-                            var thinkingSegment = new StaticTextSegment(
-                                $"💭 {thinking.Text}",
-                                new TextStyle { Foreground = Color.BrightBlack, Decoration = TextDecoration.Italic }).AsBlock();
-                            _chatOutput.OnNext(new ReplaceTrackedSegment(ThinkingBlockId, thinkingSegment, KeepTracked: true));
-                        }
-                        break;
+                        case LlmMessages.TextChunk chunk:
+                            HandleTextChunk(chunk);
+                            break;
 
-                    case LlmMessages.TextChunk chunk:
-                        // On first text chunk, remove thinking block
-                        if (!HasReceivedText.Value)
-                        {
-                            _chatOutput.OnNext(new RemoveTrackedSegment(ThinkingBlockId));
-                            HasReceivedText.Value = true;
-                        }
+                        case LlmMessages.GenerationComplete:
+                            CleanupGeneration();
+                            StatusMessage.Value = "Ready. Enter another question.";
+                            tokenCompletedNormally = true;
+                            break;
 
-                        _chatOutput.OnNext(new AppendText(chunk.Text));
-                        break;
+                        case LlmMessages.DecisionPointToken decision:
+                            HandleDecisionPoint(decision);
+                            tokenCompletedNormally = true;
+                            stopStreaming = true;
+                            break;
+                    }
+                }, response.Cancellation.Token);
 
-                    case LlmMessages.GenerationComplete:
-                        CleanupGeneration();
-                        StatusMessage.Value = "Ready. Enter another question.";
-                        completedNormally = true;
-                        break;
+                if (tokenCompletedNormally)
+                    completedNormally = true;
 
-                    case LlmMessages.DecisionPointToken decision:
-                        // On first content (decision point), remove thinking block
-                        if (!HasReceivedText.Value)
-                        {
-                            _chatOutput.OnNext(new RemoveTrackedSegment(ThinkingBlockId));
-                            HasReceivedText.Value = true;
-                        }
-
-                        // Show the decision list
-                        _chatOutput.OnNext(new ShowDecisionPoint(decision.Question, decision.Choices));
-                        ShowDecisionList.Value = true;
-                        StatusMessage.Value = "Make a selection below...";
-
-                        // We don't mark this as complete - we wait for user to make a decision
-                        return;
-                }
+                if (stopStreaming)
+                    return;
             }
         }
         catch (OperationCanceledException)
@@ -313,20 +289,82 @@ public class StreamingChatViewModel : ReactiveViewModel
         }
         catch (Exception ex)
         {
-            _chatOutput.OnNext(new AppendText(" [error: ", Color.Red));
-            _chatOutput.OnNext(new AppendText(ex.Message, Color.Red, TextDecoration.Bold));
-            _chatOutput.OnNext(new AppendText("]", Color.Red, IsNewLine: true));
-            CleanupGeneration();
-            StatusMessage.Value = $"Error: {ex.Message}";
+            await InvokeAsync(() =>
+            {
+                _chatOutput.OnNext(new AppendText(" [error: ", Color.Red));
+                _chatOutput.OnNext(new AppendText(ex.Message, Color.Red, TextDecoration.Bold));
+                _chatOutput.OnNext(new AppendText("]", Color.Red, IsNewLine: true));
+                CleanupGeneration();
+                StatusMessage.Value = $"Error: {ex.Message}";
+            });
         }
         finally
         {
-            if (!completedNormally && IsGenerating.Value)
+            if (!completedNormally)
             {
-                CleanupGeneration();
-                StatusMessage.Value = "Ready. Enter another question.";
+                await InvokeAsync(() =>
+                {
+                    if (IsGenerating.Value)
+                    {
+                        CleanupGeneration();
+                        StatusMessage.Value = "Ready. Enter another question.";
+                    }
+                });
             }
         }
+    }
+
+    private void HandleThinkingToken(LlmMessages.ThinkingToken thinking)
+    {
+        if (!_thinkingBlockShown)
+        {
+            _chatOutput.OnNext(new ReplaceTrackedSegment(
+                ThinkingSpinnerId,
+                new StaticTextSegment("", TextStyle.Default),
+                KeepTracked: false));
+            _currentSpinner?.Dispose();
+            _currentSpinner = null;
+
+            var thinkingSegment = new StaticTextSegment(
+                $"💭 {thinking.Text}",
+                new TextStyle { Foreground = Color.BrightBlack, Decoration = TextDecoration.Italic }).AsBlock();
+            _chatOutput.OnNext(new AppendTrackedSegment(ThinkingBlockId, thinkingSegment));
+            _thinkingBlockShown = true;
+        }
+        else
+        {
+            var thinkingSegment = new StaticTextSegment(
+                $"💭 {thinking.Text}",
+                new TextStyle { Foreground = Color.BrightBlack, Decoration = TextDecoration.Italic }).AsBlock();
+            _chatOutput.OnNext(new ReplaceTrackedSegment(ThinkingBlockId, thinkingSegment, KeepTracked: true));
+        }
+    }
+
+    private void HandleTextChunk(LlmMessages.TextChunk chunk)
+    {
+        if (!HasReceivedText.Value)
+        {
+            _chatOutput.OnNext(new RemoveTrackedSegment(ThinkingBlockId));
+            HasReceivedText.Value = true;
+        }
+
+        _chatOutput.OnNext(new AppendText(chunk.Text));
+    }
+
+    private void HandleDecisionPoint(LlmMessages.DecisionPointToken decision)
+    {
+        if (!HasReceivedText.Value)
+        {
+            _chatOutput.OnNext(new RemoveTrackedSegment(ThinkingBlockId));
+            HasReceivedText.Value = true;
+        }
+
+        _chatOutput.OnNext(new ShowDecisionPoint(decision.Question, decision.Choices));
+        ShowDecisionList.Value = true;
+        IsGenerating.Value = false;
+        _generationCts?.Dispose();
+        _generationCts = null;
+        StatusMessage.Value = "Make a selection below...";
     }
 
     private void CleanupGeneration()

@@ -43,6 +43,7 @@ public class DashboardViewModel : ReactiveViewModel
 
         // Start simulation timer to update metrics
         _simulationTimer = Observable.Interval(TimeSpan.FromSeconds(2))
+            .ObserveOn(RenderFrameProvider)
             .Subscribe(_ => UpdateMetrics());
 
         Subscriptions.Add(_simulationTimer);

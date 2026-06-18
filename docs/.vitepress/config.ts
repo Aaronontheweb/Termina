@@ -28,6 +28,7 @@ export default defineConfig({
         { text: 'Introduction', link: '/guide/' },
         { text: 'Getting Started', link: '/guide/getting-started' },
         { text: 'Installation', link: '/guide/installation' },
+        { text: 'Render Loop Threading', link: '/guide/upgrade-render-loop-threading' },
         { text: 'Upgrading to 0.11.0', link: '/guide/upgrade-0.11' },
         { text: 'Migrating to 0.7.0', link: '/guide/migration-0.7' }
       ],
@@ -107,6 +108,7 @@ export default defineConfig({
         { text: 'Architecture', link: '/concepts/architecture' },
         { text: 'Reactive Properties', link: '/concepts/reactive-properties' },
         { text: 'Observables & Rx', link: '/concepts/observables' },
+        { text: 'Render Loop Threading', link: '/concepts/render-loop-threading' },
         { text: 'Source Generators', link: '/concepts/source-generators' },
         { text: 'Routing', link: '/concepts/routing' },
         { text: 'Navigation', link: '/concepts/navigation' },

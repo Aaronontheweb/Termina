@@ -115,11 +115,11 @@ public class AnimationsGalleryPage : ReactivePage<AnimationsGalleryViewModel>
         // Create a reactive layout that swaps spinners based on selection
         return ViewModel.SelectedStyle
             .Select(style => BuildSpinnerPreview(style))
-            .AsLayout()
+            .AsLayout(RenderFrameProvider)
             .Fill();
     }
 
-    private static ILayoutNode BuildSpinnerPreview(LayoutSpinnerStyle style)
+    private ILayoutNode BuildSpinnerPreview(LayoutSpinnerStyle style)
     {
         var (name, color, _) = GetStyleInfo(style);
 
@@ -136,7 +136,7 @@ public class AnimationsGalleryPage : ReactivePage<AnimationsGalleryViewModel>
                                 Layouts.Horizontal()
                                     .WithChild(new TextNode("  ").WidthAuto())
                                     .WithChild(
-                                        new SpinnerNode(style, intervalMs: 80)
+                                        new SpinnerNode(style, intervalMs: 80, frameProvider: RenderFrameProvider)
                                             .WithSpinnerColor(color))
                                     .Height(1))
                             .WithChild(new TextNode(" ").Height(1))
@@ -144,7 +144,7 @@ public class AnimationsGalleryPage : ReactivePage<AnimationsGalleryViewModel>
                                 Layouts.Horizontal()
                                     .WithChild(new TextNode("  ").WidthAuto())
                                     .WithChild(
-                                        new SpinnerNode(style, intervalMs: 80)
+                                        new SpinnerNode(style, intervalMs: 80, frameProvider: RenderFrameProvider)
                                             .WithLabel("Loading...")
                                             .WithSpinnerColor(color)
                                             .WithLabelColor(Color.White))
@@ -154,7 +154,7 @@ public class AnimationsGalleryPage : ReactivePage<AnimationsGalleryViewModel>
                                 Layouts.Horizontal()
                                     .WithChild(new TextNode("  ").WidthAuto())
                                     .WithChild(
-                                        new SpinnerNode(style, intervalMs: 120)
+                                        new SpinnerNode(style, intervalMs: 120, frameProvider: RenderFrameProvider)
                                             .WithLabel("Processing request...")
                                             .WithSpinnerColor(color)
                                             .WithLabelColor(Color.Gray))

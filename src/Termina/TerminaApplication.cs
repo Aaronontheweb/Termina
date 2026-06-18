@@ -54,6 +54,7 @@ public sealed class TerminaApplication
     private readonly IToastService? _toastService;
     private readonly ToastOverlayNode? _toastOverlay;
     private readonly IDisposable? _toastInvalidationSubscription;
+    private readonly TerminaRenderFrameProvider _renderFrameProvider;
 
     private string? _currentPath;
     private IReadOnlyDictionary<string, object>? _currentParameters;
@@ -124,6 +125,10 @@ public sealed class TerminaApplication
         _runtimeOptions = runtimeOptions ?? new TerminaRuntimeOptions();
         _serviceProvider = serviceProvider;
         _eventChannel = Channel.CreateUnbounded<object>();
+        _renderFrameProvider = new TerminaRenderFrameProvider(
+            RequestRenderFrame,
+            _runtimeOptions.TimeProvider,
+            _runtimeOptions.RenderFrameInterval);
         _toastService = serviceProvider?.GetService<IToastService>();
         _toastOverlay = _toastService != null ? new ToastOverlayNode(_toastService) : null;
         _toastInvalidationSubscription = _toastOverlay?.Invalidated.Subscribe(_ => RequestRedraw());
@@ -143,6 +148,11 @@ public sealed class TerminaApplication
     /// Observable stream of input events. ViewModels subscribe to this.
     /// </summary>
     public Observable<IInputEvent> Input => _inputSubject.AsObservable();
+
+    /// <summary>
+    /// Gets the R3 frame provider bound to this application's render loop.
+    /// </summary>
+    public FrameProvider RenderFrameProvider => _renderFrameProvider;
 
     /// <summary>
     /// Gets the focus manager for routing input to focused components.
@@ -290,7 +300,15 @@ public sealed class TerminaApplication
             // Wire up ViewModel with navigation, shutdown, redraw, and input.
             // Navigation is routed through the event channel (RequestNavigation)
             // so it is processed on the render loop thread, not the caller's.
-            _currentViewModel.WireUp(RequestNavigation, RequestNavigation, Shutdown, RequestRedraw, Input);
+            _currentViewModel.WireUp(
+                RequestNavigation,
+                RequestNavigation,
+                Shutdown,
+                RequestRedraw,
+                Input,
+                RenderFrameProvider,
+                Post,
+                InvokeAsync);
 
             // Bind page to ViewModel and wire up focus and navigation
             BindPageToViewModel(_currentPage, _currentViewModel);
@@ -380,6 +398,86 @@ public sealed class TerminaApplication
         _eventChannel.Writer.TryWrite(RedrawRequested.Instance);
     }
 
+    /// <summary>
+    /// Enqueues work to run on the Termina render loop thread.
+    /// </summary>
+    /// <param name="action">The work to run on the loop.</param>
+    public void Post(Action action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+
+        if (!_eventChannel.Writer.TryWrite(new LoopWorkRequested(action)))
+            throw new InvalidOperationException("Unable to post work to the Termina event loop.");
+    }
+
+    /// <summary>
+    /// Enqueues work to run on the Termina render loop thread and returns a task that
+    /// completes when the work has run.
+    /// </summary>
+    /// <param name="action">The work to run on the loop.</param>
+    /// <param name="cancellationToken">Cancels the work if it has not run yet.</param>
+    public Task InvokeAsync(Action action, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+
+        if (cancellationToken.IsCancellationRequested)
+            return Task.FromCanceled(cancellationToken);
+
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        CancellationTokenRegistration cancellationRegistration = default;
+        if (cancellationToken.CanBeCanceled)
+        {
+            cancellationRegistration = cancellationToken.Register(
+                () => completion.TrySetCanceled(cancellationToken));
+        }
+
+        try
+        {
+            Post(() =>
+            {
+                try
+                {
+                    if (completion.Task.IsCompleted)
+                        return;
+
+                    cancellationToken.ThrowIfCancellationRequested();
+                    action();
+                    completion.TrySetResult();
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    completion.TrySetCanceled(cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    completion.TrySetException(ex);
+                }
+                finally
+                {
+                    cancellationRegistration.Dispose();
+                }
+            });
+        }
+        catch
+        {
+            cancellationRegistration.Dispose();
+            throw;
+        }
+
+        return completion.Task;
+    }
+
+    /// <summary>
+    /// Installs this application's render frame provider as R3's process-wide default
+    /// until the returned scope is disposed.
+    /// </summary>
+    public IDisposable SetDefaultObservableSystem()
+    {
+        var previousFrameProvider = ObservableSystem.DefaultFrameProvider;
+        ObservableSystem.DefaultFrameProvider = RenderFrameProvider;
+        return new DefaultObservableSystemScope(previousFrameProvider);
+    }
+
     // Navigation requested by a ViewModel or page runs on whatever thread the
     // caller is on (e.g. an async continuation on the thread pool). Posting a
     // NavigationRequested event to the channel defers NavigateToInternal to the
@@ -396,6 +494,11 @@ public sealed class TerminaApplication
     {
         _eventChannel.Writer.TryWrite(
             new NavigationRequested(RouteMatcher.BuildPath(routeTemplate, routeValues)));
+    }
+
+    private void RequestRenderFrame()
+    {
+        _eventChannel.Writer.TryWrite(RenderFrameRequested.Instance);
     }
 
     /// <summary>
@@ -607,6 +710,14 @@ public sealed class TerminaApplication
                 GoBack();
                 return;
 
+            case LoopWorkRequested loopWork:
+                ExecuteLoopWork(loopWork.Action);
+                return;
+
+            case RenderFrameRequested:
+                _renderFrameProvider.AdvanceFrame();
+                return;
+
             case ResizeEvent resize:
                 TerminaTrace.Render.Debug(this, "ResizeEvent: {0}x{1}", resize.Width, resize.Height);
                 // Force full refresh on resize since terminal dimensions changed
@@ -681,6 +792,24 @@ public sealed class TerminaApplication
             // If not consumed, route to ViewModel via observable
             TerminaTrace.Input.Trace(this, "Routing input to ViewModel");
             _inputSubject.OnNext(inputEvent);
+        }
+    }
+
+    private static void ExecuteLoopWork(Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch (Exception ex)
+        {
+            try
+            {
+                ObservableSystem.GetUnhandledExceptionHandler().Invoke(ex);
+            }
+            catch
+            {
+            }
         }
     }
 
@@ -822,6 +951,32 @@ public sealed class TerminaApplication
 
         _toastInvalidationSubscription?.Dispose();
         _toastOverlay?.Dispose();
+        _renderFrameProvider.Dispose();
+    }
+
+    private sealed record LoopWorkRequested(Action Action);
+
+    private sealed class RenderFrameRequested
+    {
+        public static readonly RenderFrameRequested Instance = new();
+
+        private RenderFrameRequested()
+        {
+        }
+    }
+
+    private sealed class DefaultObservableSystemScope(FrameProvider previousFrameProvider) : IDisposable
+    {
+        private bool _disposed;
+
+        public void Dispose()
+        {
+            if (_disposed)
+                return;
+
+            ObservableSystem.DefaultFrameProvider = previousFrameProvider;
+            _disposed = true;
+        }
     }
 }
 

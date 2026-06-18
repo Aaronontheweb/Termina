@@ -171,7 +171,7 @@ public class MyPage : ReactivePage<MyViewModel>
     protected override void OnBound()
     {
         // Create text input
-        _textInput = new TextInputNode()
+        _textInput = new TextInputNode(frameProvider: RenderFrameProvider)
             .WithPlaceholder("Enter task description...");
 
         _textInput.Submitted
@@ -217,7 +217,7 @@ public class MyPage : ReactivePage<MyViewModel>
                     .Select(show => show
                         ? (ILayoutNode)_modal
                         : Layouts.Empty())
-                    .AsLayout());
+                    .AsLayout(RenderFrameProvider));
     }
 }
 ```

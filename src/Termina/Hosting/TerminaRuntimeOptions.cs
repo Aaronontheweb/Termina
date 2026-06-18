@@ -28,6 +28,16 @@ public sealed class TerminaRuntimeOptions
     /// Selects whether Termina intercepts Ctrl+C globally.
     /// </summary>
     public CtrlCHandlingMode CtrlCHandlingMode { get; set; } = CtrlCHandlingMode.DoublePressWhenRawInput;
+
+    /// <summary>
+    /// Time provider used by the render frame provider for paced follow-up frames.
+    /// </summary>
+    public TimeProvider TimeProvider { get; set; } = TimeProvider.System;
+
+    /// <summary>
+    /// Minimum delay between follow-up render frames when frame work remains active.
+    /// </summary>
+    public TimeSpan RenderFrameInterval { get; set; } = TimeSpan.FromMilliseconds(16);
 }
 
 /// <summary>

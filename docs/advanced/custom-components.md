@@ -289,11 +289,13 @@ Lifecycle dispatch goes through the `IActivatableNode` interface. `LayoutNode` i
 public class AnimatedNode : LayoutNode
 {
     private readonly TimeProvider _timeProvider;
+    private readonly FrameProvider _frameProvider;
     private IDisposable? _timer;
     private int _frame;
 
-    public AnimatedNode(TimeProvider? timeProvider = null)
+    public AnimatedNode(FrameProvider frameProvider, TimeProvider? timeProvider = null)
     {
+        _frameProvider = frameProvider;
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
@@ -301,6 +303,7 @@ public class AnimatedNode : LayoutNode
     {
         // Resume animation when page becomes active
         _timer ??= Observable.Interval(TimeSpan.FromMilliseconds(100), _timeProvider)
+            .ObserveOn(_frameProvider)
             .Subscribe(_ =>
             {
                 _frame++;
@@ -352,20 +355,22 @@ Key differences:
 public class LiveDataNode : LayoutNode, IInvalidatingNode
 {
     private readonly Observable<string> _source;
+    private readonly FrameProvider _frameProvider;
     private readonly Subject<Unit> _invalidated = new();
     private IDisposable? _subscription;
     private string _currentValue = "";
 
     public Observable<Unit> Invalidated => _invalidated.AsObservable();
 
-    public LiveDataNode(Observable<string> source)
+    public LiveDataNode(Observable<string> source, FrameProvider frameProvider)
     {
         _source = source;
+        _frameProvider = frameProvider;
         _subscription = SubscribeToSource();
     }
 
     private IDisposable SubscribeToSource() =>
-        _source.Subscribe(value =>
+        _source.ObserveOn(_frameProvider).Subscribe(value =>
         {
             _currentValue = value;
             _invalidated.OnNext(Unit.Default);

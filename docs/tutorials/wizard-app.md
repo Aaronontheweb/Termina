@@ -88,8 +88,8 @@ public class SetupWizardPage : ReactivePage<SetupWizardViewModel>
 
     private ILayoutNode BuildAuthStep()
     {
-        var username = new TextInputNode().WithPlaceholder("Username");
-        var password = new TextInputNode().WithPlaceholder("Password");
+        var username = new TextInputNode(frameProvider: RenderFrameProvider).WithPlaceholder("Username");
+        var password = new TextInputNode(frameProvider: RenderFrameProvider).WithPlaceholder("Password");
 
         username.Submitted.Subscribe(text =>
             ViewModel.Username.Value = text);
@@ -110,10 +110,10 @@ public class SetupWizardPage : ReactivePage<SetupWizardViewModel>
             new TextNode("Review your settings:"),
             ViewModel.SelectedProvider
                 .Select<string, ILayoutNode>(p => new TextNode($"  Provider: {p}"))
-                .AsLayout(),
+                .AsLayout(RenderFrameProvider),
             ViewModel.Username
                 .Select<string, ILayoutNode>(u => new TextNode($"  Username: {u}"))
-                .AsLayout(),
+                .AsLayout(RenderFrameProvider),
             new TextNode(""),
             new TextNode("Press Enter to complete, Escape to go back.")
         );

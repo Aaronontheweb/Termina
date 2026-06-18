@@ -34,7 +34,7 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
             .WithPrefix("  ", Color.Gray)
             .WithScrollbar();
 
-        _promptInput = new TextInputNode()
+        _promptInput = new TextInputNode(frameProvider: RenderFrameProvider)
             .WithPlaceholder("Enter your question...")
             .WithForeground(Color.Cyan)
             .WithHistory();
@@ -252,7 +252,7 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
                             .WithChild(new TextNode("  Choose an option:").WithForeground(Color.Yellow).Height(1))
                             .WithChild(decisionList)
                             .HeightAuto()) // Auto-size to content, don't compete with Fill() elements
-                    .AsLayout())
+                    .AsLayout(RenderFrameProvider))
             // Input panel - always visible
             .WithChild(
                 new PanelNode()
@@ -273,12 +273,12 @@ public class StreamingChatPage : ReactivePage<StreamingChatViewModel>
                                 ? "[Esc] Cancel  [PgUp/PgDn/Wheel] Scroll  [Ctrl+Q] Quit"
                                 : "[Enter] Send  [Ctrl+Shift+V] Paste  [↑/↓] History  [PgUp/PgDn/Wheel] Scroll  [Esc] Clear/Quit  [Ctrl+Q] Quit")
                     .Select<string, ILayoutNode>(text => new TextNode(text).WithForeground(Color.BrightBlack).NoWrap())
-                    .AsLayout()
+                    .AsLayout(RenderFrameProvider)
                     .Height(1))
             .WithChild(
                 ViewModel.StatusMessage
                     .Select<string, ILayoutNode>(msg => new TextNode(msg).WithForeground(Color.White))
-                    .AsLayout()
+                    .AsLayout(RenderFrameProvider)
                     .Height(1));
     }
 }

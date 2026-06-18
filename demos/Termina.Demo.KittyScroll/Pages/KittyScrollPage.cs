@@ -47,7 +47,7 @@ public class KittyScrollPage : ReactivePage<KittyScrollViewModel>
                 Color.White);
         }
 
-        _input = new TextInputNode()
+        _input = new TextInputNode(frameProvider: RenderFrameProvider)
             .WithPlaceholder("Type a message and press Enter (Ctrl+C twice to quit)…")
             .WithForeground(Color.Cyan);
     }
@@ -124,4 +124,3 @@ public class KittyScrollPage : ReactivePage<KittyScrollViewModel>
                     .Height(3));
     }
 }
-

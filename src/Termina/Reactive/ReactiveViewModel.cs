@@ -53,6 +53,12 @@ namespace Termina.Reactive;
 public abstract class ReactiveViewModel : IDisposable
 {
     private CompositeDisposable _subscriptions = new();
+    private Action<Action> _post = _ => { };
+    private Func<Action, CancellationToken, Task> _invokeAsync = (action, _) =>
+    {
+        action();
+        return Task.CompletedTask;
+    };
 
     /// <summary>
     /// Composite disposable for managing subscriptions.
@@ -115,6 +121,22 @@ public abstract class ReactiveViewModel : IDisposable
     public Observable<IInputEvent> Input { get; private set; } = null!;
 
     /// <summary>
+    /// R3 frame provider bound to the owning Termina application render loop.
+    /// </summary>
+    public FrameProvider RenderFrameProvider { get; private set; } = ObservableSystem.DefaultFrameProvider;
+
+    /// <summary>
+    /// Enqueue work to run on the owning Termina application's render loop.
+    /// </summary>
+    public void Post(Action action) => _post(action);
+
+    /// <summary>
+    /// Enqueue work to run on the owning Termina application's render loop and await completion.
+    /// </summary>
+    public Task InvokeAsync(Action action, CancellationToken cancellationToken = default) =>
+        _invokeAsync(action, cancellationToken);
+
+    /// <summary>
     /// Request graceful application shutdown.
     /// Called by Pages in response to user input (e.g., Ctrl+Q, Escape).
     /// </summary>
@@ -169,12 +191,22 @@ public abstract class ReactiveViewModel : IDisposable
         Action<string, object?> navigateWithParams,
         Action shutdown,
         Action requestRedraw,
-        Observable<IInputEvent> input)
+        Observable<IInputEvent> input,
+        FrameProvider? renderFrameProvider = null,
+        Action<Action>? post = null,
+        Func<Action, CancellationToken, Task>? invokeAsync = null)
     {
         Navigate = navigate;
         NavigateWithParams = navigateWithParams;
         Shutdown = shutdown;
         RequestRedraw = requestRedraw;
         Input = input;
+        RenderFrameProvider = renderFrameProvider ?? ObservableSystem.DefaultFrameProvider;
+        _post = post ?? (_ => { });
+        _invokeAsync = invokeAsync ?? ((action, _) =>
+        {
+            action();
+            return Task.CompletedTask;
+        });
     }
 }

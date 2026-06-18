@@ -44,10 +44,12 @@ public sealed class GraphGalleryPage : ReactivePage<GraphGalleryViewModel>
             .DisposeWith(Subscriptions);
 
         ViewModel.SelectedStyle
+            .ObserveOn(RenderFrameProvider)
             .Subscribe(style => _demoGraph.WithStyle(style))
             .DisposeWith(Subscriptions);
 
         Observable.Interval(TimeSpan.FromMilliseconds(200), TimeProvider.System)
+            .ObserveOn(RenderFrameProvider)
             .Subscribe(_ => PushData())
             .DisposeWith(Subscriptions);
 
@@ -80,7 +82,7 @@ public sealed class GraphGalleryPage : ReactivePage<GraphGalleryViewModel>
 
         var gradient = Gradient.Create(Color.FromRgb(0, 100, 255), Color.FromRgb(0, 255, 100), Color.FromRgb(255, 255, 0));
 
-        _demoGraph = new GraphNode(intervalMs: 0)
+        _demoGraph = new GraphNode(intervalMs: 0, frameProvider: RenderFrameProvider)
             .WithStyle(ViewModel.SelectedStyle.Value)
             .WithGradient(gradient)
             .WithRange(0, 100);
