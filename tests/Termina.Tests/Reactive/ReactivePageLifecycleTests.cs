@@ -305,7 +305,7 @@ public class ReactivePageLifecycleTests
             () => { },
             timeProvider,
             TimeSpan.FromMilliseconds(10));
-        var page = new TestPageWithSpinner(timeProvider);
+        var page = new TestPageWithSpinner();
 
         var redrawCount = 0;
 
@@ -381,18 +381,11 @@ public class ReactivePageLifecycleTests
 
     private class TestPageWithSpinner : ReactivePage<TestViewModel>
     {
-        private readonly TimeProvider? _timeProvider;
-
         public SpinnerNode Spinner { get; private set; } = null!;
-
-        public TestPageWithSpinner(TimeProvider? timeProvider = null)
-        {
-            _timeProvider = timeProvider;
-        }
 
         public override ILayoutNode BuildLayout()
         {
-            Spinner = new SpinnerNode(timeProvider: _timeProvider);
+            Spinner = new SpinnerNode();
             return Spinner;
         }
 

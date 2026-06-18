@@ -59,8 +59,6 @@ public sealed class SpinnerNode : LayoutNode, IAnimatedNode, IInvalidatingNode
         [SpinnerStyle.Circle] = ["◐", "◓", "◑", "◒"]
     };
 
-    private readonly TimeProvider? _timeProvider;
-    private readonly FrameProvider? _frameProvider;
     private readonly int _intervalMs;
     private readonly string[] _frames;
     private readonly Subject<Unit> _invalidated = new();
@@ -88,14 +86,10 @@ public sealed class SpinnerNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     /// <inheritdoc />
     public bool IsAnimating { get; private set; }
 
-    public SpinnerNode(SpinnerStyle style = SpinnerStyle.Dots, int intervalMs = 80,
-        TimeProvider? timeProvider = null,
-        FrameProvider? frameProvider = null)
+    public SpinnerNode(SpinnerStyle style = SpinnerStyle.Dots, int intervalMs = 80)
     {
         _frames = Frames[style];
         _intervalMs = intervalMs;
-        _timeProvider = timeProvider;
-        _frameProvider = frameProvider;
 
         HeightConstraint = new SizeConstraint.Fixed(1);
         WidthConstraint = new SizeConstraint.Auto();
@@ -150,7 +144,7 @@ public sealed class SpinnerNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     /// <inheritdoc />
     public override void SetRuntimeContext(LayoutRuntimeContext context)
     {
-        var restart = IsAnimating && (_timeProvider is null || _frameProvider is null);
+        var restart = IsAnimating;
         if (restart)
             Stop();
 
@@ -160,9 +154,9 @@ public sealed class SpinnerNode : LayoutNode, IAnimatedNode, IInvalidatingNode
             Start();
     }
 
-    private TimeProvider GetTimeProvider() => _timeProvider ?? RuntimeContext?.TimeProvider ?? TimeProvider.System;
+    private TimeProvider GetTimeProvider() => RuntimeContext?.TimeProvider ?? TimeProvider.System;
 
-    private FrameProvider? GetFrameProvider() => _frameProvider ?? RuntimeContext?.RenderFrameProvider;
+    private FrameProvider? GetFrameProvider() => RuntimeContext?.RenderFrameProvider;
 
     /// <inheritdoc />
     public void Stop()

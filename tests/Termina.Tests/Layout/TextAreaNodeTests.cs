@@ -768,7 +768,10 @@ public class TextAreaNodeTests : IDisposable
     public void CursorBlink_TogglesWithTimeProvider()
     {
         var timeProvider = new FakeTimeProvider();
-        using var node = new TextAreaNode(cursorBlinkMs: 100, timeProvider: timeProvider);
+        using var node = new TextAreaNode(cursorBlinkMs: 100);
+        LayoutRuntimeContextInjector.Apply(
+            node,
+            new LayoutRuntimeContext(new TestFrameProvider(), timeProvider, () => { }));
 
         node.OnFocused();
         Assert.True(node.IsAnimating);
@@ -779,6 +782,15 @@ public class TextAreaNodeTests : IDisposable
         // Node should have invalidated (cursor toggled)
         // We verify by checking IsAnimating is still true (timer running)
         Assert.True(node.IsAnimating);
+    }
+
+    private sealed class TestFrameProvider : FrameProvider
+    {
+        public override long GetFrameCount() => 0;
+
+        public override void Register(IFrameRunnerWorkItem callback)
+        {
+        }
     }
 
     #endregion

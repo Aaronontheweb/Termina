@@ -15,7 +15,6 @@ public sealed class CopyableTextNode : LayoutNode, IFocusable, IInvalidatingNode
     private readonly IClipboardService _clipboardService;
     private readonly IToastService? _toastService;
     private readonly Subject<Unit> _invalidated = new();
-    private readonly TimeProvider _timeProvider;
     private IDisposable? _inlineIndicatorSubscription;
     private IReadOnlyList<CopyKeyBinding> _copyBindings =
     [
@@ -28,11 +27,10 @@ public sealed class CopyableTextNode : LayoutNode, IFocusable, IInvalidatingNode
     private bool _hasFocus;
     private bool _disposed;
 
-    public CopyableTextNode(IClipboardService clipboardService, string content, IToastService? toastService = null, TimeProvider? timeProvider = null)
+    public CopyableTextNode(IClipboardService clipboardService, string content, IToastService? toastService = null)
     {
         _clipboardService = clipboardService;
         _toastService = toastService;
-        _timeProvider = timeProvider ?? TimeProvider.System;
         Content = content ?? string.Empty;
         WidthConstraint = new SizeConstraint.Fill();
         HeightConstraint = SizeConstraint.AutoSize();
@@ -294,9 +292,11 @@ public sealed class CopyableTextNode : LayoutNode, IFocusable, IInvalidatingNode
         {
             _showInlineIndicator = true;
             _inlineIndicatorSubscription?.Dispose();
-            _inlineIndicatorSubscription = Observable
-                .Interval(FeedbackDuration, _timeProvider)
-                .Take(1)
+            var ticks = Observable.Interval(FeedbackDuration, GetTimeProvider()).Take(1);
+            if (GetFrameProvider() is { } frameProvider)
+                ticks = ticks.ObserveOn(frameProvider);
+
+            _inlineIndicatorSubscription = ticks
                 .Subscribe(_ =>
                 {
                     _showInlineIndicator = false;
@@ -305,6 +305,10 @@ public sealed class CopyableTextNode : LayoutNode, IFocusable, IInvalidatingNode
             Invalidate();
         }
     }
+
+    private TimeProvider GetTimeProvider() => RuntimeContext?.TimeProvider ?? TimeProvider.System;
+
+    private FrameProvider? GetFrameProvider() => RuntimeContext?.RenderFrameProvider;
 
     private bool MoveCursor(int delta, ConsoleModifiers modifiers)
     {

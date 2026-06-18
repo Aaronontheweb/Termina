@@ -25,8 +25,6 @@ public sealed class GraphNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     ];
 
     private readonly Subject<Unit> _invalidated = new();
-    private readonly TimeProvider? _timeProvider;
-    private readonly FrameProvider? _frameProvider;
     private readonly int _intervalMs;
     private IDisposable? _timerSubscription;
     private double[] _data = [];
@@ -38,11 +36,9 @@ public sealed class GraphNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     public Observable<Unit> Invalidated => _invalidated.AsObservable();
     public bool IsAnimating { get; private set; }
 
-    public GraphNode(int intervalMs = 500, TimeProvider? timeProvider = null, FrameProvider? frameProvider = null)
+    public GraphNode(int intervalMs = 500)
     {
         _intervalMs = intervalMs;
-        _timeProvider = timeProvider;
-        _frameProvider = frameProvider;
     }
 
     /// <summary>
@@ -74,7 +70,7 @@ public sealed class GraphNode : LayoutNode, IAnimatedNode, IInvalidatingNode
 
     public override void SetRuntimeContext(LayoutRuntimeContext context)
     {
-        var restart = IsAnimating && (_timeProvider is null || _frameProvider is null);
+        var restart = IsAnimating;
         if (restart)
             Stop();
 
@@ -84,9 +80,9 @@ public sealed class GraphNode : LayoutNode, IAnimatedNode, IInvalidatingNode
             Start();
     }
 
-    private TimeProvider GetTimeProvider() => _timeProvider ?? RuntimeContext?.TimeProvider ?? TimeProvider.System;
+    private TimeProvider GetTimeProvider() => RuntimeContext?.TimeProvider ?? TimeProvider.System;
 
-    private FrameProvider? GetFrameProvider() => _frameProvider ?? RuntimeContext?.RenderFrameProvider;
+    private FrameProvider? GetFrameProvider() => RuntimeContext?.RenderFrameProvider;
 
     public void Stop()
     {

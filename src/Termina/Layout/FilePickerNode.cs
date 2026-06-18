@@ -37,7 +37,6 @@ public sealed class FilePickerNode : IFocusable, IInvalidatingNode, IActivatable
     private TextInputNode? _filterInput;
     private LayoutRuntimeContext? _runtimeContext;
     private IDisposable? _filterInvalidationSub;
-    private readonly TimeProvider? _timeProvider;
 
     // Configuration
     private FilePickerMode _mode = FilePickerMode.Files;
@@ -56,10 +55,9 @@ public sealed class FilePickerNode : IFocusable, IInvalidatingNode, IActivatable
     private const string FilterPrefix = "/ ";
     private const string BreadcrumbPrefix = ">> ";
 
-    public FilePickerNode(string? startPath = null, TimeProvider? timeProvider = null)
+    public FilePickerNode(string? startPath = null)
     {
         _currentPath = startPath ?? Environment.CurrentDirectory;
-        _timeProvider = timeProvider;
     }
 
     public Observable<Unit> Invalidated => _invalidated.AsObservable();
@@ -495,7 +493,7 @@ public sealed class FilePickerNode : IFocusable, IInvalidatingNode, IActivatable
         _isFiltering = true;
         if (_filterInput == null)
         {
-            _filterInput = new TextInputNode(timeProvider: _timeProvider)
+            _filterInput = new TextInputNode()
                 .WithPlaceholder("Type to filter...");
             if (_runtimeContext is not null)
                 LayoutRuntimeContextInjector.Apply(_filterInput, _runtimeContext);

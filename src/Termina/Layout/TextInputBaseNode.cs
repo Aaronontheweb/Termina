@@ -22,8 +22,6 @@ namespace Termina.Layout;
 /// </remarks>
 public abstract class TextInputBaseNode : LayoutNode, IAnimatedNode, IInvalidatingNode, IFocusable, IPasteReceiver
 {
-    protected readonly TimeProvider? _timeProvider;
-    protected readonly FrameProvider? _frameProvider;
     protected readonly int _cursorBlinkMs;
     protected IDisposable? _cursorTimerSubscription;
     protected readonly Subject<Unit> _invalidated = new();
@@ -170,14 +168,9 @@ public abstract class TextInputBaseNode : LayoutNode, IAnimatedNode, IInvalidati
         }
     }
 
-    protected TextInputBaseNode(
-        int cursorBlinkMs = 530,
-        TimeProvider? timeProvider = null,
-        FrameProvider? frameProvider = null)
+    protected TextInputBaseNode(int cursorBlinkMs = 530)
     {
         _cursorBlinkMs = cursorBlinkMs;
-        _timeProvider = timeProvider;
-        _frameProvider = frameProvider;
     }
 
     /// <inheritdoc />
@@ -222,7 +215,7 @@ public abstract class TextInputBaseNode : LayoutNode, IAnimatedNode, IInvalidati
     /// <inheritdoc />
     public override void SetRuntimeContext(LayoutRuntimeContext context)
     {
-        var restart = IsAnimating && (_timeProvider is null || _frameProvider is null);
+        var restart = IsAnimating;
         if (restart)
             Stop();
 
@@ -232,9 +225,9 @@ public abstract class TextInputBaseNode : LayoutNode, IAnimatedNode, IInvalidati
             Start();
     }
 
-    private TimeProvider GetTimeProvider() => _timeProvider ?? RuntimeContext?.TimeProvider ?? TimeProvider.System;
+    private TimeProvider GetTimeProvider() => RuntimeContext?.TimeProvider ?? TimeProvider.System;
 
-    private FrameProvider? GetFrameProvider() => _frameProvider ?? RuntimeContext?.RenderFrameProvider;
+    private FrameProvider? GetFrameProvider() => RuntimeContext?.RenderFrameProvider;
 
     /// <inheritdoc />
     public void Stop()

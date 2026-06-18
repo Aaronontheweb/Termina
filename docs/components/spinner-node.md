@@ -85,9 +85,7 @@ Spinners attached to a page layout tree receive runtime context automatically, s
 ```csharp
 public SpinnerNode(
     SpinnerStyle style = SpinnerStyle.Dots,
-    int intervalMs = 80,
-    TimeProvider? timeProvider = null,
-    FrameProvider? frameProvider = null)
+    int intervalMs = 80)
 ```
 
 ### Properties

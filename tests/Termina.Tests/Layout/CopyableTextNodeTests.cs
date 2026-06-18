@@ -145,9 +145,12 @@ public class CopyableTextNodeTests
     {
         var clipboard = new TestClipboardService();
         var timeProvider = new FakeTimeProvider();
-        var node = new CopyableTextNode(clipboard, "hello", timeProvider: timeProvider)
+        var node = new CopyableTextNode(clipboard, "hello")
             .WithFeedbackMode(CopyFeedbackMode.InlineIndicator)
             .WithInlineIndicator("OK");
+        LayoutRuntimeContextInjector.Apply(
+            node,
+            new LayoutRuntimeContext(new TestFrameProvider(), timeProvider, () => { }));
         var terminal = new VirtualTerminal(10, 3);
         var context = new RegionRenderContext(terminal, 0, 0, 10, 3);
 
@@ -195,6 +198,15 @@ public class CopyableTextNodeTests
         {
             LastToast = new ToastMessage(message, options?.Position ?? ToastPosition.BottomRight);
             _subject.OnNext(LastToast);
+        }
+    }
+
+    private sealed class TestFrameProvider : FrameProvider
+    {
+        public override long GetFrameCount() => 0;
+
+        public override void Register(IFrameRunnerWorkItem callback)
+        {
         }
     }
 }

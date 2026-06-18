@@ -242,13 +242,10 @@ public sealed class CustomInputNode : LayoutNode, IFocusable, IPasteReceiver
 ### Constructor
 
 ```csharp
-public TextInputNode(
-    int cursorBlinkMs = 530,
-    TimeProvider? timeProvider = null,
-    FrameProvider? frameProvider = null)
+public TextInputNode(int cursorBlinkMs = 530)
 ```
 
-Inputs attached to a page layout tree receive runtime context automatically, so cursor-blink invalidation is delivered on the Termina render loop. Pass explicit providers only for tests or nodes owned outside a Termina page tree.
+Inputs attached to a page layout tree receive runtime context automatically, so cursor-blink invalidation is delivered on the Termina render loop. For deterministic component tests, set a `LayoutRuntimeContext` before focusing the node.
 
 ### Properties
 

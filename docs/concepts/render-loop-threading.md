@@ -79,7 +79,7 @@ new TextInputNode()
 new TextAreaNode()
 ```
 
-Explicit `timeProvider` and `frameProvider` constructor arguments remain available for tests and externally-owned nodes. App pages usually do not need them.
+Runtime services are supplied through `LayoutRuntimeContext`, not component constructors. In app code this happens automatically when nodes are attached to a page layout tree.
 
 Custom components can use the protected `LayoutNode.RuntimeContext` property after the node is attached to the layout tree. See [Custom Components](/advanced/custom-components#runtime-context).
 

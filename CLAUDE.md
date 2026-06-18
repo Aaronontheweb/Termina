@@ -49,13 +49,17 @@ _selectionConfirmed.OnNext(selectedItems);
 
 **Testable timing with TimeProvider:**
 ```csharp
-// Production: uses TimeProvider.System by default
-public SpinnerNode(int intervalMs = 80, TimeProvider? timeProvider = null)
+// Production: runtime context is supplied by the page/application lifecycle
+public SpinnerNode(int intervalMs = 80)
 
-// Test: use FakeTimeProvider for deterministic control
+// Test: supply FakeTimeProvider through LayoutRuntimeContext
 var timeProvider = new FakeTimeProvider();
-var spinner = new SpinnerNode(intervalMs: 80, timeProvider: timeProvider);
-timeProvider.Advance(TimeSpan.FromMilliseconds(80)); // Deterministic frame advance
+using var frameProvider = new TerminaRenderFrameProvider(() => { }, timeProvider, TimeSpan.FromMilliseconds(10));
+var spinner = new SpinnerNode(intervalMs: 80);
+spinner.SetRuntimeContext(new LayoutRuntimeContext(frameProvider, timeProvider, () => { }));
+spinner.OnActivate();
+timeProvider.Advance(TimeSpan.FromMilliseconds(80));
+frameProvider.AdvanceFrame(); // Deterministic frame delivery
 ```
 
 **Incorrect:**

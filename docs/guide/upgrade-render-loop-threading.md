@@ -126,7 +126,7 @@ new TextInputNode()
 new TextAreaNode()
 ```
 
-Existing `timeProvider` and `frameProvider` constructor arguments still work. Use them for deterministic tests or nodes owned outside a Termina page tree. App pages usually do not need them.
+Runtime services are supplied through `LayoutRuntimeContext`, not component constructors. In app code this happens automatically when nodes are attached to a page layout tree. For deterministic component tests, set a test context before activation.
 
 ## RequestRedraw Is Not Enough
 
@@ -150,7 +150,7 @@ Post(() => StatusMessage.Value = "Done");
 1. Search for `Observable.Interval`, daemon callbacks, SignalR subscriptions, channel readers, and `Task.Run` callbacks.
 2. Add `.ObserveOn(RenderFrameProvider)` before subscribers that mutate UI state.
 3. Replace UI writes after `await` with `InvokeAsync`.
-4. Remove redundant `frameProvider: RenderFrameProvider` arguments from built-in animated or input nodes in app pages.
+4. Remove `timeProvider` and `frameProvider` arguments from built-in animated or input nodes.
 5. Keep `AsLayout(RenderFrameProvider)` for layout bindings that may receive off-loop emissions.
 
 See [Render Loop Threading](/concepts/render-loop-threading) for conceptual background.
