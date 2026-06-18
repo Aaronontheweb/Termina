@@ -158,7 +158,7 @@ See [Render Loop Threading](/concepts/render-loop-threading) for the full guidan
 ```csharp
 ViewModel.IsLoading
     .Select<bool, ILayoutNode>(loading => loading
-        ? new SpinnerNode(frameProvider: RenderFrameProvider)
+        ? new SpinnerNode()
         : new TextNode("Ready"))
     .AsLayout(RenderFrameProvider)
 ```

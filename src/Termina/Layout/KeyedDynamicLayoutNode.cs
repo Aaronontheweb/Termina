@@ -88,6 +88,7 @@ public sealed class KeyedDynamicLayoutNode<TKey> : LayoutNode, IInvalidatingNode
         }
 
         _currentChild = newChild;
+        ApplyRuntimeContextToChild(newChild);
         SubscribeToChildInvalidation(newChild);
 
         // Activate new child if we're currently active

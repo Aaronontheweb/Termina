@@ -3,7 +3,6 @@
 
 using Termina.Rendering;
 using Termina.Terminal;
-using R3;
 
 namespace Termina.Layout;
 
@@ -15,11 +14,8 @@ public sealed class TextInputNode : TextInputBaseNode
 {
     private int _scrollOffset;
 
-    public TextInputNode(
-        int cursorBlinkMs = 530,
-        TimeProvider? timeProvider = null,
-        FrameProvider? frameProvider = null)
-        : base(cursorBlinkMs, timeProvider, frameProvider)
+    public TextInputNode(int cursorBlinkMs = 530)
+        : base(cursorBlinkMs)
     {
         HeightConstraint = new SizeConstraint.Fixed(1);
         WidthConstraint = new SizeConstraint.Fill();

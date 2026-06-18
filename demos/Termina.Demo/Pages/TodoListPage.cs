@@ -99,7 +99,7 @@ public class TodoListPage : ReactivePage<TodoListViewModel>
     public override ILayoutNode BuildLayout()
     {
         // Create layout nodes as part of the layout tree lifecycle
-        _textInput = new TextInputNode(frameProvider: RenderFrameProvider)
+        _textInput = new TextInputNode()
             .WithPlaceholder("Enter task description...");
 
         _priorityList = Layouts.SelectionList("High", "Medium", "Low")

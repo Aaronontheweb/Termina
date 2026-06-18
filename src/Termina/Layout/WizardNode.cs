@@ -480,6 +480,7 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
                     return new EmptyNode();
                 return _steps[stepIndex].ContentFactory();
             });
+        ApplyRuntimeContextToChild(_contentNode);
 
         // Propagate content invalidation (e.g., SelectionListNode highlight changes)
         // up through the wizard so the page triggers a redraw

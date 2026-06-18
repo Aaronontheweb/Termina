@@ -11,7 +11,7 @@ namespace Termina.Layout;
 /// <summary>
 /// An interactive file/folder picker with breadcrumb navigation, scrolling, and fuzzy filtering.
 /// </summary>
-public sealed class FilePickerNode : IFocusable, IInvalidatingNode, IActivatableNode
+public sealed class FilePickerNode : IFocusable, IInvalidatingNode, IActivatableNode, ILayoutRuntimeContextAware
 {
     private readonly Subject<Unit> _invalidated = new();
     private readonly Subject<IReadOnlyList<string>> _selectionConfirmed = new();
@@ -35,8 +35,8 @@ public sealed class FilePickerNode : IFocusable, IInvalidatingNode, IActivatable
     // Filter state
     private bool _isFiltering;
     private TextInputNode? _filterInput;
+    private LayoutRuntimeContext? _runtimeContext;
     private IDisposable? _filterInvalidationSub;
-    private readonly TimeProvider? _timeProvider;
 
     // Configuration
     private FilePickerMode _mode = FilePickerMode.Files;
@@ -55,10 +55,9 @@ public sealed class FilePickerNode : IFocusable, IInvalidatingNode, IActivatable
     private const string FilterPrefix = "/ ";
     private const string BreadcrumbPrefix = ">> ";
 
-    public FilePickerNode(string? startPath = null, TimeProvider? timeProvider = null)
+    public FilePickerNode(string? startPath = null)
     {
         _currentPath = startPath ?? Environment.CurrentDirectory;
-        _timeProvider = timeProvider;
     }
 
     public Observable<Unit> Invalidated => _invalidated.AsObservable();
@@ -78,6 +77,16 @@ public sealed class FilePickerNode : IFocusable, IInvalidatingNode, IActivatable
     /// The initial lazy load does not emit.
     /// </summary>
     public Observable<string> DirectoryChanged => _directoryChanged.AsObservable();
+
+    /// <inheritdoc />
+    public void SetRuntimeContext(LayoutRuntimeContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        _runtimeContext = context;
+        if (_filterInput is not null)
+            LayoutRuntimeContextInjector.Apply(_filterInput, context);
+    }
 
     public SizeConstraint WidthConstraint => SizeConstraint.FillRemaining();
 
@@ -484,8 +493,11 @@ public sealed class FilePickerNode : IFocusable, IInvalidatingNode, IActivatable
         _isFiltering = true;
         if (_filterInput == null)
         {
-            _filterInput = new TextInputNode(timeProvider: _timeProvider)
+            _filterInput = new TextInputNode()
                 .WithPlaceholder("Type to filter...");
+            if (_runtimeContext is not null)
+                LayoutRuntimeContextInjector.Apply(_filterInput, _runtimeContext);
+
             // Bridge the embedded input's invalidations (cursor blink) to ours
             _filterInvalidationSub = _filterInput.Invalidated.Subscribe(_ => Invalidate());
         }

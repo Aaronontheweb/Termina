@@ -136,7 +136,7 @@ public class AnimationsGalleryPage : ReactivePage<AnimationsGalleryViewModel>
                                 Layouts.Horizontal()
                                     .WithChild(new TextNode("  ").WidthAuto())
                                     .WithChild(
-                                        new SpinnerNode(style, intervalMs: 80, frameProvider: RenderFrameProvider)
+                                        new SpinnerNode(style, intervalMs: 80)
                                             .WithSpinnerColor(color))
                                     .Height(1))
                             .WithChild(new TextNode(" ").Height(1))
@@ -144,7 +144,7 @@ public class AnimationsGalleryPage : ReactivePage<AnimationsGalleryViewModel>
                                 Layouts.Horizontal()
                                     .WithChild(new TextNode("  ").WidthAuto())
                                     .WithChild(
-                                        new SpinnerNode(style, intervalMs: 80, frameProvider: RenderFrameProvider)
+                                        new SpinnerNode(style, intervalMs: 80)
                                             .WithLabel("Loading...")
                                             .WithSpinnerColor(color)
                                             .WithLabelColor(Color.White))
@@ -154,7 +154,7 @@ public class AnimationsGalleryPage : ReactivePage<AnimationsGalleryViewModel>
                                 Layouts.Horizontal()
                                     .WithChild(new TextNode("  ").WidthAuto())
                                     .WithChild(
-                                        new SpinnerNode(style, intervalMs: 120, frameProvider: RenderFrameProvider)
+                                        new SpinnerNode(style, intervalMs: 120)
                                             .WithLabel("Processing request...")
                                             .WithSpinnerColor(color)
                                             .WithLabelColor(Color.Gray))

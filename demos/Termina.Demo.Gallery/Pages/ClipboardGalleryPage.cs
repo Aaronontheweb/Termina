@@ -65,7 +65,7 @@ public sealed class ClipboardGalleryPage : ReactivePage<ClipboardGalleryViewMode
             .WithCopyBindings(new CopyKeyBinding(ConsoleKey.Enter), new CopyKeyBinding(ConsoleKey.C, ConsoleModifiers.Control))
             .WithHint("Use Ctrl+A to select all, Enter or Ctrl+C to copy");
 
-        _pasteInput = new TextInputNode(frameProvider: RenderFrameProvider)
+        _pasteInput = new TextInputNode()
             .WithPlaceholder("Paste text here with Ctrl+Shift+V or your terminal paste shortcut...");
     }
 

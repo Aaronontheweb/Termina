@@ -148,10 +148,11 @@ public class RenderFrameProviderTests
             () => frameRequests++,
             timeProvider,
             TimeSpan.FromMilliseconds(10));
-        using var spinner = new SpinnerNode(
-            intervalMs: 80,
-            timeProvider: timeProvider,
-            frameProvider: frameProvider);
+        using var spinner = new SpinnerNode(intervalMs: 80);
+        LayoutRuntimeContextInjector.Apply(
+            spinner,
+            new LayoutRuntimeContext(frameProvider, timeProvider, () => { }));
+        spinner.OnActivate();
         var invalidations = 0;
         using var subscription = spinner.Invalidated.Subscribe(_ => invalidations++);
 

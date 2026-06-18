@@ -12,7 +12,7 @@ This is an additive change. Existing applications continue to compile, but appli
 | Observable drives a layout node | `.AsLayout(RenderFrameProvider)` |
 | One-shot async result updates UI state | `await InvokeAsync(...)` |
 | Fire-and-forget async callback updates UI state | `Post(...)` |
-| Built-in animated/input nodes use timers | pass `frameProvider: RenderFrameProvider` |
+| Built-in animated/input nodes use timers | automatic runtime context |
 
 ## What Changed
 
@@ -117,16 +117,16 @@ await foreach (var token in response.TokenStream.WithCancellation(cancellationTo
 
 ## Built-In Components
 
-Pass `RenderFrameProvider` to built-in nodes that have their own timers:
+Built-in nodes that have their own timers now receive runtime context automatically when they are attached to a page layout tree:
 
 ```csharp
-new SpinnerNode(frameProvider: RenderFrameProvider)
-new GraphNode(frameProvider: RenderFrameProvider)
-new TextInputNode(frameProvider: RenderFrameProvider)
-new TextAreaNode(frameProvider: RenderFrameProvider)
+new SpinnerNode()
+new GraphNode()
+new TextInputNode()
+new TextAreaNode()
 ```
 
-Existing constructors still work. The frame provider is recommended for app UI so timer-driven invalidation is serialized with rendering.
+Runtime services are supplied through `LayoutRuntimeContext`, not component constructors. In app code this happens automatically when nodes are attached to a page layout tree. For deterministic component tests, set a test context before activation.
 
 ## RequestRedraw Is Not Enough
 
@@ -150,7 +150,7 @@ Post(() => StatusMessage.Value = "Done");
 1. Search for `Observable.Interval`, daemon callbacks, SignalR subscriptions, channel readers, and `Task.Run` callbacks.
 2. Add `.ObserveOn(RenderFrameProvider)` before subscribers that mutate UI state.
 3. Replace UI writes after `await` with `InvokeAsync`.
-4. Pass `frameProvider: RenderFrameProvider` to animated or input nodes in app pages.
-5. Use `AsLayout(RenderFrameProvider)` for layout bindings that may receive off-loop emissions.
+4. Remove `timeProvider` and `frameProvider` arguments from built-in animated or input nodes.
+5. Keep `AsLayout(RenderFrameProvider)` for layout bindings that may receive off-loop emissions.
 
 See [Render Loop Threading](/concepts/render-loop-threading) for conceptual background.

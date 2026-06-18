@@ -35,10 +35,10 @@ Control the animation interval:
 new SpinnerNode(SpinnerStyle.Dots)
 
 // Slower animation
-new SpinnerNode(SpinnerStyle.Dots, intervalMs: 150, frameProvider: RenderFrameProvider)
+new SpinnerNode(SpinnerStyle.Dots, intervalMs: 150)
 
 // Faster animation
-new SpinnerNode(SpinnerStyle.Dots, intervalMs: 50, frameProvider: RenderFrameProvider)
+new SpinnerNode(SpinnerStyle.Dots, intervalMs: 50)
 ```
 
 ## Styling
@@ -52,7 +52,7 @@ new SpinnerNode(SpinnerStyle.Dots)
 
 ## Start/Stop Animation
 
-Spinners auto-start by default but can be controlled:
+Spinners start when the containing page layout is activated and can be controlled manually:
 
 ```csharp
 var spinner = new SpinnerNode().WithLabel("Working...");
@@ -76,7 +76,7 @@ ViewModel.IsLoadingChanged
     .AsLayout(RenderFrameProvider)
 ```
 
-Pass `frameProvider: RenderFrameProvider` when using spinners in pages so timer-driven invalidation is delivered on the Termina render loop.
+Spinners attached to a page layout tree receive runtime context automatically, so timer-driven invalidation is delivered on the Termina render loop. Keep `AsLayout(RenderFrameProvider)` when the observable source itself may publish off-loop.
 
 ## API Reference
 
@@ -85,9 +85,7 @@ Pass `frameProvider: RenderFrameProvider` when using spinners in pages so timer-
 ```csharp
 public SpinnerNode(
     SpinnerStyle style = SpinnerStyle.Dots,
-    int intervalMs = 80,
-    TimeProvider? timeProvider = null,
-    FrameProvider? frameProvider = null)
+    int intervalMs = 80)
 ```
 
 ### Properties
@@ -97,7 +95,7 @@ public SpinnerNode(
 | `Label` | `string?` | `null` | Text after spinner |
 | `SpinnerColor` | `Color?` | `null` | Spinner color |
 | `LabelColor` | `Color?` | `null` | Label color |
-| `IsAnimating` | `bool` | `true` | Animation running |
+| `IsAnimating` | `bool` | `false until activation` | Animation running |
 
 ### Methods
 

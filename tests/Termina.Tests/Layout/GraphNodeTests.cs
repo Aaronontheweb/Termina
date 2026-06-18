@@ -86,8 +86,8 @@ public class GraphNodeTests
     [Fact]
     public void OnDeactivate_StopsAnimation()
     {
-        var timeProvider = new FakeTimeProvider();
-        var graph = new GraphNode(intervalMs: 100, timeProvider: timeProvider);
+        var graph = new GraphNode(intervalMs: 100);
+        graph.OnActivate();
 
         Assert.True(graph.IsAnimating);
 
@@ -99,8 +99,7 @@ public class GraphNodeTests
     [Fact]
     public void OnActivate_ResumesAnimation()
     {
-        var timeProvider = new FakeTimeProvider();
-        var graph = new GraphNode(intervalMs: 100, timeProvider: timeProvider);
+        var graph = new GraphNode(intervalMs: 100);
 
         graph.OnDeactivate();
         Assert.False(graph.IsAnimating);
@@ -112,8 +111,7 @@ public class GraphNodeTests
     [Fact]
     public void Dispose_CompletesInvalidated()
     {
-        var timeProvider = new FakeTimeProvider();
-        var graph = new GraphNode(intervalMs: 100, timeProvider: timeProvider);
+        var graph = new GraphNode(intervalMs: 100);
 
         var completed = false;
         graph.Invalidated.Subscribe(
@@ -186,12 +184,9 @@ public class GraphNodeTests
     [Fact]
     public void IntervalZero_DisablesInternalTimer()
     {
-        var time = new FakeTimeProvider();
-        var graph = new GraphNode(intervalMs: 0, timeProvider: time);
+        var graph = new GraphNode(intervalMs: 0);
         var fired = 0;
         graph.Invalidated.Subscribe(_ => fired++);
-
-        time.Advance(TimeSpan.FromSeconds(10));
 
         Assert.Equal(0, fired);
         Assert.False(graph.IsAnimating);

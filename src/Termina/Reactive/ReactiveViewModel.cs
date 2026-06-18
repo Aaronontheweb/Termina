@@ -126,6 +126,11 @@ public abstract class ReactiveViewModel : IDisposable
     public FrameProvider RenderFrameProvider { get; private set; } = ObservableSystem.DefaultFrameProvider;
 
     /// <summary>
+    /// Time provider configured for the owning Termina application.
+    /// </summary>
+    public TimeProvider TimeProvider { get; private set; } = TimeProvider.System;
+
+    /// <summary>
     /// Enqueue work to run on the owning Termina application's render loop.
     /// </summary>
     public void Post(Action action) => _post(action);
@@ -193,6 +198,7 @@ public abstract class ReactiveViewModel : IDisposable
         Action requestRedraw,
         Observable<IInputEvent> input,
         FrameProvider? renderFrameProvider = null,
+        TimeProvider? timeProvider = null,
         Action<Action>? post = null,
         Func<Action, CancellationToken, Task>? invokeAsync = null)
     {
@@ -202,6 +208,7 @@ public abstract class ReactiveViewModel : IDisposable
         RequestRedraw = requestRedraw;
         Input = input;
         RenderFrameProvider = renderFrameProvider ?? ObservableSystem.DefaultFrameProvider;
+        TimeProvider = timeProvider ?? TimeProvider.System;
         _post = post ?? (_ => { });
         _invokeAsync = invokeAsync ?? ((action, _) =>
         {

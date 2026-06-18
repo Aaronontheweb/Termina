@@ -242,7 +242,7 @@ public class LiveValueNode : LayoutNode
         HeightConstraint = new SizeConstraint.Fixed(1);
     }
 
-    public LiveValueNode BindTo(IObservable<string> source, Action requestRedraw)
+    public LiveValueNode BindTo(Observable<string> source, Action requestRedraw)
     {
         _subscription?.Dispose();
         _subscription = source.Subscribe(value =>
@@ -277,6 +277,84 @@ public class LiveValueNode : LayoutNode
 }
 ```
 
+## Runtime Context
+
+App-owned layout nodes receive a `LayoutRuntimeContext` before activation. If you inherit from `LayoutNode`, access it through the protected `RuntimeContext` property.
+
+The context contains:
+
+- `RenderFrameProvider` for R3 render-loop delivery
+- `TimeProvider` configured on the owning application
+- `RequestRedraw` for manual redraw requests
+
+Use it for timers, background observable delivery, and custom invalidation. Constructors should configure the node; runtime work should start in `OnActivate()` after context is available.
+
+```csharp
+public sealed class BlinkingStatusNode : LayoutNode, IInvalidatingNode
+{
+    private readonly Subject<Unit> _invalidated = new();
+    private IDisposable? _timer;
+    private bool _visible = true;
+
+    public Observable<Unit> Invalidated => _invalidated.AsObservable();
+
+    public override void OnActivate()
+    {
+        var context = RuntimeContext
+            ?? throw new InvalidOperationException("Node has not been attached to a Termina layout tree.");
+
+        _timer ??= Observable.Interval(TimeSpan.FromMilliseconds(500), context.TimeProvider)
+            .ObserveOn(context.RenderFrameProvider)
+            .Subscribe(_ =>
+            {
+                _visible = !_visible;
+                _invalidated.OnNext(Unit.Default);
+            });
+
+        base.OnActivate();
+    }
+
+    public override void OnDeactivate()
+    {
+        _timer?.Dispose();
+        _timer = null;
+        base.OnDeactivate();
+    }
+
+    public override Size Measure(Size available) => new(Math.Min(6, available.Width), 1);
+
+    public override void Render(IRenderContext context, Rect bounds)
+    {
+        if (_visible)
+            context.WriteAt(bounds.X, bounds.Y, "ONLINE"[..Math.Min(bounds.Width, 6)]);
+    }
+
+    public override void Dispose()
+    {
+        _timer?.Dispose();
+        _invalidated.OnCompleted();
+        _invalidated.Dispose();
+        base.Dispose();
+    }
+}
+```
+
+If your node implements `ILayoutNode` directly instead of inheriting from `LayoutNode`, implement `ILayoutRuntimeContextAware` to receive the same context.
+
+If your `LayoutNode` subclass owns child nodes outside `ContainerNode`, propagate context when the child is assigned:
+
+```csharp
+public override void SetRuntimeContext(LayoutRuntimeContext context)
+{
+    base.SetRuntimeContext(context);
+
+    if (_content != null)
+        ApplyRuntimeContextToChild(_content);
+}
+```
+
+`ContainerNode` handles this automatically for children added through `AddChild` and `AddChildren`.
+
 ## Component Lifecycle
 
 When using `NavigationBehavior.PreserveState`, layout nodes are preserved across navigations and go through activation/deactivation cycles instead of being disposed. This prevents race conditions with in-flight events and allows components to maintain state.
@@ -286,28 +364,26 @@ When using `NavigationBehavior.PreserveState`, layout nodes are preserved across
 Lifecycle dispatch goes through the `IActivatableNode` interface. `LayoutNode` implements it, so subclasses simply override `OnActivate()` and `OnDeactivate()`. Components that implement the layout interfaces directly — without extending `LayoutNode` — should implement `IActivatableNode` themselves to participate (this is what `FilePickerNode` and `SelectionListNode` do).
 
 ```csharp
-public class AnimatedNode : LayoutNode
+public class AnimatedNode : LayoutNode, IInvalidatingNode
 {
-    private readonly TimeProvider _timeProvider;
-    private readonly FrameProvider _frameProvider;
+    private readonly Subject<Unit> _invalidated = new();
     private IDisposable? _timer;
     private int _frame;
 
-    public AnimatedNode(FrameProvider frameProvider, TimeProvider? timeProvider = null)
-    {
-        _frameProvider = frameProvider;
-        _timeProvider = timeProvider ?? TimeProvider.System;
-    }
+    public Observable<Unit> Invalidated => _invalidated.AsObservable();
 
     public override void OnActivate()
     {
+        var context = RuntimeContext
+            ?? throw new InvalidOperationException("Node has not been attached to a Termina layout tree.");
+
         // Resume animation when page becomes active
-        _timer ??= Observable.Interval(TimeSpan.FromMilliseconds(100), _timeProvider)
-            .ObserveOn(_frameProvider)
+        _timer ??= Observable.Interval(TimeSpan.FromMilliseconds(100), context.TimeProvider)
+            .ObserveOn(context.RenderFrameProvider)
             .Subscribe(_ =>
             {
                 _frame++;
-                // Trigger UI update
+                _invalidated.OnNext(Unit.Default);
             });
         base.OnActivate();
     }
@@ -324,6 +400,8 @@ public class AnimatedNode : LayoutNode
     {
         // Final cleanup when component is destroyed
         _timer?.Dispose();
+        _invalidated.OnCompleted();
+        _invalidated.Dispose();
         base.Dispose();
     }
 }

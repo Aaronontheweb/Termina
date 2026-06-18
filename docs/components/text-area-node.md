@@ -182,13 +182,10 @@ new TextAreaNode()
 ### Constructor
 
 ```csharp
-public TextAreaNode(
-    int cursorBlinkMs = 530,
-    TimeProvider? timeProvider = null,
-    FrameProvider? frameProvider = null)
+public TextAreaNode(int cursorBlinkMs = 530)
 ```
 
-Pass `frameProvider: RenderFrameProvider` in pages so cursor-blink invalidation is delivered on the Termina render loop.
+Text areas attached to a page layout tree receive runtime context automatically, so cursor-blink invalidation is delivered on the Termina render loop. For deterministic component tests, set a `LayoutRuntimeContext` before focusing the node.
 
 ### Properties
 

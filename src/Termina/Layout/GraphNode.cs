@@ -25,8 +25,6 @@ public sealed class GraphNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     ];
 
     private readonly Subject<Unit> _invalidated = new();
-    private readonly TimeProvider _timeProvider;
-    private readonly FrameProvider? _frameProvider;
     private readonly int _intervalMs;
     private IDisposable? _timerSubscription;
     private double[] _data = [];
@@ -38,12 +36,9 @@ public sealed class GraphNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     public Observable<Unit> Invalidated => _invalidated.AsObservable();
     public bool IsAnimating { get; private set; }
 
-    public GraphNode(int intervalMs = 500, TimeProvider? timeProvider = null, FrameProvider? frameProvider = null)
+    public GraphNode(int intervalMs = 500)
     {
         _intervalMs = intervalMs;
-        _timeProvider = timeProvider ?? TimeProvider.System;
-        _frameProvider = frameProvider;
-        Start();
     }
 
     /// <summary>
@@ -64,14 +59,30 @@ public sealed class GraphNode : LayoutNode, IAnimatedNode, IInvalidatingNode
             return;
         }
 
-        var ticks = Observable.Interval(TimeSpan.FromMilliseconds(_intervalMs), _timeProvider);
-        if (_frameProvider is not null)
-            ticks = ticks.ObserveOn(_frameProvider);
+        var ticks = Observable.Interval(TimeSpan.FromMilliseconds(_intervalMs), GetTimeProvider());
+        if (GetFrameProvider() is { } frameProvider)
+            ticks = ticks.ObserveOn(frameProvider);
 
         _timerSubscription ??= ticks
             .Subscribe(_ => { _invalidated.OnNext(Unit.Default); });
         IsAnimating = true;
     }
+
+    public override void SetRuntimeContext(LayoutRuntimeContext context)
+    {
+        var restart = IsAnimating;
+        if (restart)
+            Stop();
+
+        base.SetRuntimeContext(context);
+
+        if (restart)
+            Start();
+    }
+
+    private TimeProvider GetTimeProvider() => RuntimeContext?.TimeProvider ?? TimeProvider.System;
+
+    private FrameProvider? GetFrameProvider() => RuntimeContext?.RenderFrameProvider;
 
     public void Stop()
     {

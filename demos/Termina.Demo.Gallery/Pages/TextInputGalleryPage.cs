@@ -61,12 +61,12 @@ public class TextInputGalleryPage : ReactivePage<TextInputGalleryViewModel>
 
     public override ILayoutNode BuildLayout()
     {
-        _basicInput = new TextInputNode(frameProvider: RenderFrameProvider);
+        _basicInput = new TextInputNode();
 
-        _placeholderInput = new TextInputNode(frameProvider: RenderFrameProvider)
+        _placeholderInput = new TextInputNode()
             .WithPlaceholder("Type something here...");
 
-        _textArea = new TextAreaNode(frameProvider: RenderFrameProvider)
+        _textArea = new TextAreaNode()
             .WithPlaceholder("Enter multi-line text...")
             .WithMaxHeight(6);
 

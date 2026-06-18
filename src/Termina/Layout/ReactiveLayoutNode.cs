@@ -40,6 +40,7 @@ public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
                     oldChild.OnDeactivate();
                 }
                 _currentChild = node;
+                ApplyRuntimeContextToChild(node);
                 SubscribeToChildInvalidation(node);
 
                 // Activate the new child if we're currently active
@@ -112,6 +113,7 @@ public sealed class ReactiveLayoutNode : LayoutNode, IInvalidatingNode
                         oldChild.OnDeactivate();
                     }
                     _currentChild = node;
+                    ApplyRuntimeContextToChild(node);
                     SubscribeToChildInvalidation(node);
 
                     // Activate the new child if we're currently active
@@ -199,6 +201,7 @@ public sealed class ReactiveLayoutNode<T> : LayoutNode, IInvalidatingNode
                     oldChild.OnDeactivate();
                 }
                 _currentChild = _transform(value);
+                ApplyRuntimeContextToChild(_currentChild);
                 SubscribeToChildInvalidation(_currentChild);
 
                 // Activate the new child if we're currently active
@@ -269,6 +272,7 @@ public sealed class ReactiveLayoutNode<T> : LayoutNode, IInvalidatingNode
                         oldChild.OnDeactivate();
                     }
                     _currentChild = _transform(value);
+                    ApplyRuntimeContextToChild(_currentChild);
                     SubscribeToChildInvalidation(_currentChild);
 
                     // Activate the new child if we're currently active

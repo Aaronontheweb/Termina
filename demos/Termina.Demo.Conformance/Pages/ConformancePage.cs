@@ -36,7 +36,7 @@ public sealed class ConformancePage : ReactivePage<ConformanceViewModel>
             .WithForeground(Color.Yellow)
             .NoWrap();
 
-        _input = new TextInputNode(frameProvider: RenderFrameProvider)
+        _input = new TextInputNode()
             .WithPlaceholder("Type here, press Enter to submit. Up/Down should still be keyboard input.")
             .WithForeground(Color.Cyan);
     }

@@ -70,16 +70,18 @@ Use `ObserveOn(RenderFrameProvider)`, `Post`, or `InvokeAsync` instead.
 
 ## Built-In Components
 
-Termina-owned reactive and animated components can marshal through the frame provider when supplied:
+Built-in animated and input components receive the app runtime context automatically when they are part of a page layout tree. Their internal timers use the app `TimeProvider` and deliver invalidation through the app `RenderFrameProvider`:
 
 ```csharp
-new SpinnerNode(frameProvider: RenderFrameProvider)
-new GraphNode(frameProvider: RenderFrameProvider)
-new TextInputNode(frameProvider: RenderFrameProvider)
-new TextAreaNode(frameProvider: RenderFrameProvider)
+new SpinnerNode()
+new GraphNode()
+new TextInputNode()
+new TextAreaNode()
 ```
 
-Existing constructors still work. Passing the frame provider is recommended for components whose timers or observable sources should deliver invalidation on the Termina loop.
+Runtime services are supplied through `LayoutRuntimeContext`, not component constructors. In app code this happens automatically when nodes are attached to a page layout tree.
+
+Custom components can use the protected `LayoutNode.RuntimeContext` property after the node is attached to the layout tree. See [Custom Components](/advanced/custom-components#runtime-context).
 
 ## Default ObservableSystem
 
@@ -96,5 +98,6 @@ Prefer explicit `RenderFrameProvider` arguments in libraries and tests to avoid 
 1. Find subscriptions to daemon, SignalR, channel, timer, or probe output streams.
 2. Add `.ObserveOn(RenderFrameProvider)` before subscribers that mutate UI state.
 3. Replace off-loop final state writes after `await` with `InvokeAsync`.
-4. Do not use custom `IInputSource` implementations as a loop-dispatch workaround.
-5. Keep `TimeProvider` for elapsed-time behavior; use `FrameProvider` for loop-affined delivery.
+4. Keep `AsLayout(RenderFrameProvider)` for layout bindings that may receive off-loop emissions.
+5. Do not use custom `IInputSource` implementations as a loop-dispatch workaround.
+6. Keep `TimeProvider` for elapsed-time behavior; use `FrameProvider` for loop-affined delivery.

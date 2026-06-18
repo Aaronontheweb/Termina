@@ -301,13 +301,24 @@ public class ReactivePageLifecycleTests
     {
         // Arrange - page with an IInvalidatingNode root (SpinnerNode) using FakeTimeProvider
         var timeProvider = new FakeTimeProvider();
-        var page = new TestPageWithSpinner(timeProvider);
+        using var frameProvider = new TerminaRenderFrameProvider(
+            () => { },
+            timeProvider,
+            TimeSpan.FromMilliseconds(10));
+        var page = new TestPageWithSpinner();
 
         var redrawCount = 0;
 
         // Wire up ViewModel with a redraw counter
         var vm = new TestViewModel();
-        vm.WireUp(_ => { }, (_, _) => { }, () => { }, () => redrawCount++, Observable.Empty<IInputEvent>());
+        vm.WireUp(
+            _ => { },
+            (_, _) => { },
+            () => { },
+            () => redrawCount++,
+            Observable.Empty<IInputEvent>(),
+            renderFrameProvider: frameProvider,
+            timeProvider: timeProvider);
         page.BindForTest(vm);
 
         // First visit - invalidation subscription created
@@ -317,6 +328,7 @@ public class ReactivePageLifecycleTests
         // Advance time to trigger invalidation via the spinner's interval timer
         redrawCount = 0;
         timeProvider.Advance(TimeSpan.FromMilliseconds(80));
+        frameProvider.AdvanceFrame();
         Assert.True(redrawCount > 0, "Invalidation subscription should work on first visit");
 
         // Navigate away - subscription disposed
@@ -329,6 +341,7 @@ public class ReactivePageLifecycleTests
 
         // Advance time again - must still reach RequestRedraw
         timeProvider.Advance(TimeSpan.FromMilliseconds(80));
+        frameProvider.AdvanceFrame();
 
         // Assert - RequestRedraw should have been called after navigation round-trip
         Assert.True(redrawCount > 0, "Invalidation subscription was not re-created after navigation round-trip");
@@ -368,18 +381,11 @@ public class ReactivePageLifecycleTests
 
     private class TestPageWithSpinner : ReactivePage<TestViewModel>
     {
-        private readonly TimeProvider? _timeProvider;
-
         public SpinnerNode Spinner { get; private set; } = null!;
-
-        public TestPageWithSpinner(TimeProvider? timeProvider = null)
-        {
-            _timeProvider = timeProvider;
-        }
 
         public override ILayoutNode BuildLayout()
         {
-            Spinner = new SpinnerNode(timeProvider: _timeProvider);
+            Spinner = new SpinnerNode();
             return Spinner;
         }
 

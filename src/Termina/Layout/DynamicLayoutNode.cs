@@ -72,6 +72,7 @@ public sealed class DynamicLayoutNode : LayoutNode, IInvalidatingNode
         }
 
         _currentChild = newChild;
+        ApplyRuntimeContextToChild(newChild);
         SubscribeToChildInvalidation(newChild);
 
         // Activate new child if we're currently active

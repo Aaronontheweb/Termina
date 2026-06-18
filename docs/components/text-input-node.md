@@ -120,7 +120,7 @@ public class MyPage : ReactivePage<MyViewModel>
 
     protected override void OnBound()
     {
-        _textInput = new TextInputNode(frameProvider: RenderFrameProvider)
+        _textInput = new TextInputNode()
             .WithPlaceholder("Enter command...");
         _modal = Layouts.Modal().WithContent(_textInput);
 
@@ -148,7 +148,7 @@ public class MyPage : ReactivePage<MyViewModel>
 
     protected override void OnBound()
     {
-        _promptInput = new TextInputNode(frameProvider: RenderFrameProvider)
+        _promptInput = new TextInputNode()
             .WithPlaceholder("Enter command...");
 
         // Route input from ViewModel to the text input
@@ -242,13 +242,10 @@ public sealed class CustomInputNode : LayoutNode, IFocusable, IPasteReceiver
 ### Constructor
 
 ```csharp
-public TextInputNode(
-    int cursorBlinkMs = 530,
-    TimeProvider? timeProvider = null,
-    FrameProvider? frameProvider = null)
+public TextInputNode(int cursorBlinkMs = 530)
 ```
 
-Pass `frameProvider: RenderFrameProvider` in pages so cursor-blink invalidation is delivered on the Termina render loop.
+Inputs attached to a page layout tree receive runtime context automatically, so cursor-blink invalidation is delivered on the Termina render loop. For deterministic component tests, set a `LayoutRuntimeContext` before focusing the node.
 
 ### Properties
 

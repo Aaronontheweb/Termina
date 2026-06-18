@@ -88,8 +88,8 @@ public class SetupWizardPage : ReactivePage<SetupWizardViewModel>
 
     private ILayoutNode BuildAuthStep()
     {
-        var username = new TextInputNode(frameProvider: RenderFrameProvider).WithPlaceholder("Username");
-        var password = new TextInputNode(frameProvider: RenderFrameProvider).WithPlaceholder("Password");
+        var username = new TextInputNode().WithPlaceholder("Username");
+        var password = new TextInputNode().WithPlaceholder("Password");
 
         username.Submitted.Subscribe(text =>
             ViewModel.Username.Value = text);

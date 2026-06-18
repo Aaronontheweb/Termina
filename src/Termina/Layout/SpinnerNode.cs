@@ -59,8 +59,6 @@ public sealed class SpinnerNode : LayoutNode, IAnimatedNode, IInvalidatingNode
         [SpinnerStyle.Circle] = ["◐", "◓", "◑", "◒"]
     };
 
-    private readonly TimeProvider _timeProvider;
-    private readonly FrameProvider? _frameProvider;
     private readonly int _intervalMs;
     private readonly string[] _frames;
     private readonly Subject<Unit> _invalidated = new();
@@ -88,20 +86,13 @@ public sealed class SpinnerNode : LayoutNode, IAnimatedNode, IInvalidatingNode
     /// <inheritdoc />
     public bool IsAnimating { get; private set; }
 
-    public SpinnerNode(SpinnerStyle style = SpinnerStyle.Dots, int intervalMs = 80,
-        TimeProvider? timeProvider = null,
-        FrameProvider? frameProvider = null)
+    public SpinnerNode(SpinnerStyle style = SpinnerStyle.Dots, int intervalMs = 80)
     {
         _frames = Frames[style];
         _intervalMs = intervalMs;
-        _timeProvider = timeProvider ?? TimeProvider.System;
-        _frameProvider = frameProvider;
 
         HeightConstraint = new SizeConstraint.Fixed(1);
         WidthConstraint = new SizeConstraint.Auto();
-
-        // Auto-start
-        Start();
     }
 
     /// <summary>
@@ -137,9 +128,9 @@ public sealed class SpinnerNode : LayoutNode, IAnimatedNode, IInvalidatingNode
         if (!IsAnimating)
         {
             IsAnimating = true;
-            var ticks = Observable.Interval(TimeSpan.FromMilliseconds(_intervalMs), _timeProvider);
-            if (_frameProvider is not null)
-                ticks = ticks.ObserveOn(_frameProvider);
+            var ticks = Observable.Interval(TimeSpan.FromMilliseconds(_intervalMs), GetTimeProvider());
+            if (GetFrameProvider() is { } frameProvider)
+                ticks = ticks.ObserveOn(frameProvider);
 
             _timerSubscription ??= ticks
                 .Subscribe(_ =>
@@ -149,6 +140,23 @@ public sealed class SpinnerNode : LayoutNode, IAnimatedNode, IInvalidatingNode
                 });
         }
     }
+
+    /// <inheritdoc />
+    public override void SetRuntimeContext(LayoutRuntimeContext context)
+    {
+        var restart = IsAnimating;
+        if (restart)
+            Stop();
+
+        base.SetRuntimeContext(context);
+
+        if (restart)
+            Start();
+    }
+
+    private TimeProvider GetTimeProvider() => RuntimeContext?.TimeProvider ?? TimeProvider.System;
+
+    private FrameProvider? GetFrameProvider() => RuntimeContext?.RenderFrameProvider;
 
     /// <inheritdoc />
     public void Stop()

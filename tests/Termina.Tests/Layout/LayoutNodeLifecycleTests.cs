@@ -66,8 +66,9 @@ public class LayoutNodeLifecycleTests
     {
         // Arrange
         using var node = new SpinnerNode();
+        node.OnActivate();
 
-        // Assert - SpinnerNode auto-starts in constructor
+        // Assert - SpinnerNode starts on activation
         Assert.True(node.IsAnimating);
 
         // Act
@@ -235,8 +236,9 @@ public class LayoutNodeLifecycleTests
         // Arrange
         var spinner = new SpinnerNode();
         var modal = new ModalNode().WithContent(spinner);
+        modal.OnActivate();
 
-        Assert.True(spinner.IsAnimating); // Auto-started
+        Assert.True(spinner.IsAnimating);
 
         // Act
         modal.OnDeactivate();
@@ -300,6 +302,7 @@ public class LayoutNodeLifecycleTests
         var container = Layouts.Vertical()
             .WithChild(spinner1)
             .WithChild(spinner2);
+        container.OnActivate();
 
         Assert.True(spinner1.IsAnimating);
         Assert.True(spinner2.IsAnimating);

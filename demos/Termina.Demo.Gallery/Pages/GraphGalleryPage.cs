@@ -82,7 +82,7 @@ public sealed class GraphGalleryPage : ReactivePage<GraphGalleryViewModel>
 
         var gradient = Gradient.Create(Color.FromRgb(0, 100, 255), Color.FromRgb(0, 255, 100), Color.FromRgb(255, 255, 0));
 
-        _demoGraph = new GraphNode(intervalMs: 0, frameProvider: RenderFrameProvider)
+        _demoGraph = new GraphNode(intervalMs: 0)
             .WithStyle(ViewModel.SelectedStyle.Value)
             .WithGradient(gradient)
             .WithRange(0, 100);
