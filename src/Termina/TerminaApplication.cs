@@ -722,7 +722,13 @@ public sealed class TerminaApplication
             case ResizeEvent resize:
                 TerminaTrace.Render.Debug(this, "ResizeEvent: {0}x{1}", resize.Width, resize.Height);
                 // Force full refresh on resize since terminal dimensions changed
-                _diffingTerminal?.ForceFullRefresh();
+                if (_diffingTerminal is not null
+                    && resize.Width > 0
+                    && resize.Height > 0
+                    && (resize.Width != _diffingTerminal.Width || resize.Height != _diffingTerminal.Height))
+                {
+                    _diffingTerminal.ForceFullRefresh();
+                }
                 // Fall through to publish on _inputSubject so pages/ViewModels
                 // that subscribe to ResizeEvent can recompute width-sensitive
                 // layout (matches MouseScrollEvent's break/fall-through pattern

@@ -76,6 +76,64 @@ public class ResizeEventRoutingTests
         Assert.Equal(132, received[1].Width);
     }
 
+    [Fact]
+    public void ProcessEvent_DoesNotForceFullRefresh_ForNoOpResize()
+    {
+        var terminal = new RecordingTerminal(80, 24);
+        var app = CreateRecordingApp(terminal);
+
+        InvokeRenderCurrentPage(app);
+        terminal.ClearOutput();
+
+        InvokeProcessEvent(app, new ResizeEvent(80, 24));
+        InvokeRenderCurrentPage(app);
+
+        Assert.DoesNotContain(AnsiCodes.ClearScreen, terminal.Output);
+    }
+
+    [Fact]
+    public void ProcessEvent_DoesNotForceFullRefresh_ForInvalidResize()
+    {
+        var terminal = new RecordingTerminal(80, 24);
+        var app = CreateRecordingApp(terminal);
+
+        InvokeRenderCurrentPage(app);
+        terminal.ClearOutput();
+
+        InvokeProcessEvent(app, new ResizeEvent(0, 24));
+        InvokeRenderCurrentPage(app);
+
+        Assert.DoesNotContain(AnsiCodes.ClearScreen, terminal.Output);
+    }
+
+    [Fact]
+    public void ProcessEvent_ForcesFullRefresh_ForActualResize()
+    {
+        var terminal = new RecordingTerminal(80, 24);
+        var app = CreateRecordingApp(terminal);
+
+        InvokeRenderCurrentPage(app);
+        terminal.ClearOutput();
+
+        terminal.Width = 100;
+        terminal.Height = 30;
+        InvokeProcessEvent(app, new ResizeEvent(100, 30));
+        InvokeRenderCurrentPage(app);
+
+        Assert.Contains(AnsiCodes.ClearScreen, terminal.Output);
+    }
+
+    private static TerminaApplication CreateRecordingApp(RecordingTerminal terminal)
+    {
+        TestResizeViewModel.LastCreated = null;
+
+        var services = new TestServiceProvider();
+        var app = new TerminaApplication(terminal, services);
+        app.RegisterRoute<TestResizePage, TestResizeViewModel>("/resize");
+        app.NavigateTo("/resize");
+        return app;
+    }
+
     private static void InvokeProcessEvent(TerminaApplication app, object evt)
     {
         var method = typeof(TerminaApplication).GetMethod(
@@ -84,6 +142,16 @@ public class ResizeEventRoutingTests
 
         Assert.NotNull(method);
         method!.Invoke(app, [evt]);
+    }
+
+    private static void InvokeRenderCurrentPage(TerminaApplication app)
+    {
+        var method = typeof(TerminaApplication).GetMethod(
+            "RenderCurrentPage",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+        Assert.NotNull(method);
+        method!.Invoke(app, []);
     }
 
     private sealed class TestServiceProvider : IServiceProvider
@@ -110,6 +178,65 @@ public class ResizeEventRoutingTests
         public TestResizeViewModel()
         {
             LastCreated = this;
+        }
+    }
+
+    private sealed class RecordingTerminal(int width, int height) : IAnsiTerminal
+    {
+        private readonly System.Text.StringBuilder _buffer = new();
+
+        public string Output { get; private set; } = string.Empty;
+
+        public int Width { get; set; } = width;
+
+        public int Height { get; set; } = height;
+
+        public void MoveTo(int x, int y) => _buffer.Append(AnsiCodes.MoveTo(y, x));
+
+        public void Write(string text) => _buffer.Append(text);
+
+        public void Write(char c) => _buffer.Append(c);
+
+        public void SetForeground(Color color) { }
+
+        public void SetBackground(Color color) { }
+
+        public void ResetColors() { }
+
+        public void SaveCursor() { }
+
+        public void RestoreCursor() { }
+
+        public void SetCursorVisible(bool visible) { }
+
+        public void ClearRegion(int x, int y, int width, int height) { }
+
+        public void ClearScreen() => _buffer.Append(AnsiCodes.ClearScreen);
+
+        public void Flush()
+        {
+            Output += _buffer.ToString();
+            _buffer.Clear();
+        }
+
+        public void EnterAlternateScreen() { }
+
+        public void ExitAlternateScreen() { }
+
+        public void EnableMouse() { }
+
+        public void DisableMouse() { }
+
+        public void EnableWheelScroll() { }
+
+        public void DisableWheelScroll() { }
+
+        public void CopyToClipboard(string text) { }
+
+        public void ClearOutput()
+        {
+            Output = string.Empty;
+            _buffer.Clear();
         }
     }
 }
