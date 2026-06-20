@@ -7,9 +7,6 @@ function Get-ReleaseNotes {
     # Read markdown file content
     $content = Get-Content -Path $MarkdownFile -Raw
 
-    # Split content based on headers
-    $sections = $content -split "####"
-
     # Output object to store result
     $outputObject = [PSCustomObject]@{
         Version       = $null
@@ -17,22 +14,26 @@ function Get-ReleaseNotes {
         ReleaseNotes  = $null
     }
 
-    # Check if we have at least 3 sections (1. Before the header, 2. Header, 3. Release notes)
-    if ($sections.Count -ge 3) {
-        $header = $sections[1].Trim()
-        $releaseNotes = $sections[2].Trim()
+    # Split on #### delimiter: section 0 = header, section 1 = release body
+    $sections = $content -split "####"
+    
+    if ($sections.Count -ge 2) {
+        $headerSection = $sections[0].Trim()
+        $releaseNotes = $sections[1].Trim()
 
-        # Extract version and date from the header
-        $headerParts = $header -split " ", 2
-        if ($headerParts.Count -eq 2) {
-            $outputObject.Version = $headerParts[0]
-            $outputObject.Date = $headerParts[1]
+        # Extract version from "# Release Notes — Termina 0.14.0-beta.2"
+        if ($headerSection -match "^# Release Notes — Termina\s+(.+)") {
+            $outputObject.Version = $matches[1]
+        }
+        
+        # Extract date from "**Release date:** 2026-06-20"
+        if ($headerSection -match "\*\*Release date:\*\*\s+(\d{4}-\d{2}-\d{2})") {
+            $outputObject.Date = $matches[1]
         }
 
         $outputObject.ReleaseNotes = $releaseNotes
     }
 
-    # Return the output object
     return $outputObject
 }
 

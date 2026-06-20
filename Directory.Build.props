@@ -11,15 +11,17 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <VersionPrefix>0.14.0-beta.2</VersionPrefix>
-    <PackageReleaseNotes>**Beta Release Notes**
-
-This is the second beta of Termina 0.14.0 — a minor incremental release building on the rendering lifecycle and layout infrastructure from beta.1.
+    <PackageReleaseNotes>This is the second beta of Termina 0.14.0 — a minor incremental release on top of the rendering lifecycle and layout infrastructure from beta.1.
 
 **Bug Fixes**
 
 - Suppressed unnecessary full-screen refreshes triggered by no-op terminal resize events (#312)
 
----</PackageReleaseNotes>
+---
+
+### Contributors
+
+Aaron Stannard</PackageReleaseNotes>
   </PropertyGroup>
   <PropertyGroup>
     <!-- Target framework versions -->
