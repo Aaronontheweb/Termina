@@ -67,6 +67,7 @@ public sealed class TerminaApplication
     private bool _rawInputActive;
     private bool _kittyKeyboardPushed;
     private bool _wheelScrollEnabledByApp;
+    private int _pendingNavigationRequests;
 
     /// <summary>
     /// Creates a new Termina application.
@@ -488,13 +489,20 @@ public sealed class TerminaApplication
     // model (the render loop calls BuildLayout() before OnBound() has run).
     private void RequestNavigation(string path)
     {
-        _eventChannel.Writer.TryWrite(new NavigationRequested(path));
+        EnqueueNavigationRequest(new NavigationRequested(path));
     }
 
     private void RequestNavigation(string routeTemplate, object? routeValues)
     {
-        _eventChannel.Writer.TryWrite(
+        EnqueueNavigationRequest(
             new NavigationRequested(RouteMatcher.BuildPath(routeTemplate, routeValues)));
+    }
+
+    private void EnqueueNavigationRequest(NavigationRequested request)
+    {
+        Interlocked.Increment(ref _pendingNavigationRequests);
+        if (!_eventChannel.Writer.TryWrite(request))
+            Interlocked.Decrement(ref _pendingNavigationRequests);
     }
 
     private void RequestRenderFrame()
@@ -585,16 +593,14 @@ public sealed class TerminaApplication
 
             // Initial render
             TerminaTrace.Render.Debug(this, "Starting initial render");
-            RenderCurrentPage();
+            if (!HasPendingNavigationRequests())
+                RenderCurrentPage();
             TerminaTrace.Render.Debug(this, "Initial render complete");
 
             // Single-threaded event loop - all input sources merge here
             await foreach (var evt in _eventChannel.Reader.ReadAllAsync(linkedToken))
             {
-                ProcessEvent(evt);
-
-                // Re-render after event processing
-                RenderCurrentPage();
+                ProcessEventAndMaybeRender(evt);
             }
         }
         catch (OperationCanceledException)
@@ -703,6 +709,7 @@ public sealed class TerminaApplication
 
             case NavigationRequested navReq:
                 TerminaTrace.Page.Debug(this, "NavigationRequested: {0}", navReq.PageKey);
+                Interlocked.Decrement(ref _pendingNavigationRequests);
                 NavigateTo(navReq.PageKey);
                 return;
 
@@ -801,6 +808,21 @@ public sealed class TerminaApplication
             _inputSubject.OnNext(inputEvent);
         }
     }
+
+    private void ProcessEventAndMaybeRender(object evt)
+    {
+        ProcessEvent(evt);
+
+        // If this event enqueued a navigation, do not render the page that is
+        // one event-loop turn away from being replaced.
+        if (HasPendingNavigationRequests())
+            return;
+
+        RenderCurrentPage();
+    }
+
+    private bool HasPendingNavigationRequests() =>
+        Volatile.Read(ref _pendingNavigationRequests) > 0;
 
     private static void ExecuteLoopWork(Action action)
     {

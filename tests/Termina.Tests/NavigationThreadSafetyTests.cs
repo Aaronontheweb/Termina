@@ -3,6 +3,8 @@
 
 using System.Reflection;
 using System.Threading.Channels;
+using R3;
+using Termina.Input;
 using Termina.Layout;
 using Termina.Navigation;
 using Termina.Reactive;
@@ -66,6 +68,69 @@ public class NavigationThreadSafetyTests
         Assert.Equal("/dest", app.CurrentPath);
     }
 
+    [Fact]
+    public void ProcessEventAndMaybeRender_SkipsRender_WhenInputQueuesNavigation()
+    {
+        var terminal = new VirtualTerminal();
+        var app = new TerminaApplication(terminal);
+        app.RegisterRoute<InputNavigatingPage, InputNavigatingViewModel>("/start");
+        app.RegisterRoute<PlainPage, IdleViewModel>("/dest");
+        app.NavigateTo("/start");
+        InvokeRenderCurrentPage(app);
+        var outputCountBeforeInput = terminal.RawOutput.Count;
+
+        InvokeProcessEventAndMaybeRender(
+            app,
+            new KeyPressed(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false)));
+
+        Assert.Equal("/start", app.CurrentPath);
+        Assert.Equal(outputCountBeforeInput, terminal.RawOutput.Count);
+
+        var navRequest = ReadQueuedNavigation(app);
+        Assert.Equal("/dest", navRequest.PageKey);
+
+        InvokeProcessEventAndMaybeRender(app, navRequest);
+
+        Assert.Equal("/dest", app.CurrentPath);
+        Assert.True(terminal.RawOutput.Count > outputCountBeforeInput);
+        Assert.Contains("plain", terminal.ToString());
+    }
+
+    [Fact]
+    public void ProcessEventAndMaybeRender_SkipsIntermediateRender_WhenNavigationQueuesNavigation()
+    {
+        var terminal = new VirtualTerminal();
+        var app = new TerminaApplication(terminal);
+        app.RegisterRoute<InputNavigatingToMiddlePage, InputNavigatingToMiddleViewModel>("/start");
+        app.RegisterRoute<RedirectingPage, RedirectingViewModel>("/middle");
+        app.RegisterRoute<FinalPage, IdleViewModel>("/final");
+        app.NavigateTo("/start");
+        InvokeRenderCurrentPage(app);
+        var outputCountBeforeInput = terminal.RawOutput.Count;
+
+        InvokeProcessEventAndMaybeRender(
+            app,
+            new KeyPressed(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false)));
+        Assert.Equal(outputCountBeforeInput, terminal.RawOutput.Count);
+
+        var middleNavRequest = ReadQueuedNavigation(app);
+        Assert.Equal("/middle", middleNavRequest.PageKey);
+
+        InvokeProcessEventAndMaybeRender(app, middleNavRequest);
+
+        Assert.Equal("/middle", app.CurrentPath);
+        Assert.Equal(outputCountBeforeInput, terminal.RawOutput.Count);
+
+        var finalNavRequest = ReadQueuedNavigation(app);
+        Assert.Equal("/final", finalNavRequest.PageKey);
+
+        InvokeProcessEventAndMaybeRender(app, finalNavRequest);
+
+        Assert.Equal("/final", app.CurrentPath);
+        Assert.True(terminal.RawOutput.Count > outputCountBeforeInput);
+        Assert.Contains("final", terminal.ToString());
+    }
+
     private static NavigationRequested ReadQueuedNavigation(TerminaApplication app)
     {
         var field = typeof(TerminaApplication).GetField(
@@ -91,6 +156,22 @@ public class NavigationThreadSafetyTests
         method!.Invoke(app, [evt]);
     }
 
+    private static void InvokeProcessEventAndMaybeRender(TerminaApplication app, object evt)
+    {
+        var method = typeof(TerminaApplication).GetMethod(
+            "ProcessEventAndMaybeRender", BindingFlags.NonPublic | BindingFlags.Instance);
+        Assert.NotNull(method);
+        method!.Invoke(app, [evt]);
+    }
+
+    private static void InvokeRenderCurrentPage(TerminaApplication app)
+    {
+        var method = typeof(TerminaApplication).GetMethod(
+            "RenderCurrentPage", BindingFlags.NonPublic | BindingFlags.Instance);
+        Assert.NotNull(method);
+        method!.Invoke(app, []);
+    }
+
     private sealed class NavigatingViewModel : ReactiveViewModel
     {
         public override void OnActivated()
@@ -104,9 +185,68 @@ public class NavigationThreadSafetyTests
     {
     }
 
+    private sealed class InputNavigatingViewModel : ReactiveViewModel
+    {
+        public override void OnActivated()
+        {
+            base.OnActivated();
+            Input.OfType<IInputEvent, KeyPressed>()
+                .Subscribe(key =>
+                {
+                    if (key.KeyInfo.Key == ConsoleKey.Enter)
+                        Navigate("/dest");
+                })
+                .DisposeWith(Subscriptions);
+        }
+    }
+
+    private sealed class InputNavigatingToMiddleViewModel : ReactiveViewModel
+    {
+        public override void OnActivated()
+        {
+            base.OnActivated();
+            Input.OfType<IInputEvent, KeyPressed>()
+                .Subscribe(key =>
+                {
+                    if (key.KeyInfo.Key == ConsoleKey.Enter)
+                        Navigate("/middle");
+                })
+                .DisposeWith(Subscriptions);
+        }
+    }
+
+    private sealed class RedirectingViewModel : ReactiveViewModel
+    {
+        public override void OnActivated()
+        {
+            base.OnActivated();
+            Navigate("/final");
+        }
+    }
+
     private sealed class NavigatingPage : ReactivePage<NavigatingViewModel>
     {
         public override ILayoutNode BuildLayout() => new TextNode("A");
+    }
+
+    private sealed class InputNavigatingPage : ReactivePage<InputNavigatingViewModel>
+    {
+        public override ILayoutNode BuildLayout() => new TextNode("start");
+    }
+
+    private sealed class InputNavigatingToMiddlePage : ReactivePage<InputNavigatingToMiddleViewModel>
+    {
+        public override ILayoutNode BuildLayout() => new TextNode("start");
+    }
+
+    private sealed class RedirectingPage : ReactivePage<RedirectingViewModel>
+    {
+        public override ILayoutNode BuildLayout() => new TextNode("middle");
+    }
+
+    private sealed class FinalPage : ReactivePage<IdleViewModel>
+    {
+        public override ILayoutNode BuildLayout() => new TextNode("final");
     }
 
     private sealed class PageNavigatingPage : ReactivePage<IdleViewModel>
