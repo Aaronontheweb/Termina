@@ -1,14 +1,14 @@
-# Release Notes — Termina 0.14.0-beta.2
+# Release Notes — Termina 0.14.0-beta.3
 
-**Release date:** 2026-06-20
+**Release date:** 2026-06-22
 
 ####
 
-This is the second beta of Termina 0.14.0 — a minor incremental release on top of the rendering lifecycle and layout infrastructure from beta.1.
+This is the third beta of Termina 0.14.0 — a focused render-loop stability release for deferred navigation.
 
 **Bug Fixes**
 
-- Suppressed unnecessary full-screen refreshes triggered by no-op terminal resize events (#312)
+- Suppressed stale pre-swap frames when deferred navigation is queued from an input handler (#314)
 
 ---
 
