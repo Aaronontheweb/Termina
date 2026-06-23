@@ -1,3 +1,18 @@
+#### 0.14.0 June 23rd 2026 ####
+
+**New Features**:
+
+- **Modal footers with configurable colors** ([#292](https://github.com/Aaronontheweb/termina/pull/292), [#293](https://github.com/Aaronontheweb/termina/pull/293))
+  - `ModalNode` now supports `WithFooter` and `WithFooterColor` for adding a styled footer section
+  - Footer renders below modal content with optional color theming
+  - Includes a Gallery demo showcasing the feature on TodoList modals
+
+**Bug Fixes**:
+
+- **Duplicate `release_notes.md` with wrong casing removed from git index** ([#278](https://github.com/Aaronontheweb/termina/pull/278))
+
+---
+
 #### 0.12.0 June 9th 2026 ####
 
 **New Features**:
