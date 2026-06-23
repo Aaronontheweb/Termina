@@ -10,18 +10,9 @@
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <VersionPrefix>0.14.0-beta.3</VersionPrefix>
-    <PackageReleaseNotes>This is the third beta of Termina 0.14.0 — a focused render-loop stability release for deferred navigation.
-
-**Bug Fixes**
-
-- Suppressed stale pre-swap frames when deferred navigation is queued from an input handler (#314)
-
----
-
-### Contributors
-
-Aaron Stannard</PackageReleaseNotes>
+    <VersionPrefix>
+    </VersionPrefix>
+    <PackageReleaseNotes>0.14.0 June 23rd 2026</PackageReleaseNotes>
   </PropertyGroup>
   <PropertyGroup>
     <!-- Target framework versions -->
