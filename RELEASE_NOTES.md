@@ -1,4 +1,48 @@
-#### 0.12.0 June 9th 2026 ####
+#### 0.14.0 June 23rd 2026 ####
+
+**New Features**:
+
+- **Gradient primitives, GraphNode, and ProgressBarNode** ([#298](https://github.com/Aaronontheweb/termina/pull/298))
+  - New gradient system for rich visual theming
+  - `GraphNode` for data visualization and flow diagrams
+  - `ProgressBarNode` for animated progress indicators
+
+- **Toast notifications with colors and icons** ([#296](https://github.com/Aaronontheweb/termina/pull/296))
+  - Enhanced `ToastNode` with configurable foreground/background colors
+  - Icon support for status differentiation
+
+- **Modal footers with configurable colors** ([#292](https://github.com/Aaronontheweb/termina/pull/292), [#293](https://github.com/Aaronontheweb/termina/pull/293))
+  - `ModalNode` now supports `WithFooter` and `WithFooterColor` for adding a styled footer section
+  - Footer renders below modal content with optional color theming
+  - Includes a Gallery demo showcasing the feature on TodoList modals
+
+- **Render loop frame provider** ([#306](https://github.com/Aaronontheweb/termina/pull/306))
+  - New `IRenderLoopFrameProvider` for deterministic frame timing control
+  - Enables precise animation and layout update scheduling
+
+**Bug Fixes**:
+
+- **Suppressed stale pre-swap frames on deferred navigation** ([#315](https://github.com/Aaronontheweb/termina/pull/315))
+  - Fixed visual artifacts when navigation is queued from an input handler during render swap
+
+- **Eliminated no-op resize full refresh** ([#312](https://github.com/Aaronontheweb/termina/pull/312))
+  - Resizes that don't change bounds no longer trigger expensive full layout refresh
+
+- **Corrected ScrollableContainerNode bounds.Y handling** ([#301](https://github.com/Aaronontheweb/termina/pull/301))
+  - `ScrollableContainerNode` now respects `bounds.Y` instead of overwriting layout above it
+  - Fixes layout stacking issues in scrollable containers
+
+- **Fixed CSI Z (backtab/Shift+Tab) parsing** ([#297](https://github.com/Aaronontheweb/termina/pull/297))
+  - CSI Z sequences now correctly map to Tab with Shift modifier instead of being misinterpreted
+
+**Dependency Updates**:
+
+- Updated `Akka.Hosting` from 1.5.68 to 1.5.69 ([#299](https://github.com/Aaronontheweb/termina/pull/299))
+- Updated `OpenTelemetry.Api` from 1.15.3 to 1.16.0 ([#291](https://github.com/Aaronontheweb/termina/pull/291))
+
+---
+
+#### 0.13.0 May 30th 2026 ####
 
 **New Features**:
 
