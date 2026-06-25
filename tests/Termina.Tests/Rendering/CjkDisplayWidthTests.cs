@@ -157,6 +157,24 @@ public class CjkDisplayWidthTests
         Assert.Equal(3, DisplayWidth.CursorPositionToColumn("A你B你", 2));
     }
 
+    [Fact]
+    public void GetNextTextElementIndex_Emoji_ReturnsSurrogatePairEnd()
+    {
+        Assert.Equal(2, DisplayWidth.GetNextTextElementIndex("😀A", 0));
+    }
+
+    [Fact]
+    public void GetPreviousTextElementIndex_Emoji_ReturnsSurrogatePairStart()
+    {
+        Assert.Equal(0, DisplayWidth.GetPreviousTextElementIndex("😀A", 2));
+    }
+
+    [Fact]
+    public void ClampToTextElementBoundary_InsideEmoji_ReturnsElementStart()
+    {
+        Assert.Equal(0, DisplayWidth.ClampToTextElementBoundary("😀A", 1));
+    }
+
     // ===== Text.Measure() CJK tests =====
 
     [Fact]

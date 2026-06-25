@@ -140,13 +140,15 @@ public sealed class TextInputNode : TextInputBaseNode
             return;
         }
 
+        var cursorTextWidth = DisplayWidth.GetColumnCount(DisplayWidth.GetTextElementAt(activeText, _cursorPosition));
+
         if (displayCursor < _scrollOffset)
         {
             _scrollOffset = displayCursor;
         }
-        else if (displayCursor >= _scrollOffset + bounds.Width)
+        else if (displayCursor + cursorTextWidth > _scrollOffset + bounds.Width)
         {
-            _scrollOffset = displayCursor - bounds.Width + 1;
+            _scrollOffset = displayCursor + cursorTextWidth - bounds.Width;
         }
 
         var visStart = _scrollOffset;
@@ -174,8 +176,7 @@ public sealed class TextInputNode : TextInputBaseNode
                 if (Background.HasValue)
                     inputContext.SetBackground(Background.Value);
 
-                var text = DisplayWidth.SliceByColumns(seg.DisplayText, drawStart - segStart, drawEnd - drawStart);
-                inputContext.WriteAt(drawStart - _scrollOffset, 0, text);
+                WriteVisibleText(inputContext, seg.DisplayText, segStart, _scrollOffset, drawStart, drawEnd);
             }
 
             segColumnOffset = segEnd;
@@ -232,8 +233,7 @@ public sealed class TextInputNode : TextInputBaseNode
             }
             else
             {
-                var text = DisplayWidth.SliceByColumns(activeText, activeDrawStart - activeStart, activeDrawEnd - activeDrawStart);
-                inputContext.WriteAt(activeDrawStart - _scrollOffset, 0, text);
+                WriteVisibleText(inputContext, activeText, activeStart, _scrollOffset, activeDrawStart, activeDrawEnd);
             }
         }
 
@@ -261,5 +261,30 @@ public sealed class TextInputNode : TextInputBaseNode
     protected override void OnTextBufferChanged()
     {
         // No-op for single-line — _scrollOffset is adjusted during Render
+    }
+
+    private static void WriteVisibleText(
+        IRenderContext context,
+        string text,
+        int absoluteStartColumn,
+        int scrollOffset,
+        int drawStart,
+        int drawEnd)
+    {
+        var column = absoluteStartColumn;
+        foreach (var cell in DisplayWidth.EnumerateCells(text))
+        {
+            var cellStart = column;
+            var cellEnd = cellStart + cell.ColumnWidth;
+            column = cellEnd;
+
+            if (cellEnd <= drawStart || cellStart >= drawEnd)
+                continue;
+
+            if (cellStart < drawStart || cellEnd > drawEnd)
+                continue;
+
+            context.WriteAt(cellStart - scrollOffset, 0, cell.Text);
+        }
     }
 }

@@ -44,6 +44,8 @@ public sealed class RegionRenderContext : IRenderContext
         if (y < 0 || y >= Height || x >= Width)
             return;
 
+        text = DisplayWidth.SanitizeTerminalText(text);
+
         // Clip text to fit within region by terminal columns.
         var startX = Math.Max(0, x);
         var skipColumns = startX - x;
@@ -63,11 +65,7 @@ public sealed class RegionRenderContext : IRenderContext
     /// <inheritdoc />
     public void WriteAt(int x, int y, char c)
     {
-        if (x < 0 || x >= Width || y < 0 || y >= Height)
-            return;
-
-        _terminal.MoveTo(_offsetX + x, _offsetY + y);
-        _terminal.Write(c);
+        WriteAt(x, y, c.ToString());
     }
 
     /// <inheritdoc />
@@ -91,6 +89,12 @@ public sealed class RegionRenderContext : IRenderContext
     /// <inheritdoc />
     public void SetDecoration(TextDecoration decoration)
     {
+        if (_terminal is DiffingTerminal diffingTerminal)
+        {
+            diffingTerminal.SetDecoration(decoration);
+            return;
+        }
+
         // Reset any previous decorations first
         if (decoration == TextDecoration.None)
         {
@@ -135,7 +139,8 @@ public sealed class RegionRenderContext : IRenderContext
             return;
 
         var fillWidth = endX - startX;
-        var fillLine = new string(c, fillWidth);
+        var fillChar = DisplayWidth.GetColumnCount(c) == 1 ? c : ' ';
+        var fillLine = new string(fillChar, fillWidth);
 
         for (var row = startY; row < endY; row++)
         {

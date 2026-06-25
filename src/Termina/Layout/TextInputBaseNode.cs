@@ -95,7 +95,7 @@ public abstract class TextInputBaseNode : LayoutNode, IAnimatedNode, IInvalidati
                 _text = newValue;
             }
 
-            _cursorPosition = Math.Min(_cursorPosition, _text.Length);
+            _cursorPosition = DisplayWidth.ClampToTextElementBoundary(_text, _cursorPosition);
             _selectionStart = -1;
             OnTextBufferChanged();
             _textChanged.OnNext(Text);
@@ -450,8 +450,9 @@ public abstract class TextInputBaseNode : LayoutNode, IAnimatedNode, IInvalidati
         }
         else
         {
-            _text = _text.Remove(_cursorPosition - 1, 1);
-            _cursorPosition--;
+            var removeStart = DisplayWidth.GetPreviousTextElementIndex(_text, _cursorPosition);
+            _text = _text.Remove(removeStart, _cursorPosition - removeStart);
+            _cursorPosition = removeStart;
         }
 
         OnTextBufferChanged();
@@ -479,7 +480,8 @@ public abstract class TextInputBaseNode : LayoutNode, IAnimatedNode, IInvalidati
         }
         else
         {
-            _text = _text.Remove(_cursorPosition, 1);
+            var removeEnd = DisplayWidth.GetNextTextElementIndex(_text, _cursorPosition);
+            _text = _text.Remove(_cursorPosition, removeEnd - _cursorPosition);
         }
 
         OnTextBufferChanged();
@@ -490,8 +492,8 @@ public abstract class TextInputBaseNode : LayoutNode, IAnimatedNode, IInvalidati
     protected bool HandleLeftArrow(ConsoleModifiers modifiers)
     {
         var newPos = modifiers.HasFlag(ConsoleModifiers.Control)
-            ? FindWordBoundary(_cursorPosition, -1)
-            : Math.Max(0, _cursorPosition - 1);
+            ? DisplayWidth.ClampToTextElementBoundary(_text, FindWordBoundary(_cursorPosition, -1))
+            : DisplayWidth.GetPreviousTextElementIndex(_text, _cursorPosition);
 
         if (modifiers.HasFlag(ConsoleModifiers.Shift))
         {
@@ -510,8 +512,8 @@ public abstract class TextInputBaseNode : LayoutNode, IAnimatedNode, IInvalidati
     protected bool HandleRightArrow(ConsoleModifiers modifiers)
     {
         var newPos = modifiers.HasFlag(ConsoleModifiers.Control)
-            ? FindWordBoundary(_cursorPosition, 1)
-            : Math.Min(_text.Length, _cursorPosition + 1);
+            ? DisplayWidth.ClampToTextElementBoundary(_text, FindWordBoundary(_cursorPosition, 1))
+            : DisplayWidth.GetNextTextElementIndex(_text, _cursorPosition);
 
         if (modifiers.HasFlag(ConsoleModifiers.Shift))
         {

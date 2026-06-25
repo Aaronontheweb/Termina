@@ -574,13 +574,19 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
 
         // Top border with optional title
         context.WriteAt(bounds.X, bounds.Y, chars.TopLeft);
-        var titleText = _title != null ? $" {_title} " : "";
-        var topBarWidth = Math.Max(0, bounds.Width - 2 - titleText.Length);
+        var availableTopBarWidth = Math.Max(0, bounds.Width - 2);
         if (_title != null)
         {
-            context.WriteAt(bounds.X + 1, bounds.Y, titleText);
+            var titleText = $" {_title} ";
+            var displayTitle = DisplayWidth.GetColumnCount(titleText) > availableTopBarWidth
+                ? DisplayWidth.TruncateToColumns(titleText, availableTopBarWidth)
+                : titleText;
+            var titleWidth = DisplayWidth.GetColumnCount(displayTitle);
+            var topBarWidth = Math.Max(0, availableTopBarWidth - titleWidth);
+
+            context.WriteAt(bounds.X + 1, bounds.Y, displayTitle);
             for (var i = 0; i < topBarWidth; i++)
-                context.WriteAt(bounds.X + 1 + titleText.Length + i, bounds.Y, chars.Horizontal);
+                context.WriteAt(bounds.X + 1 + titleWidth + i, bounds.Y, chars.Horizontal);
         }
         else
         {

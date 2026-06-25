@@ -65,6 +65,44 @@ public static class DisplayWidth
     public static int GetColumnCount(char c) => GetColumnCount(c.ToString());
 
     /// <summary>
+    /// Removes terminal control sequences from user text before rendering it as printable content.
+    /// </summary>
+    public static string SanitizeTerminalText(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return string.Empty;
+
+        StringBuilder? sb = null;
+        var segmentStart = 0;
+
+        for (var i = 0; i < text.Length; i++)
+        {
+            var ch = text[i];
+            if (ch == '\u001b')
+            {
+                sb ??= new StringBuilder(text.Length);
+                sb.Append(text, segmentStart, i - segmentStart);
+                i = SkipEscapeSequence(text, i);
+                segmentStart = i + 1;
+            }
+            else if (char.IsControl(ch))
+            {
+                sb ??= new StringBuilder(text.Length);
+                sb.Append(text, segmentStart, i - segmentStart);
+                if (ch is '\n' or '\r' or '\t')
+                    sb.Append(' ');
+                segmentStart = i + 1;
+            }
+        }
+
+        if (sb is null)
+            return text;
+
+        sb.Append(text, segmentStart, text.Length - segmentStart);
+        return sb.ToString();
+    }
+
+    /// <summary>
     /// Returns the leftmost text that fits within <paramref name="maxColumns"/> display columns.
     /// </summary>
     public static string TruncateToColumns(string text, int maxColumns)
@@ -196,6 +234,68 @@ public static class DisplayWidth
     }
 
     /// <summary>
+    /// Returns a safe UTF-16 index that does not fall inside a text element.
+    /// </summary>
+    public static int ClampToTextElementBoundary(string text, int charIndex)
+    {
+        if (string.IsNullOrEmpty(text))
+            return 0;
+
+        charIndex = Math.Clamp(charIndex, 0, text.Length);
+        foreach (var cell in EnumerateCells(text))
+        {
+            var end = cell.StartIndex + cell.Length;
+            if (charIndex <= cell.StartIndex)
+                return cell.StartIndex;
+            if (charIndex < end)
+                return cell.StartIndex;
+        }
+
+        return text.Length;
+    }
+
+    /// <summary>
+    /// Returns the UTF-16 start index of the text element before <paramref name="charIndex"/>.
+    /// </summary>
+    public static int GetPreviousTextElementIndex(string text, int charIndex)
+    {
+        if (string.IsNullOrEmpty(text) || charIndex <= 0)
+            return 0;
+
+        charIndex = Math.Clamp(charIndex, 0, text.Length);
+        var previous = 0;
+
+        foreach (var cell in EnumerateCells(text))
+        {
+            if (cell.StartIndex >= charIndex)
+                break;
+
+            previous = cell.StartIndex;
+        }
+
+        return previous;
+    }
+
+    /// <summary>
+    /// Returns the UTF-16 end index of the text element at or after <paramref name="charIndex"/>.
+    /// </summary>
+    public static int GetNextTextElementIndex(string text, int charIndex)
+    {
+        if (string.IsNullOrEmpty(text))
+            return 0;
+
+        charIndex = Math.Clamp(charIndex, 0, text.Length);
+        foreach (var cell in EnumerateCells(text))
+        {
+            var end = cell.StartIndex + cell.Length;
+            if (charIndex < end)
+                return end;
+        }
+
+        return text.Length;
+    }
+
+    /// <summary>
     /// Returns the complete text element at a UTF-16 index, or a space at the end of the string.
     /// </summary>
     public static string GetTextElementAt(string text, int charIndex)
@@ -263,5 +363,38 @@ public static class DisplayWidth
         if (code >= 0x2600 && code <= 0x27BF) return true;
 
         return false;
+    }
+
+    private static int SkipEscapeSequence(string text, int escapeIndex)
+    {
+        if (escapeIndex + 1 >= text.Length)
+            return escapeIndex;
+
+        var introducer = text[escapeIndex + 1];
+        if (introducer == '[')
+        {
+            for (var i = escapeIndex + 2; i < text.Length; i++)
+            {
+                if (text[i] >= 0x40 && text[i] <= 0x7E)
+                    return i;
+            }
+
+            return text.Length - 1;
+        }
+
+        if (introducer == ']')
+        {
+            for (var i = escapeIndex + 2; i < text.Length; i++)
+            {
+                if (text[i] == '\u0007')
+                    return i;
+                if (text[i] == '\u001b' && i + 1 < text.Length && text[i + 1] == '\\')
+                    return i + 1;
+            }
+
+            return text.Length - 1;
+        }
+
+        return escapeIndex + 1;
     }
 }

@@ -66,7 +66,7 @@ public sealed class TextInput : IRenderable, IDisposable
         {
             _text = value ?? string.Empty;
             // Keep cursor within valid range
-            _cursorPosition = Math.Min(_cursorPosition, _text.Length);
+            _cursorPosition = DisplayWidth.ClampToTextElementBoundary(_text, _cursorPosition);
         }
     }
 
@@ -100,7 +100,7 @@ public sealed class TextInput : IRenderable, IDisposable
     public int CursorPosition
     {
         get => _cursorPosition;
-        set => _cursorPosition = Math.Max(0, Math.Min(value, _text.Length));
+        set => _cursorPosition = DisplayWidth.ClampToTextElementBoundary(_text, value);
     }
 
     /// <summary>
@@ -183,8 +183,9 @@ public sealed class TextInput : IRenderable, IDisposable
             case ConsoleKey.Backspace:
                 if (_cursorPosition > 0)
                 {
-                    _text = _text.Remove(_cursorPosition - 1, 1);
-                    _cursorPosition--;
+                    var removeStart = DisplayWidth.GetPreviousTextElementIndex(_text, _cursorPosition);
+                    _text = _text.Remove(removeStart, _cursorPosition - removeStart);
+                    _cursorPosition = removeStart;
                     MarkDirty();
                 }
                 return true;
@@ -192,7 +193,8 @@ public sealed class TextInput : IRenderable, IDisposable
             case ConsoleKey.Delete:
                 if (_cursorPosition < _text.Length)
                 {
-                    _text = _text.Remove(_cursorPosition, 1);
+                    var removeEnd = DisplayWidth.GetNextTextElementIndex(_text, _cursorPosition);
+                    _text = _text.Remove(_cursorPosition, removeEnd - _cursorPosition);
                     MarkDirty();
                 }
                 return true;
@@ -200,7 +202,7 @@ public sealed class TextInput : IRenderable, IDisposable
             case ConsoleKey.LeftArrow:
                 if (_cursorPosition > 0)
                 {
-                    _cursorPosition--;
+                    _cursorPosition = DisplayWidth.GetPreviousTextElementIndex(_text, _cursorPosition);
                     MarkDirty();
                 }
                 return true;
@@ -208,7 +210,7 @@ public sealed class TextInput : IRenderable, IDisposable
             case ConsoleKey.RightArrow:
                 if (_cursorPosition < _text.Length)
                 {
-                    _cursorPosition++;
+                    _cursorPosition = DisplayWidth.GetNextTextElementIndex(_text, _cursorPosition);
                     MarkDirty();
                 }
                 return true;
@@ -225,7 +227,7 @@ public sealed class TextInput : IRenderable, IDisposable
 
             default:
                 // Insert printable character
-                if (key.KeyChar >= 32 && key.KeyChar < 127)
+                if (key.KeyChar != '\0' && !char.IsControl(key.KeyChar))
                 {
                     _text = _text.Insert(_cursorPosition, key.KeyChar.ToString());
                     _cursorPosition++;

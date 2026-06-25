@@ -37,7 +37,7 @@ internal sealed class ToastOverlayNode : LayoutNode, IInvalidatingNode
 
         var icon = _currentToast.Icon ?? char.ConvertFromUtf32(0x2713);
         var message = $" {icon} {_currentToast.Message} ";
-        var width = Math.Min(bounds.Width, message.Length + 2);
+        var width = Math.Min(bounds.Width, DisplayWidth.GetColumnCount(message) + 2);
         var height = 3;
         if (width <= 0 || bounds.Height < height)
             return;
@@ -59,7 +59,8 @@ internal sealed class ToastOverlayNode : LayoutNode, IInvalidatingNode
         var displayMessage = DisplayWidth.GetColumnCount(message) > messageWidth
             ? DisplayWidth.TruncateToColumns(message, messageWidth)
             : message;
-        panelContext.WriteAt(1, 1, displayMessage.PadRight(messageWidth));
+        var padding = messageWidth - DisplayWidth.GetColumnCount(displayMessage);
+        panelContext.WriteAt(1, 1, padding > 0 ? displayMessage + new string(' ', padding) : displayMessage);
         panelContext.ResetColors();
         panelContext.SetForeground(borderColor);
         panelContext.WriteAt(width - 1, 1, '│');

@@ -71,4 +71,20 @@ public class TextInputNodeRenderTests
         Assert.Equal('A', terminal.GetChar(4, 0));
         Assert.Equal(node.CursorColor, terminal.GetBackground(5, 0));
     }
+
+    [Fact]
+    public void Render_CjkCursorAtViewportEdge_RemainsVisible()
+    {
+        using var node = new TextInputNode();
+        node.HandlePaste(new PasteEvent("你好"));
+        node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.Home, false, false, false));
+        node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, false, false, false));
+
+        var terminal = new VirtualTerminal(3, 1);
+        var context = new RegionRenderContext(terminal, 0, 0, 3, 1);
+
+        node.Render(context, new Rect(0, 0, 3, 1));
+
+        Assert.Equal(node.CursorColor, terminal.GetBackground(2, 0));
+    }
 }

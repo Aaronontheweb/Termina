@@ -86,7 +86,7 @@ public sealed class CopyableTextNode : LayoutNode, IFocusable, IInvalidatingNode
     public CopyableTextNode WithContent(string content)
     {
         Content = content ?? string.Empty;
-        _cursorPosition = Math.Min(_cursorPosition, Content.Length);
+        _cursorPosition = DisplayWidth.ClampToTextElementBoundary(Content, _cursorPosition);
         if (_selectionStart > Content.Length)
             _selectionStart = -1;
         Invalidate();
@@ -157,7 +157,7 @@ public sealed class CopyableTextNode : LayoutNode, IFocusable, IInvalidatingNode
     public void OnFocused()
     {
         _hasFocus = true;
-        _cursorPosition = Math.Min(_cursorPosition, Content.Length);
+        _cursorPosition = DisplayWidth.ClampToTextElementBoundary(Content, _cursorPosition);
         TerminaTrace.Focus.Debug(this, "CopyableTextNode focused: contentLength={0}", Content.Length);
         Invalidate();
     }
@@ -319,14 +319,16 @@ public sealed class CopyableTextNode : LayoutNode, IFocusable, IInvalidatingNode
         if (Content.Length == 0)
             return false;
 
-        var newPosition = Math.Clamp(_cursorPosition + delta, 0, Content.Length);
+        var newPosition = delta < 0
+            ? DisplayWidth.GetPreviousTextElementIndex(Content, _cursorPosition)
+            : DisplayWidth.GetNextTextElementIndex(Content, _cursorPosition);
         UpdateSelectionForMove(modifiers, newPosition);
         return true;
     }
 
     private bool MoveToBoundary(int position, ConsoleModifiers modifiers)
     {
-        var newPosition = Math.Clamp(position, 0, Content.Length);
+        var newPosition = DisplayWidth.ClampToTextElementBoundary(Content, position);
         UpdateSelectionForMove(modifiers, newPosition);
         return true;
     }
@@ -363,9 +365,13 @@ public sealed class CopyableTextNode : LayoutNode, IFocusable, IInvalidatingNode
 
     private void RenderLine(IRenderContext context, int row, RenderedLine line, int width)
     {
-        for (var column = 0; column < line.Text.Length && column < width; column++)
+        var column = 0;
+        foreach (var cell in DisplayWidth.EnumerateCells(line.Text))
         {
-            var sourceIndex = line.StartIndex + column;
+            if (column >= width)
+                break;
+
+            var sourceIndex = line.StartIndex + cell.StartIndex;
             var isSelected = IsSelected(sourceIndex);
             var isCursor = _hasFocus && !HasSelection && sourceIndex == _cursorPosition;
 
@@ -385,14 +391,15 @@ public sealed class CopyableTextNode : LayoutNode, IFocusable, IInvalidatingNode
                 context.SetBackground(Color.Default);
             }
 
-            context.WriteAt(column, row, line.Text[column]);
+            context.WriteAt(column, row, cell.Text);
+            column += cell.ColumnWidth;
         }
 
-        if (_hasFocus && !HasSelection && line.Text.Length < width && _cursorPosition == line.StartIndex + line.Text.Length)
+        if (_hasFocus && !HasSelection && column < width && _cursorPosition == line.StartIndex + line.Text.Length)
         {
             context.SetForeground(FocusedForeground);
             context.SetBackground(FocusedBackground);
-            context.WriteAt(line.Text.Length, row, ' ');
+            context.WriteAt(column, row, ' ');
         }
 
         context.ResetColors();
@@ -426,10 +433,26 @@ public sealed class CopyableTextNode : LayoutNode, IFocusable, IInvalidatingNode
             }
             else
             {
-                for (var chunkStart = 0; chunkStart < line.Length; chunkStart += width)
+                var chunkStart = 0;
+                var chunkEnd = 0;
+                var columns = 0;
+
+                foreach (var cell in DisplayWidth.EnumerateCells(line))
                 {
-                    var chunkLength = Math.Min(width, line.Length - chunkStart);
-                    rendered.Add(new RenderedLine(line.Substring(chunkStart, chunkLength), sourceOffset + chunkStart));
+                    if (columns > 0 && columns + cell.ColumnWidth > width)
+                    {
+                        rendered.Add(new RenderedLine(line[chunkStart..chunkEnd], sourceOffset + chunkStart));
+                        chunkStart = cell.StartIndex;
+                        columns = 0;
+                    }
+
+                    chunkEnd = cell.StartIndex + cell.Length;
+                    columns += cell.ColumnWidth;
+                }
+
+                if (chunkEnd > chunkStart)
+                {
+                    rendered.Add(new RenderedLine(line[chunkStart..chunkEnd], sourceOffset + chunkStart));
                 }
             }
 

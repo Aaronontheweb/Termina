@@ -321,6 +321,7 @@ public sealed class ScrollableContent : IRenderable, IDisposable
             var actualY = y + _offsetY;
             if (actualY < 0 || actualY >= _parent.Height)
                 return;
+            text = DisplayWidth.SanitizeTerminalText(text);
             var skipColumns = 0;
             if (x < 0)
             {
@@ -337,10 +338,7 @@ public sealed class ScrollableContent : IRenderable, IDisposable
 
         public void WriteAt(int x, int y, char c)
         {
-            var actualY = y + _offsetY;
-            if (x < 0 || x >= Width || actualY < 0 || actualY >= _parent.Height)
-                return;
-            _parent.WriteAt(x + _offsetX, actualY, c);
+            WriteAt(x, y, c.ToString());
         }
 
         public void SetForeground(Color color) => _parent.SetForeground(color);

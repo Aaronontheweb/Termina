@@ -200,6 +200,7 @@ public sealed class Panel : IRenderable
         {
             if (y < 0 || y >= Height)
                 return;
+            text = DisplayWidth.SanitizeTerminalText(text);
             var skipColumns = 0;
             if (x < 0)
             {
@@ -216,9 +217,7 @@ public sealed class Panel : IRenderable
 
         public void WriteAt(int x, int y, char c)
         {
-            if (x < 0 || x >= Width || y < 0 || y >= Height)
-                return;
-            _parent.WriteAt(x + _offsetX, y + _offsetY, c);
+            WriteAt(x, y, c.ToString());
         }
 
         public void SetForeground(Color color) => _parent.SetForeground(color);
