@@ -55,7 +55,11 @@ internal sealed class ToastOverlayNode : LayoutNode, IInvalidatingNode
         panelContext.WriteAt(0, 1, '│');
         panelContext.SetBackground(Color.Black);
         panelContext.SetForeground(Color.White);
-        panelContext.WriteAt(1, 1, message.Length > width - 2 ? message[..(width - 2)] : message.PadRight(width - 2));
+        var messageWidth = width - 2;
+        var displayMessage = DisplayWidth.GetColumnCount(message) > messageWidth
+            ? DisplayWidth.TruncateToColumns(message, messageWidth)
+            : message;
+        panelContext.WriteAt(1, 1, displayMessage.PadRight(messageWidth));
         panelContext.ResetColors();
         panelContext.SetForeground(borderColor);
         panelContext.WriteAt(width - 1, 1, '│');

@@ -43,7 +43,7 @@ public static class StyledWordWrapper
             return [new StyledLine()];
 
         // Fast path: line fits within width
-        if (line.Length <= width)
+        if (line.ColumnCount <= width)
             return [line.Clone()];
 
         var result = new List<StyledLine>();
@@ -55,8 +55,10 @@ public static class StyledWordWrapper
 
         foreach (var word in words)
         {
+            var wordWidth = word.ColumnCount;
+
             // If word itself is longer than width, break it
-            if (word.Length > width)
+            if (wordWidth > width)
             {
                 // Flush current line if it has content
                 if (currentWidth > 0)
@@ -68,18 +70,21 @@ public static class StyledWordWrapper
 
                 // Break long word into chunks while preserving styles
                 var remaining = word;
-                while (remaining.Length > width)
+                while (remaining.ColumnCount > width)
                 {
-                    var chunk = remaining.Substring(0, width);
+                    var chunk = remaining.SliceByColumns(0, width);
+                    if (chunk.IsEmpty)
+                        break;
+
                     result.Add(chunk);
-                    remaining = remaining.Substring(width);
+                    remaining = remaining.SliceByColumns(chunk.ColumnCount, int.MaxValue / 2);
                 }
 
                 // Remainder becomes start of new line
-                if (remaining.Length > 0)
+                if (!remaining.IsEmpty)
                 {
                     currentLine = remaining;
-                    currentWidth = remaining.Length;
+                    currentWidth = remaining.ColumnCount;
                 }
             }
             else if (currentWidth == 0)
@@ -89,9 +94,9 @@ public static class StyledWordWrapper
                 {
                     currentLine.Append(segment);
                 }
-                currentWidth = word.Length;
+                currentWidth = wordWidth;
             }
-            else if (currentWidth + 1 + word.Length <= width)
+            else if (currentWidth + 1 + wordWidth <= width)
             {
                 // Word fits with space separator
                 currentLine.Append(" ");
@@ -99,7 +104,7 @@ public static class StyledWordWrapper
                 {
                     currentLine.Append(segment);
                 }
-                currentWidth = currentLine.Length;
+                currentWidth = currentLine.ColumnCount;
             }
             else
             {
@@ -110,7 +115,7 @@ public static class StyledWordWrapper
                 {
                     currentLine.Append(segment);
                 }
-                currentWidth = word.Length;
+                currentWidth = wordWidth;
             }
         }
 

@@ -391,15 +391,17 @@ public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode
             var actualY = y + _offsetY;
             if (actualY < 0 || actualY >= _parent.Height)
                 return;
+            var skipColumns = 0;
             if (x < 0)
             {
-                text = text[Math.Min(-x, text.Length)..];
+                skipColumns = -x;
                 x = 0;
             }
             if (x >= Width)
                 return;
-            if (x + text.Length > Width)
-                text = text[..(Width - x)];
+            text = DisplayWidth.SliceByColumns(text, skipColumns, Width - x);
+            if (string.IsNullOrEmpty(text))
+                return;
             _parent.WriteAt(x + _offsetX, actualY, text);
         }
 

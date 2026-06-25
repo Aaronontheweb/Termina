@@ -237,8 +237,10 @@ public sealed class CopyableTextNode : LayoutNode, IFocusable, IInvalidatingNode
 
         if (_showInlineIndicator && bounds.Width > 0 && lineCount > 0)
         {
-            var inlineText = InlineIndicatorText.Length > bounds.Width ? InlineIndicatorText[..bounds.Width] : InlineIndicatorText;
-            var indicatorX = Math.Max(0, bounds.Width - inlineText.Length);
+            var inlineText = DisplayWidth.GetColumnCount(InlineIndicatorText) > bounds.Width
+                ? DisplayWidth.TruncateToColumns(InlineIndicatorText, bounds.Width)
+                : InlineIndicatorText;
+            var indicatorX = Math.Max(0, bounds.Width - DisplayWidth.GetColumnCount(inlineText));
             nodeContext.SetForeground(InlineIndicatorForeground);
             nodeContext.WriteAt(indicatorX, 0, inlineText);
             nodeContext.ResetColors();
@@ -247,7 +249,9 @@ public sealed class CopyableTextNode : LayoutNode, IFocusable, IInvalidatingNode
         if (hasHint && bounds.Height > lineCount)
         {
             nodeContext.SetForeground(_hasFocus ? Color.BrightBlack : Color.Gray);
-            nodeContext.WriteAt(0, lineCount, Hint!.Length > bounds.Width ? Hint[..bounds.Width] : Hint);
+            nodeContext.WriteAt(0, lineCount, DisplayWidth.GetColumnCount(Hint!) > bounds.Width
+                ? DisplayWidth.TruncateToColumns(Hint!, bounds.Width)
+                : Hint!);
             nodeContext.ResetColors();
         }
     }

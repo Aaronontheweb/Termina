@@ -511,7 +511,9 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
 
         if (text.Length > 0)
         {
-            context.WriteAt(bounds.X, bounds.Y, text.Length > bounds.Width ? text[..bounds.Width] : text);
+            context.WriteAt(bounds.X, bounds.Y, DisplayWidth.GetColumnCount(text) > bounds.Width
+                ? DisplayWidth.TruncateToColumns(text, bounds.Width)
+                : text);
         }
     }
 
@@ -540,7 +542,7 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
             parts.Add(i == _currentStepIndex ? $"[{name}]" : name);
         }
         var text = string.Join(" > ", parts);
-        return text.Length > width ? text[..width] : text;
+        return DisplayWidth.GetColumnCount(text) > width ? DisplayWidth.TruncateToColumns(text, width) : text;
     }
 
     private string RenderDots(int width)
@@ -553,7 +555,7 @@ public sealed class WizardNode<TStep> : LayoutNode, IFocusable, IInvalidatingNod
         var dots = string.Join(" ", parts);
         var label = $" {_steps[_currentStepIndex].DisplayName}";
         var text = dots + label;
-        return text.Length > width ? text[..width] : text;
+        return DisplayWidth.GetColumnCount(text) > width ? DisplayWidth.TruncateToColumns(text, width) : text;
     }
 
     private void RenderBorder(IRenderContext context, Rect bounds)

@@ -44,17 +44,17 @@ public sealed class RegionRenderContext : IRenderContext
         if (y < 0 || y >= Height || x >= Width)
             return;
 
-        // Clip text to fit within region
+        // Clip text to fit within region by terminal columns.
         var startX = Math.Max(0, x);
-        var skipChars = startX - x;
+        var skipColumns = startX - x;
         var availableWidth = Width - startX;
 
-        if (skipChars >= text.Length || availableWidth <= 0)
+        if (availableWidth <= 0)
             return;
 
-        var clippedText = text.Substring(skipChars);
-        if (clippedText.Length > availableWidth)
-            clippedText = clippedText.Substring(0, availableWidth);
+        var clippedText = DisplayWidth.SliceByColumns(text, skipColumns, availableWidth);
+        if (string.IsNullOrEmpty(clippedText))
+            return;
 
         _terminal.MoveTo(_offsetX + startX, _offsetY + y);
         _terminal.Write(clippedText);

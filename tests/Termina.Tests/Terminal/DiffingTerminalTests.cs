@@ -52,6 +52,21 @@ public class DiffingTerminalTests
     }
 
     [Fact]
+    public void Flush_AdvancesByDisplayColumnsForCjk()
+    {
+        var inner = new VirtualTerminal(80, 24);
+        var diffing = new DiffingTerminal(inner);
+
+        diffing.MoveTo(0, 0);
+        diffing.Write("你A");
+        diffing.Flush();
+
+        Assert.Equal('你', inner.GetChar(0, 0));
+        Assert.Equal(' ', inner.GetChar(1, 0));
+        Assert.Equal('A', inner.GetChar(2, 0));
+    }
+
+    [Fact]
     public void ClearScreen_DoesNotEmitAnsiClear()
     {
         var inner = new VirtualTerminal(80, 24);

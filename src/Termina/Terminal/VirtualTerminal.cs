@@ -12,6 +12,7 @@ namespace Termina.Terminal;
 public sealed class VirtualTerminal : IAnsiTerminal
 {
     private readonly char[,] _buffer;
+    private readonly bool[,] _continuation;
     private readonly Color[,] _foreground;
     private readonly Color[,] _background;
     private readonly List<string> _rawOutput = new();
@@ -31,6 +32,7 @@ public sealed class VirtualTerminal : IAnsiTerminal
         Width = width;
         Height = height;
         _buffer = new char[height, width];
+        _continuation = new bool[height, width];
         _foreground = new Color[height, width];
         _background = new Color[height, width];
         Clear();
@@ -88,9 +90,12 @@ public sealed class VirtualTerminal : IAnsiTerminal
     public void Write(string text)
     {
         _rawOutput.Add(text);
-        foreach (var c in text)
+        if (text.Contains('\u001b'))
+            return;
+
+        foreach (var cell in DisplayWidth.EnumerateCells(text))
         {
-            WriteChar(c);
+            WriteTextElement(cell.Text, cell.ColumnWidth);
         }
     }
 
@@ -98,12 +103,12 @@ public sealed class VirtualTerminal : IAnsiTerminal
     public void Write(char c)
     {
         _rawOutput.Add(c.ToString());
-        WriteChar(c);
+        WriteTextElement(c.ToString(), DisplayWidth.GetColumnCount(c));
     }
 
-    private void WriteChar(char c)
+    private void WriteTextElement(string text, int columnWidth)
     {
-        if (c == '\n')
+        if (text == "\n")
         {
             _cursorX = 0;
             _cursorY++;
@@ -115,18 +120,52 @@ public sealed class VirtualTerminal : IAnsiTerminal
             return;
         }
 
-        if (c == '\r')
+        if (text == "\r")
         {
             _cursorX = 0;
             return;
         }
 
+        if (text == "\t")
+        {
+            var nextTab = ((_cursorX / 8) + 1) * 8;
+            while (_cursorX < nextTab && _cursorX < Width)
+                WriteTextElement(" ", 1);
+            return;
+        }
+
+        if (columnWidth <= 0)
+            return;
+
+        if (_cursorX + columnWidth > Width)
+        {
+            _cursorX = 0;
+            _cursorY++;
+            if (_cursorY >= Height)
+            {
+                _cursorY = Height - 1;
+                return;
+            }
+        }
+
         if (_cursorX < Width && _cursorY < Height)
         {
-            _buffer[_cursorY, _cursorX] = c;
+            ClearWideCellAt(_cursorX, _cursorY);
+
+            _buffer[_cursorY, _cursorX] = text[0];
+            _continuation[_cursorY, _cursorX] = false;
             _foreground[_cursorY, _cursorX] = _currentForeground;
             _background[_cursorY, _cursorX] = _currentBackground;
-            _cursorX++;
+
+            if (columnWidth == 2 && _cursorX + 1 < Width)
+            {
+                _buffer[_cursorY, _cursorX + 1] = ' ';
+                _continuation[_cursorY, _cursorX + 1] = true;
+                _foreground[_cursorY, _cursorX + 1] = _currentForeground;
+                _background[_cursorY, _cursorX + 1] = _currentBackground;
+            }
+
+            _cursorX += columnWidth;
 
             if (_cursorX >= Width)
             {
@@ -137,6 +176,25 @@ public sealed class VirtualTerminal : IAnsiTerminal
                     _cursorY = Height - 1;
                 }
             }
+        }
+    }
+
+    private void ClearWideCellAt(int x, int y)
+    {
+        if (x > 0 && _continuation[y, x])
+        {
+            _buffer[y, x - 1] = ' ';
+            _continuation[y, x - 1] = false;
+            _foreground[y, x - 1] = Color.Default;
+            _background[y, x - 1] = Color.Default;
+        }
+
+        if (x + 1 < Width && _continuation[y, x + 1])
+        {
+            _buffer[y, x + 1] = ' ';
+            _continuation[y, x + 1] = false;
+            _foreground[y, x + 1] = Color.Default;
+            _background[y, x + 1] = Color.Default;
         }
     }
 
@@ -189,6 +247,7 @@ public sealed class VirtualTerminal : IAnsiTerminal
                 if (row >= 0 && col >= 0)
                 {
                     _buffer[row, col] = ' ';
+                    _continuation[row, col] = false;
                     _foreground[row, col] = Color.Default;
                     _background[row, col] = Color.Default;
                 }
@@ -261,6 +320,7 @@ public sealed class VirtualTerminal : IAnsiTerminal
             for (var x = 0; x < Width; x++)
             {
                 _buffer[y, x] = ' ';
+                _continuation[y, x] = false;
                 _foreground[y, x] = Color.Default;
                 _background[y, x] = Color.Default;
             }
@@ -352,6 +412,8 @@ public sealed class VirtualTerminal : IAnsiTerminal
         var sb = new StringBuilder(Width);
         for (var x = 0; x < Width; x++)
         {
+            if (_continuation[y, x])
+                continue;
             sb.Append(_buffer[y, x]);
         }
         return sb.ToString().TrimEnd();
@@ -370,6 +432,8 @@ public sealed class VirtualTerminal : IAnsiTerminal
             {
                 if (row >= 0 && col >= 0)
                 {
+                    if (_continuation[row, col])
+                        continue;
                     sb.Append(_buffer[row, col]);
                 }
             }

@@ -76,6 +76,13 @@ public class CjkDisplayWidthTests
         Assert.Equal(2, DisplayWidth.GetColumnCount("😀"));
     }
 
+    [Fact]
+    public void GetColumnCount_HalfwidthKatakana_Returns1()
+    {
+        // ｱ = U+FF71 (Halfwidth Katakana Letter A)
+        Assert.Equal(1, DisplayWidth.GetColumnCount("ｱ"));
+    }
+
     // ===== DisplayWidth.TruncateToColumns tests =====
 
     [Fact]
@@ -119,6 +126,13 @@ public class CjkDisplayWidthTests
     public void TruncateToColumns_NegativeMaxColumns_ReturnsEmpty()
     {
         Assert.Equal("", DisplayWidth.TruncateToColumns("Hello", -1));
+    }
+
+    [Fact]
+    public void TruncateToColumns_Emoji_DoesNotSplitSurrogatePair()
+    {
+        Assert.Equal("", DisplayWidth.TruncateToColumns("😀A", 1));
+        Assert.Equal("😀", DisplayWidth.TruncateToColumns("😀A", 2));
     }
 
     // ===== DisplayWidth.CursorPositionToColumn tests =====

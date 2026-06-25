@@ -88,6 +88,11 @@ public sealed class StyledLine
     public int Length => _length;
 
     /// <summary>
+    /// Total terminal display columns occupied by the line.
+    /// </summary>
+    public int ColumnCount => _segments.Sum(segment => DisplayWidth.GetColumnCount(segment.Text));
+
+    /// <summary>
     /// Returns true if the line has no content.
     /// </summary>
     public bool IsEmpty => _length == 0;
@@ -225,6 +230,47 @@ public sealed class StyledLine
             return new StyledLine();
 
         return Substring(startIndex, _length - startIndex);
+    }
+
+    /// <summary>
+    /// Extracts a column-based slice while preserving styling across segment boundaries.
+    /// </summary>
+    public StyledLine SliceByColumns(int startColumn, int maxColumns)
+    {
+        if (startColumn < 0)
+            throw new ArgumentOutOfRangeException(nameof(startColumn), "Start column cannot be negative.");
+        if (maxColumns < 0)
+            throw new ArgumentOutOfRangeException(nameof(maxColumns), "Column length cannot be negative.");
+        if (maxColumns == 0)
+            return new StyledLine();
+
+        var result = new StyledLine();
+        var currentColumn = 0;
+        var taken = 0;
+
+        foreach (var segment in _segments)
+        {
+            var segmentColumns = DisplayWidth.GetColumnCount(segment.Text);
+            if (currentColumn + segmentColumns <= startColumn)
+            {
+                currentColumn += segmentColumns;
+                continue;
+            }
+
+            var localStart = Math.Max(0, startColumn - currentColumn);
+            var localText = DisplayWidth.SliceByColumns(segment.Text, localStart, maxColumns - taken);
+            if (!string.IsNullOrEmpty(localText))
+            {
+                result.AppendInternal(new StyledSegment(localText, segment.Style));
+                taken += DisplayWidth.GetColumnCount(localText);
+                if (taken >= maxColumns)
+                    break;
+            }
+
+            currentColumn += segmentColumns;
+        }
+
+        return result;
     }
 
     /// <summary>

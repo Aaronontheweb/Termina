@@ -1,3 +1,5 @@
+using Termina.Terminal;
+
 namespace Termina.Components.Streaming;
 
 /// <summary>
@@ -22,7 +24,7 @@ public static class WordWrapper
         var result = new List<string>();
 
         // Handle text that's shorter than width
-        if (text.Length <= width)
+        if (DisplayWidth.GetColumnCount(text) <= width)
         {
             result.Add(text);
             return result;
@@ -33,8 +35,10 @@ public static class WordWrapper
 
         foreach (var word in words)
         {
+            var wordWidth = DisplayWidth.GetColumnCount(word);
+
             // If word itself is longer than width, break it
-            if (word.Length > width)
+            if (wordWidth > width)
             {
                 // Flush current line if it has content
                 if (currentLine.Length > 0)
@@ -44,17 +48,20 @@ public static class WordWrapper
                 }
 
                 // Break long word into chunks
-                for (var i = 0; i < word.Length; i += width)
+                var remaining = word;
+                while (DisplayWidth.GetColumnCount(remaining) > width)
                 {
-                    var chunk = word.Substring(i, Math.Min(width, word.Length - i));
-                    if (chunk.Length == width)
-                    {
-                        result.Add(chunk);
-                    }
-                    else
-                    {
-                        currentLine.Append(chunk);
-                    }
+                    var chunk = DisplayWidth.TruncateToColumns(remaining, width);
+                    if (chunk.Length == 0)
+                        break;
+
+                    result.Add(chunk);
+                    remaining = remaining[chunk.Length..];
+                }
+
+                if (remaining.Length > 0)
+                {
+                    currentLine.Append(remaining);
                 }
             }
             else if (currentLine.Length == 0)
@@ -62,7 +69,7 @@ public static class WordWrapper
                 // Start of line
                 currentLine.Append(word);
             }
-            else if (currentLine.Length + 1 + word.Length <= width)
+            else if (DisplayWidth.GetColumnCount(currentLine.ToString()) + 1 + wordWidth <= width)
             {
                 // Word fits with space
                 currentLine.Append(' ');
