@@ -202,9 +202,9 @@ public sealed class ScrollableContent : IRenderable, IDisposable
                 var lineIndex = y + ScrollOffset;
                 var line = _lines[lineIndex];
 
-                // Truncate if needed
-                if (line.Length > contentWidth)
-                    line = line[..contentWidth];
+                // Truncate if needed by display column count
+                if (DisplayWidth.GetColumnCount(line) > contentWidth)
+                    line = DisplayWidth.TruncateToColumns(line, contentWidth);
 
                 context.WriteAt(0, y, line);
             }
@@ -233,8 +233,9 @@ public sealed class ScrollableContent : IRenderable, IDisposable
         var maxWidth = 0;
         foreach (var line in _lines)
         {
-            if (line.Length > maxWidth)
-                maxWidth = line.Length;
+            var colCount = DisplayWidth.GetColumnCount(line);
+            if (colCount > maxWidth)
+                maxWidth = colCount;
         }
 
         if (ShowScrollbar)
