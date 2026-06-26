@@ -77,6 +77,24 @@ public class CjkDisplayWidthTests
     }
 
     [Fact]
+    public void GetColumnCount_BareCheckMark_Returns1()
+    {
+        Assert.Equal(1, DisplayWidth.GetColumnCount("✓"));
+    }
+
+    [Fact]
+    public void GetColumnCount_KeycapEmoji_Returns2()
+    {
+        Assert.Equal(2, DisplayWidth.GetColumnCount("1️⃣"));
+    }
+
+    [Fact]
+    public void GetColumnCount_EmojiPresentationSequence_Returns2()
+    {
+        Assert.Equal(2, DisplayWidth.GetColumnCount("☀️"));
+    }
+
+    [Fact]
     public void GetColumnCount_HalfwidthKatakana_Returns1()
     {
         // ｱ = U+FF71 (Halfwidth Katakana Letter A)

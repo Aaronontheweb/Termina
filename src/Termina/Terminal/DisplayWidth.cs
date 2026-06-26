@@ -315,16 +315,29 @@ public static class DisplayWidth
 
     private static int GetTextElementWidth(string element)
     {
+        var hasEmojiPresentationSelector = false;
+        var hasEmojiCandidate = false;
+        var hasKeycap = false;
         var width = 0;
         var sawWideOrEmoji = false;
 
         foreach (var rune in element.EnumerateRunes())
         {
+            if (rune.Value == 0xFE0F)
+                hasEmojiPresentationSelector = true;
+            if (rune.Value == 0x20E3)
+                hasKeycap = true;
+            if (IsEmojiCandidate(rune))
+                hasEmojiCandidate = true;
+
             var runeWidth = GetRuneWidth(rune);
             if (runeWidth >= 2)
                 sawWideOrEmoji = true;
             width += runeWidth;
         }
+
+        if (hasKeycap || (hasEmojiPresentationSelector && hasEmojiCandidate))
+            return 2;
 
         return sawWideOrEmoji ? 2 : width;
     }
@@ -339,7 +352,7 @@ public static class DisplayWidth
             or UnicodeCategory.Surrogate)
             return 0;
 
-        return IsWideOrFullwidth(rune) ? 2 : 1;
+        return IsWideOrFullwidth(rune) || IsDefaultEmojiPresentation(rune) ? 2 : 1;
     }
 
     private static bool IsWideOrFullwidth(Rune rune)
@@ -358,11 +371,47 @@ public static class DisplayWidth
         if (code >= 0xFFE0 && code <= 0xFFE6) return true;
         if (code >= 0x20000 && code <= 0x3FFFD) return true; // CJK extensions
 
-        // Emoji and pictographic symbols are rendered as two terminal columns by common terminals.
-        if (code >= 0x1F000 && code <= 0x1FAFF) return true;
-        if (code >= 0x2600 && code <= 0x27BF) return true;
-
         return false;
+    }
+
+    private static bool IsEmojiCandidate(Rune rune)
+    {
+        var code = rune.Value;
+        return code is 0x00A9 or 0x00AE or 0x203C or 0x2049 or 0x2122 or 0x2139
+            || (code >= 0x2194 && code <= 0x21AA)
+            || (code >= 0x2300 && code <= 0x23FF)
+            || (code >= 0x2460 && code <= 0x24FF)
+            || (code >= 0x25A0 && code <= 0x27BF)
+            || (code >= 0x2900 && code <= 0x297F)
+            || (code >= 0x2B00 && code <= 0x2BFF)
+            || code is 0x3030 or 0x303D or 0x3297 or 0x3299
+            || (code >= 0x1F000 && code <= 0x1FAFF);
+    }
+
+    private static bool IsDefaultEmojiPresentation(Rune rune)
+    {
+        var code = rune.Value;
+        if (code >= 0x1F000 && code <= 0x1FAFF) return true;
+
+        return code is 0x231A or 0x231B
+            || (code >= 0x23E9 && code <= 0x23EC)
+            || code is 0x23F0 or 0x23F3
+            || (code >= 0x25FD && code <= 0x25FE)
+            || code is 0x2614 or 0x2615
+            || (code >= 0x2648 && code <= 0x2653)
+            || code is 0x267F or 0x2693 or 0x26A1
+            || (code >= 0x26AA && code <= 0x26AB)
+            || (code >= 0x26BD && code <= 0x26BE)
+            || (code >= 0x26C4 && code <= 0x26C5)
+            || code is 0x26CE or 0x26D4 or 0x26EA
+            || (code >= 0x26F2 && code <= 0x26F3)
+            || code is 0x26F5 or 0x26FA or 0x26FD or 0x2705
+            || (code >= 0x270A && code <= 0x270B)
+            || code is 0x2728 or 0x274C or 0x274E
+            || (code >= 0x2753 && code <= 0x2755)
+            || code is 0x2757
+            || (code >= 0x2795 && code <= 0x2797)
+            || code is 0x27B0 or 0x27BF or 0x2B1B or 0x2B1C or 0x2B50 or 0x2B55;
     }
 
     private static int SkipEscapeSequence(string text, int escapeIndex)

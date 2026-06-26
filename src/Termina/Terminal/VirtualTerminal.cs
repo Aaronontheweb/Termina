@@ -11,10 +11,11 @@ namespace Termina.Terminal;
 /// </summary>
 public sealed class VirtualTerminal : IAnsiTerminal
 {
-    private readonly char[,] _buffer;
-    private readonly bool[,] _continuation;
-    private readonly Color[,] _foreground;
-    private readonly Color[,] _background;
+    private char[,] _buffer;
+    private string[,] _textBuffer;
+    private bool[,] _continuation;
+    private Color[,] _foreground;
+    private Color[,] _background;
     private readonly List<string> _rawOutput = new();
 
     private int _cursorX;
@@ -32,6 +33,7 @@ public sealed class VirtualTerminal : IAnsiTerminal
         Width = width;
         Height = height;
         _buffer = new char[height, width];
+        _textBuffer = new string[height, width];
         _continuation = new bool[height, width];
         _foreground = new Color[height, width];
         _background = new Color[height, width];
@@ -153,6 +155,7 @@ public sealed class VirtualTerminal : IAnsiTerminal
             ClearWideCellAt(_cursorX, _cursorY);
 
             _buffer[_cursorY, _cursorX] = text[0];
+            _textBuffer[_cursorY, _cursorX] = text;
             _continuation[_cursorY, _cursorX] = false;
             _foreground[_cursorY, _cursorX] = _currentForeground;
             _background[_cursorY, _cursorX] = _currentBackground;
@@ -160,6 +163,7 @@ public sealed class VirtualTerminal : IAnsiTerminal
             if (columnWidth == 2 && _cursorX + 1 < Width)
             {
                 _buffer[_cursorY, _cursorX + 1] = ' ';
+                _textBuffer[_cursorY, _cursorX + 1] = " ";
                 _continuation[_cursorY, _cursorX + 1] = true;
                 _foreground[_cursorY, _cursorX + 1] = _currentForeground;
                 _background[_cursorY, _cursorX + 1] = _currentBackground;
@@ -184,6 +188,7 @@ public sealed class VirtualTerminal : IAnsiTerminal
         if (x > 0 && _continuation[y, x])
         {
             _buffer[y, x - 1] = ' ';
+            _textBuffer[y, x - 1] = " ";
             _continuation[y, x - 1] = false;
             _foreground[y, x - 1] = Color.Default;
             _background[y, x - 1] = Color.Default;
@@ -192,6 +197,7 @@ public sealed class VirtualTerminal : IAnsiTerminal
         if (x + 1 < Width && _continuation[y, x + 1])
         {
             _buffer[y, x + 1] = ' ';
+            _textBuffer[y, x + 1] = " ";
             _continuation[y, x + 1] = false;
             _foreground[y, x + 1] = Color.Default;
             _background[y, x + 1] = Color.Default;
@@ -247,6 +253,7 @@ public sealed class VirtualTerminal : IAnsiTerminal
                 if (row >= 0 && col >= 0)
                 {
                     _buffer[row, col] = ' ';
+                    _textBuffer[row, col] = " ";
                     _continuation[row, col] = false;
                     _foreground[row, col] = Color.Default;
                     _background[row, col] = Color.Default;
@@ -320,6 +327,7 @@ public sealed class VirtualTerminal : IAnsiTerminal
             for (var x = 0; x < Width; x++)
             {
                 _buffer[y, x] = ' ';
+                _textBuffer[y, x] = " ";
                 _continuation[y, x] = false;
                 _foreground[y, x] = Color.Default;
                 _background[y, x] = Color.Default;
@@ -333,6 +341,8 @@ public sealed class VirtualTerminal : IAnsiTerminal
     public void Resize(int newWidth, int newHeight)
     {
         var newBuffer = new char[newHeight, newWidth];
+        var newTextBuffer = new string[newHeight, newWidth];
+        var newContinuation = new bool[newHeight, newWidth];
         var newForeground = new Color[newHeight, newWidth];
         var newBackground = new Color[newHeight, newWidth];
 
@@ -342,6 +352,8 @@ public sealed class VirtualTerminal : IAnsiTerminal
             for (var x = 0; x < newWidth; x++)
             {
                 newBuffer[y, x] = ' ';
+                newTextBuffer[y, x] = " ";
+                newContinuation[y, x] = false;
                 newForeground[y, x] = Color.Default;
                 newBackground[y, x] = Color.Default;
             }
@@ -355,12 +367,20 @@ public sealed class VirtualTerminal : IAnsiTerminal
             for (var x = 0; x < copyWidth; x++)
             {
                 newBuffer[y, x] = _buffer[y, x];
+                newTextBuffer[y, x] = _textBuffer[y, x];
+                newContinuation[y, x] = _continuation[y, x];
                 newForeground[y, x] = _foreground[y, x];
                 newBackground[y, x] = _background[y, x];
             }
         }
 
-        // Update dimensions (can't reassign readonly arrays, so we copy reference)
+        _buffer = newBuffer;
+        _textBuffer = newTextBuffer;
+        _continuation = newContinuation;
+        _foreground = newForeground;
+        _background = newBackground;
+
+        // Update dimensions.
         Width = newWidth;
         Height = newHeight;
 
@@ -414,7 +434,7 @@ public sealed class VirtualTerminal : IAnsiTerminal
         {
             if (_continuation[y, x])
                 continue;
-            sb.Append(_buffer[y, x]);
+            sb.Append(_textBuffer[y, x]);
         }
         return sb.ToString().TrimEnd();
     }
@@ -434,7 +454,7 @@ public sealed class VirtualTerminal : IAnsiTerminal
                 {
                     if (_continuation[row, col])
                         continue;
-                    sb.Append(_buffer[row, col]);
+                    sb.Append(_textBuffer[row, col]);
                 }
             }
         }
