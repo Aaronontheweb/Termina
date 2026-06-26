@@ -23,7 +23,7 @@ public sealed class TextAreaNode : TextInputBaseNode
     private int _maxLines;
     private bool _wordWrap = true;
 
-    private record struct WrappedLine(int TextStartIndex, int Length);
+    private record struct WrappedLine(int TextStartIndex, int Length, int ColumnCount);
 
     public TextAreaNode(int cursorBlinkMs = 530)
         : base(cursorBlinkMs)
@@ -186,8 +186,9 @@ public sealed class TextAreaNode : TextInputBaseNode
         if (row == 0)
             return true; // At top — consume the key
 
-        var targetCol = Math.Min(col, lines[row - 1].Length);
-        var targetDisplayPos = lines[row - 1].TextStartIndex + targetCol;
+        var previousLine = lines[row - 1];
+        var targetCol = Math.Min(col, previousLine.ColumnCount);
+        var targetDisplayPos = previousLine.TextStartIndex + GetCharIndexForColumn(previousLine, targetCol);
         _cursorPosition = DisplayToTextPosition(targetDisplayPos);
         _selectionStart = -1;
         return true;
@@ -206,8 +207,9 @@ public sealed class TextAreaNode : TextInputBaseNode
         if (row >= lines.Count - 1)
             return true; // At bottom — consume the key
 
-        var targetCol = Math.Min(col, lines[row + 1].Length);
-        var targetDisplayPos = lines[row + 1].TextStartIndex + targetCol;
+        var nextLine = lines[row + 1];
+        var targetCol = Math.Min(col, nextLine.ColumnCount);
+        var targetDisplayPos = nextLine.TextStartIndex + GetCharIndexForColumn(nextLine, targetCol);
         _cursorPosition = DisplayToTextPosition(targetDisplayPos);
         _selectionStart = -1;
         return true;
@@ -287,8 +289,8 @@ public sealed class TextAreaNode : TextInputBaseNode
     /// <inheritdoc />
     public override Size Measure(Size available)
     {
-        var prefixWidth = CommittedDisplayPrefix.Length;
-        var width = WidthConstraint.Compute(available.Width, prefixWidth + _text.Length + 1, available.Width);
+        var prefixWidth = DisplayWidth.GetColumnCount(CommittedDisplayPrefix);
+        var width = WidthConstraint.Compute(available.Width, prefixWidth + DisplayWidth.GetColumnCount(_text) + 1, available.Width);
         _lastKnownWidth = width;
 
         var lines = GetWrappedLines(width);
@@ -321,8 +323,8 @@ public sealed class TextAreaNode : TextInputBaseNode
         if (fullDisplayText.Length == 0 && !string.IsNullOrEmpty(Placeholder))
         {
             inputContext.SetForeground(PlaceholderColor);
-            var placeholder = Placeholder.Length > bounds.Width
-                ? Placeholder[..bounds.Width]
+            var placeholder = DisplayWidth.GetColumnCount(Placeholder) > bounds.Width
+                ? DisplayWidth.TruncateToColumns(Placeholder, bounds.Width)
                 : Placeholder;
             inputContext.WriteAt(0, 0, placeholder);
             inputContext.ResetColors();
@@ -336,7 +338,7 @@ public sealed class TextAreaNode : TextInputBaseNode
             return;
         }
 
-        // Cursor position in display coordinates
+        // Cursor position in display-text character coordinates
         var displayCursor = prefixLen + _cursorPosition;
         var (cursorRow, cursorCol) = GetVisualPosition(displayCursor, lines);
         EnsureCursorVisible(cursorRow, bounds.Height);
@@ -367,14 +369,17 @@ public sealed class TextAreaNode : TextInputBaseNode
                 break;
 
             var line = lines[lineIndex];
+            var lineText = fullDisplayText.Substring(line.TextStartIndex, line.Length);
+            var column = 0;
 
-            for (var col = 0; col < line.Length && col < bounds.Width; col++)
+            foreach (var cell in DisplayWidth.EnumerateCells(lineText))
             {
-                var displayIndex = line.TextStartIndex + col;
-                if (displayIndex >= fullDisplayText.Length)
+                if (column + cell.ColumnWidth > bounds.Width)
                     break;
 
-                var ch = fullDisplayText[displayIndex];
+                var displayIndex = line.TextStartIndex + cell.StartIndex;
+                if (displayIndex >= fullDisplayText.Length)
+                    break;
 
                 inputContext.ResetColors();
 
@@ -412,7 +417,8 @@ public sealed class TextAreaNode : TextInputBaseNode
                         inputContext.SetForeground(Foreground.Value);
                 }
 
-                inputContext.WriteAt(col, row, ch);
+                inputContext.WriteAt(column, row, cell.Text);
+                column += cell.ColumnWidth;
             }
         }
 
@@ -428,20 +434,20 @@ public sealed class TextAreaNode : TextInputBaseNode
                 inputContext.SetBackground(CursorColor);
                 inputContext.SetForeground(Background ?? Color.Black);
 
-                char cursorChar;
+                string cursorText;
                 if (cursorRow < lines.Count)
                 {
-                    var cursorDisplayIndex = lines[cursorRow].TextStartIndex + cursorCol;
-                    cursorChar = cursorDisplayIndex < fullDisplayText.Length
-                        ? fullDisplayText[cursorDisplayIndex]
-                        : ' ';
+                    var cursorDisplayIndex = lines[cursorRow].TextStartIndex + GetCharIndexForColumn(lines[cursorRow], cursorCol);
+                    cursorText = cursorDisplayIndex < fullDisplayText.Length
+                        ? DisplayWidth.GetTextElementAt(fullDisplayText, cursorDisplayIndex)
+                        : " ";
                 }
                 else
                 {
-                    cursorChar = ' ';
+                    cursorText = " ";
                 }
 
-                inputContext.WriteAt(cursorCol, visibleCursorRow, cursorChar);
+                inputContext.WriteAt(cursorCol, visibleCursorRow, cursorText);
                 inputContext.ResetColors();
             }
         }
@@ -508,7 +514,7 @@ public sealed class TextAreaNode : TextInputBaseNode
 
         if (fullText.Length == 0)
         {
-            result.Add(new WrappedLine(0, 0));
+            result.Add(new WrappedLine(0, 0, 0));
             return result;
         }
 
@@ -519,10 +525,12 @@ public sealed class TextAreaNode : TextInputBaseNode
             if (i == fullText.Length || fullText[i] == '\n')
             {
                 var logicalLineLength = i - lineStart;
+                var logicalLine = fullText.Substring(lineStart, logicalLineLength);
+                var logicalLineWidth = DisplayWidth.GetColumnCount(logicalLine);
 
-                if (!_wordWrap || logicalLineLength <= width)
+                if (!_wordWrap || logicalLineWidth <= width)
                 {
-                    result.Add(new WrappedLine(lineStart, logicalLineLength));
+                    result.Add(new WrappedLine(lineStart, logicalLineLength, logicalLineWidth));
                 }
                 else
                 {
@@ -550,15 +558,20 @@ public sealed class TextAreaNode : TextInputBaseNode
 
         while (pos < end)
         {
-            var remaining = end - pos;
-            if (remaining <= width)
+            var remainingText = text[pos..end];
+            var remainingWidth = DisplayWidth.GetColumnCount(remainingText);
+            if (remainingWidth <= width)
             {
-                result.Add(new WrappedLine(pos, remaining));
+                result.Add(new WrappedLine(pos, end - pos, remainingWidth));
                 break;
             }
 
             // Try to break at a word boundary
-            var breakPos = pos + width;
+            var breakOffset = DisplayWidth.GetStringIndexForColumnCount(remainingText, width);
+            if (breakOffset == 0)
+                breakOffset = DisplayWidth.EnumerateCells(remainingText).First().Length;
+
+            var breakPos = pos + breakOffset;
             var wordBreak = breakPos;
 
             while (wordBreak > pos && !char.IsWhiteSpace(text[wordBreak - 1]))
@@ -567,7 +580,9 @@ public sealed class TextAreaNode : TextInputBaseNode
             if (wordBreak == pos)
                 wordBreak = breakPos;
 
-            result.Add(new WrappedLine(pos, wordBreak - pos));
+            var wrappedLength = wordBreak - pos;
+            var wrappedText = text.Substring(pos, wrappedLength);
+            result.Add(new WrappedLine(pos, wrappedLength, DisplayWidth.GetColumnCount(wrappedText)));
             pos = wordBreak;
 
             // Skip leading whitespace on the new line
@@ -596,13 +611,24 @@ public sealed class TextAreaNode : TextInputBaseNode
                     && displayIndex == lines[i + 1].TextStartIndex)
                     continue;
 
-                return (i, displayIndex - line.TextStartIndex);
+                var lineText = GetFullDisplayText().Substring(line.TextStartIndex, line.Length);
+                var charOffset = Math.Clamp(displayIndex - line.TextStartIndex, 0, line.Length);
+                return (i, DisplayWidth.CursorPositionToColumn(lineText, charOffset));
             }
         }
 
         // Past the end — cursor at end of last line
         var lastLine = lines[^1];
-        return (lines.Count - 1, lastLine.Length);
+        return (lines.Count - 1, lastLine.ColumnCount);
+    }
+
+    private int GetCharIndexForColumn(WrappedLine line, int column)
+    {
+        if (line.Length == 0 || column <= 0)
+            return 0;
+
+        var lineText = GetFullDisplayText().Substring(line.TextStartIndex, line.Length);
+        return DisplayWidth.GetStringIndexForColumnCount(lineText, column);
     }
 
     private void EnsureCursorVisible(int cursorRow, int viewportHeight)

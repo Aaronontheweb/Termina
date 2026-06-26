@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Termina.Layout;
+using Termina.Input;
 
 using R3;
 namespace Termina.Tests.Layout;
@@ -135,6 +136,30 @@ public class TextInputNodeTests : IDisposable
         _node.HandleInput(new ConsoleKeyInfo('X', (ConsoleKey)0, false, false, false));
 
         Assert.Equal("heXllo", _node.Text);
+    }
+
+    [Fact]
+    public void HandleInput_RightArrow_SkipsWholeEmojiTextElement()
+    {
+        _node.HandlePaste(new PasteEvent("😀A"));
+        _node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.Home, false, false, false));
+        _node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, false, false, false));
+
+        _node.HandleInput(new ConsoleKeyInfo('X', (ConsoleKey)0, false, false, false));
+
+        Assert.Equal("😀XA", _node.Text);
+    }
+
+    [Fact]
+    public void HandleInput_Backspace_DeletesWholeEmojiTextElement()
+    {
+        _node.HandlePaste(new PasteEvent("😀A"));
+        _node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.Home, false, false, false));
+        _node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, false, false, false));
+
+        _node.HandleInput(new ConsoleKeyInfo('\b', ConsoleKey.Backspace, false, false, false));
+
+        Assert.Equal("A", _node.Text);
     }
 
     [Fact]

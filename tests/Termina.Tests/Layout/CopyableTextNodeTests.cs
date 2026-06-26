@@ -128,6 +128,35 @@ public class CopyableTextNodeTests
     }
 
     [Fact]
+    public void Render_CjkContent_WrapsAndPositionsByDisplayColumns()
+    {
+        var clipboard = new TestClipboardService();
+        var node = new CopyableTextNode(clipboard, "你好世界");
+        var terminal = new VirtualTerminal(10, 3);
+        var context = new RegionRenderContext(terminal, 0, 0, 10, 3);
+
+        node.Render(context, new Rect(0, 0, 4, 3));
+
+        Assert.Equal("你好", terminal.GetLine(0));
+        Assert.Equal("世界", terminal.GetLine(1));
+        Assert.Equal('你', terminal.GetChar(0, 0));
+        Assert.Equal('好', terminal.GetChar(2, 0));
+    }
+
+    [Fact]
+    public void CopySelection_EmojiSelection_UsesWholeTextElement()
+    {
+        var clipboard = new TestClipboardService();
+        var node = new CopyableTextNode(clipboard, "😀A");
+
+        node.OnFocused();
+        node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, true, false, false));
+        node.HandleInput(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false));
+
+        Assert.Equal("😀", clipboard.LastCopiedText);
+    }
+
+    [Fact]
     public void CustomCopyBinding_TriggersCopy()
     {
         var clipboard = new TestClipboardService();

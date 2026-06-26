@@ -642,7 +642,7 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode, IScrollab
         // Create a sub-context so coordinates are relative to this node's bounds
         var streamContext = context.CreateSubContext(bounds);
 
-        var prefixLen = Prefix?.Length ?? 0;
+        var prefixLen = string.IsNullOrEmpty(Prefix) ? 0 : DisplayWidth.GetColumnCount(Prefix);
         var scrollbarWidth = ShouldDrawScrollbar(bounds) ? 1 : 0;
         var contentWidth = bounds.Width - prefixLen - scrollbarWidth;
         if (contentWidth <= 0)
@@ -682,8 +682,8 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode, IScrollab
                 if (availableWidth <= 0)
                     break;
 
-                if (text.Length > availableWidth)
-                    text = text[..availableWidth];
+                if (DisplayWidth.GetColumnCount(text) > availableWidth)
+                    text = DisplayWidth.TruncateToColumns(text, availableWidth);
 
                 // Determine effective style (segment style with node-level fallback)
                 var effectiveStyle = GetEffectiveStyle(segment.Style);
@@ -697,7 +697,7 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode, IScrollab
                 }
 
                 streamContext.WriteAt(x, i, text);
-                x += text.Length;
+                x += DisplayWidth.GetColumnCount(text);
             }
         }
 
@@ -712,7 +712,7 @@ public sealed class StreamingTextNode : LayoutNode, IInvalidatingNode, IScrollab
         if (_scrollbarOptions == null || _buffer is not PersistedStreamBuffer persisted)
             return false;
 
-        var prefixLen = Prefix?.Length ?? 0;
+        var prefixLen = string.IsNullOrEmpty(Prefix) ? 0 : DisplayWidth.GetColumnCount(Prefix);
         var contentWidthWithScrollbar = bounds.Width - prefixLen - 1;
         if (contentWidthWithScrollbar <= 0)
             return false;

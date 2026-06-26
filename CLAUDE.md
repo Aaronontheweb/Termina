@@ -110,6 +110,20 @@ tableNode.SetCell(0, 1, new TextNode().WithContent(cell));
 
 This principle ensures all text-accepting components (TextNode, table cells, status bars, etc.) can display rich, multi-styled content without requiring specialized node types.
 
+### Terminal Display Width
+
+Termina renders to terminal cells, not UTF-16 characters. Any code that measures, clips, wraps, pads, scrolls, or positions text must use `DisplayWidth` instead of `string.Length`.
+
+- Use `DisplayWidth.GetColumnCount` for visual width
+- Use `DisplayWidth.EnumerateCells` when rendering text element by text element
+- Use `DisplayWidth.SliceByColumns`, `TruncateToColumns`, or `TruncateStartToColumns` for clipping and truncation
+- Use `DisplayWidth.CursorPositionToColumn` when converting source cursor indexes to screen columns
+- Use `DisplayWidth.GetTextElementAt` when drawing the glyph under a cursor
+- Do NOT use `Substring`, range slicing, `PadLeft`, `PadRight`, or `string.Length` for visual layout unless you have already converted the operation into display columns
+- ANSI styling must be terminal state or cell metadata; do not write raw ANSI escape sequences into diff buffers as printable text
+
+`string.Length` is still valid for source-text operations such as clipboard slicing, selection ranges, persisted values, and non-visual bounds checks. See `docs/concepts/unicode-terminal-width.md` for the full scope and non-goals.
+
 ## Testing Guidelines
 
 ### Deterministic Testing with FakeTimeProvider

@@ -113,6 +113,7 @@ export default defineConfig({
         { text: 'Routing', link: '/concepts/routing' },
         { text: 'Navigation', link: '/concepts/navigation' },
         { text: 'Input Handling', link: '/concepts/input-handling' },
+        { text: 'Unicode Terminal Width', link: '/concepts/unicode-terminal-width' },
         { text: 'Terminal Input Modes', link: '/concepts/terminal-input-modes' },
         { text: 'tmux Configuration', link: '/concepts/tmux-configuration' },
         { text: 'Dynamic Layouts', link: '/concepts/dynamic-layouts' },
