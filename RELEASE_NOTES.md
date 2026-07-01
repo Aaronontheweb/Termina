@@ -1,6 +1,6 @@
-# Release Notes — Termina 0.15.0-beta1
+# Release Notes — Termina 0.15.0
 
-**Release date:** 2026-06-26
+**Release date:** 2026-07-01
 
 ####
 

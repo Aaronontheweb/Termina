@@ -10,7 +10,7 @@
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <VersionPrefix>0.15.0-beta1</VersionPrefix>
+    <VersionPrefix>0.15.0</VersionPrefix>
     <PackageReleaseNotes>**Bug Fixes**
 
 - **Fixed CJK and Unicode display width handling** ([#321](https://github.com/Aaronontheweb/termina/pull/321))
