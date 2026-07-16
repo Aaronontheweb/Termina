@@ -240,6 +240,10 @@ public sealed class TextInputNode : TextInputBaseNode
     /// </summary>
     protected override void OnTextBufferChanged()
     {
-        // No-op for single-line — _scrollOffset is adjusted during Render
+        if (_text.Length == 0 || _cursorPosition == 0)
+        {
+            _scrollOffset = 0;
+        }
+        base.OnTextBufferChanged();
     }
 }
