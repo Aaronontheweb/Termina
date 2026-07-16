@@ -493,4 +493,34 @@ public class TextInputNodeTests : IDisposable
     {
         node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.DownArrow, false, false, false));
     }
+
+    [Fact]
+    public void ScrollOffset_ResetsToZero_AfterSubmitOrClear()
+    {
+        var scrollOffsetField = typeof(TextInputNode).GetField("_scrollOffset", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(scrollOffsetField);
+        
+        TypeText(_node, "test");
+        scrollOffsetField.SetValue(_node, 10);
+        
+        _node.HandleInput(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false));
+        
+        var scrollOffsetAfterSubmit = (int)scrollOffsetField.GetValue(_node)!;
+        Assert.Equal(0, scrollOffsetAfterSubmit);
+    }
+
+    [Fact]
+    public void ScrollOffset_ResetsToZero_AfterClear()
+    {
+        var scrollOffsetField = typeof(TextInputNode).GetField("_scrollOffset", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(scrollOffsetField);
+        
+        TypeText(_node, "test");
+        scrollOffsetField.SetValue(_node, 10);
+        
+        _node.Clear();
+        
+        var scrollOffsetAfterClear = (int)scrollOffsetField.GetValue(_node)!;
+        Assert.Equal(0, scrollOffsetAfterClear);
+    }
 }
