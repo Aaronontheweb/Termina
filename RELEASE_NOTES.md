@@ -1,3 +1,17 @@
+# Release Notes — Termina 0.15.1
+
+**Release date:** 2026-07-21
+
+####
+
+**Bug Fixes**
+
+- **Fixed horizontal scroll offset in TextInputNode** ([#331](https://github.com/Aaronontheweb/termina/pull/331))
+  - TextInputNode now correctly resets its horizontal scroll offset when text is submitted or cleared
+  - Fixes visual artifacts where the cursor would appear misaligned after clearing input
+
+####
+
 # Release Notes — Termina 0.15.0
 
 **Release date:** 2026-07-01
