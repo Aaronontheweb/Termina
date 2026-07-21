@@ -495,32 +495,52 @@ public class TextInputNodeTests : IDisposable
     }
 
     [Fact]
-    public void ScrollOffset_ResetsToZero_AfterSubmitOrClear()
+    public void ScrollOffset_ResetsToZero_AfterSubmit()
     {
-        var scrollOffsetField = typeof(TextInputNode).GetField("_scrollOffset", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        Assert.NotNull(scrollOffsetField);
-        
+        // Submit triggers OnTextBufferChanged with empty text and cursor 0, which should reset scroll offset.
+        SetScrollOffset(_node, 10);
         TypeText(_node, "test");
-        scrollOffsetField.SetValue(_node, 10);
-        
-        _node.HandleInput(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false));
-        
-        var scrollOffsetAfterSubmit = (int)scrollOffsetField.GetValue(_node)!;
-        Assert.Equal(0, scrollOffsetAfterSubmit);
+        PressEnter(_node);
+
+        Assert.Equal(0, GetScrollOffset(_node));
     }
 
     [Fact]
     public void ScrollOffset_ResetsToZero_AfterClear()
     {
-        var scrollOffsetField = typeof(TextInputNode).GetField("_scrollOffset", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        Assert.NotNull(scrollOffsetField);
-        
+        // Clear() explicitly resets scroll offset, and OnTextBufferChanged also does it as a safety net.
+        SetScrollOffset(_node, 10);
         TypeText(_node, "test");
-        scrollOffsetField.SetValue(_node, 10);
-        
         _node.Clear();
-        
-        var scrollOffsetAfterClear = (int)scrollOffsetField.GetValue(_node)!;
-        Assert.Equal(0, scrollOffsetAfterClear);
+
+        Assert.Equal(0, GetScrollOffset(_node));
+    }
+
+    [Fact]
+    public void ScrollOffset_Preserved_WhenTypingFromHomeWithTextNonEmpty()
+    {
+        // Home moves cursor to index 0 without changing text; typing after Home is normal editing.
+        // It should not zero out scroll offset.
+        TypeText(_node, "test");
+        SetScrollOffset(_node, 10);
+        _node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.Home, false, false, false));
+        TypeText(_node, "X");
+
+        Assert.Equal("Xtest", _node.Text);
+        Assert.Equal(10, GetScrollOffset(_node));
+    }
+
+    private static int GetScrollOffset(TextInputNode node)
+    {
+        var field = typeof(TextInputNode).GetField("_scrollOffset", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(field);
+        return (int)field.GetValue(node)!;
+    }
+
+    private static void SetScrollOffset(TextInputNode node, int value)
+    {
+        var field = typeof(TextInputNode).GetField("_scrollOffset", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(field);
+        field.SetValue(node, value);
     }
 }
