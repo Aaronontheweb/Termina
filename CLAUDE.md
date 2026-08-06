@@ -175,6 +175,51 @@ public void AnimationChangesFrame()
 }
 ```
 
+### Analyzer Rule Tests
+
+**Test each analyzer rule with two `TheoryData` buckets, in the Akka.Analyzers style.** Group the cases into a happy path and a sad path. Drive each bucket with one `[Theory]` runner. Use `TerminaVerifier<TAnalyzer>`.
+
+- `SuccessCases` — the happy path. Put correct code that must produce no diagnostic here.
+- `FailureCases` — the sad path. Put code that must produce the diagnostic here.
+- Mark the expected location with `{|#0:...|}` markup. Do NOT use manual line and column numbers. Match the markup with `.WithLocation(0)`.
+- Pass the message arguments as tuple values in `FailureCases`. Use `TheoryData<string, ...>`.
+- Add the shared framework type stubs as the first source of every case.
+- Write a short comment above each case that states its purpose.
+
+**Structure:**
+```csharp
+public sealed class MyAnalyzerTests
+{
+    private const string TerminaFrameworkSource = """ /* type stubs */ """;
+
+    public static readonly TheoryData<string> SuccessCases = new()
+    {
+        // correct code that must not warn
+        """ using Termina.Layout; /* ... */ """,
+    };
+
+    public static readonly TheoryData<string, string> FailureCases = new()
+    {
+        // code that must warn, plus the expected message argument
+        { """ using Termina.Layout; /* ... */ _node?.{|#0:Invalidate|}(); """, "_node" },
+    };
+
+    [Theory]
+    [MemberData(nameof(SuccessCases))]
+    public Task SuccessCase(string testCode)
+        => Verify.VerifyAnalyzer([TerminaFrameworkSource, testCode]);
+
+    [Theory]
+    [MemberData(nameof(FailureCases))]
+    public Task FailureCase(string testCode, string argument)
+        => Verify.VerifyAnalyzer(
+            [TerminaFrameworkSource, testCode],
+            Verify.Diagnostic(MyAnalyzer.DiagnosticId).WithLocation(0).WithArguments(argument));
+}
+```
+
+`StatefulLayoutNodeRecreationAnalyzerTests` is the reference example.
+
 ## Git Workflow
 
 ### NEVER Commit Directly to Protected Branches
