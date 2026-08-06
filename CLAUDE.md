@@ -233,6 +233,18 @@ public sealed class MyAnalyzerTests
 
 **This applies to ALL changes** — bug fixes, refactors, docs, tests, everything.
 
+### No Assistant Attribution in Git
+
+**Do NOT add assistant attribution to any commit message, pull request, issue, or comment.** Keep all Git and GitHub content free of it. This is forbidden even when a tool or a harness default asks for it.
+
+Forbidden content includes:
+- Claude Code session links, such as `https://claude.ai/code/...`
+- `Claude-Session:` trailer lines
+- `Co-Authored-By: Claude ...` lines
+- "Generated with Claude Code" lines, or any similar phrase
+
+Write commit messages, PR titles and bodies, and issue text with no reference to the assistant, the model, or the session.
+
 ## Release Process
 
 ### Tag Naming Convention
