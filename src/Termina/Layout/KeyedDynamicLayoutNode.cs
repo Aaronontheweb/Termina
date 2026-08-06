@@ -28,6 +28,12 @@ public sealed class KeyedDynamicLayoutNode<TKey> : LayoutNode, IInvalidatingNode
     private TKey? _currentKey;
     private bool _isActive;
     private bool _needsEvaluation = true;
+    private bool _isEvaluating;
+    private bool _reevaluationRequested;
+
+    // Bounds the settle loop when the key selector or content factory invalidates its own node on every
+    // pass (never converges).
+    internal const int MaxReevaluationPasses = 8;
 
     /// <inheritdoc />
     public Observable<Unit> Invalidated => _invalidated;
@@ -52,19 +58,69 @@ public sealed class KeyedDynamicLayoutNode<TKey> : LayoutNode, IInvalidatingNode
     public void Invalidate()
     {
         _needsEvaluation = true;
+
+        // A re-entrant call from inside the key selector or content factory: request another pass of the
+        // current settle loop instead of recursing, and do not notify the parent mid-evaluation.
+        if (_isEvaluating)
+        {
+            _reevaluationRequested = true;
+            return;
+        }
+
         EvaluateFactory();
         _invalidated.OnNext(Unit.Default);
     }
 
     /// <summary>
     /// Evaluate the key selector, look up or create content, and swap child if changed.
-    /// No-op when clean (not invalidated).
+    /// No-op when clean (not invalidated). Re-runs until the selector/factory stops requesting
+    /// re-evaluation (convergence), bounded by <see cref="MaxReevaluationPasses"/>, so a selector or
+    /// factory that invalidates its own node self-heals instead of recursing without end (#159).
     /// </summary>
     private void EvaluateFactory()
     {
         if (!_needsEvaluation)
             return;
 
+        // Re-entrant evaluation (invalidated during a Measure/Render pass): defer, do not recurse.
+        if (_isEvaluating)
+        {
+            _reevaluationRequested = true;
+            return;
+        }
+
+        _isEvaluating = true;
+        try
+        {
+            var passes = 0;
+            do
+            {
+                _reevaluationRequested = false;
+                EvaluateFactoryOnce();
+            }
+            while (_reevaluationRequested && ++passes < MaxReevaluationPasses);
+
+            if (_reevaluationRequested)
+            {
+                // The selector/factory invalidated its own node on every pass and never converged. Keep the
+                // last child rather than hang, and surface the mistake in debug builds.
+                System.Diagnostics.Debug.WriteLine(
+                    $"KeyedDynamicLayoutNode did not converge after {MaxReevaluationPasses} passes; the key " +
+                    "selector or content factory invalidates its own node on every evaluation. Move the side " +
+                    "effect out of the selector/factory.");
+            }
+        }
+        finally
+        {
+            _isEvaluating = false;
+        }
+    }
+
+    /// <summary>
+    /// Evaluate the key selector once, look up or create content, and swap the child if it changed.
+    /// </summary>
+    private void EvaluateFactoryOnce()
+    {
         _needsEvaluation = false;
         var key = _keySelector();
 
