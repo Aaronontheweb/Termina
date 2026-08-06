@@ -134,12 +134,34 @@ public sealed class LayoutNodeChildDisposalAnalyzer : DiagnosticAnalyzer
     /// qualified with <c>this</c> or <c>base</c>. Disposing a member of another object, a collection element,
     /// a local, or a parameter is out of scope.
     /// </summary>
-    private static bool IsThisRootedMember(ExpressionSyntax receiver) => receiver switch
+    private static bool IsThisRootedMember(ExpressionSyntax receiver) => Unwrap(receiver) switch
     {
         IdentifierNameSyntax => true,
         MemberAccessExpressionSyntax memberAccess => memberAccess.Expression is ThisExpressionSyntax or BaseExpressionSyntax,
         _ => false
     };
+
+    /// <summary>
+    /// Strips parentheses and the null-forgiving operator from a receiver, so that <c>(_child)</c> and
+    /// <c>_child!</c> classify the same as <c>_child</c>.
+    /// </summary>
+    private static ExpressionSyntax Unwrap(ExpressionSyntax expression)
+    {
+        while (true)
+        {
+            switch (expression)
+            {
+                case ParenthesizedExpressionSyntax parenthesized:
+                    expression = parenthesized.Expression;
+                    break;
+                case PostfixUnaryExpressionSyntax postfix when postfix.IsKind(SyntaxKind.SuppressNullableWarningExpression):
+                    expression = postfix.Operand;
+                    break;
+                default:
+                    return expression;
+            }
+        }
+    }
 
     /// <summary>
     /// True when the invocation sits inside the container's own teardown: a <c>Dispose()</c>,

@@ -236,6 +236,23 @@ public sealed class LayoutNodeChildDisposalAnalyzerTests
             }
         }
         """,
+
+        // N12: dispose inside a lambda that is itself inside Dispose(). Still teardown.
+        """
+        using Termina.Layout;
+
+        public sealed class MyContainer : LayoutNode
+        {
+            private ContentNode? _currentChild;
+            private FakeObservable _source = new FakeObservable();
+
+            public override void Dispose()
+            {
+                _source.Subscribe(v => _currentChild?.Dispose());
+                base.Dispose();
+            }
+        }
+        """,
     };
 
     // -------------------------------------------------------------------------------------------------
@@ -341,6 +358,88 @@ public sealed class LayoutNodeChildDisposalAnalyzerTests
             }
             """,
             "_currentChild"
+        },
+
+        // S6: null-forgiving receiver (idiomatic in a nullable-enabled repo).
+        {
+            """
+            using Termina.Layout;
+
+            public sealed class MyContainer : LayoutNode
+            {
+                private ContentNode? _currentChild;
+
+                public void Replace(ContentNode next)
+                {
+                    _currentChild!.{|#0:Dispose|}();
+                    _currentChild = next;
+                }
+            }
+            """,
+            "_currentChild"
+        },
+
+        // S7: parenthesized receiver.
+        {
+            """
+            using Termina.Layout;
+
+            public sealed class MyContainer : LayoutNode
+            {
+                private ContentNode _currentChild = new ContentNode();
+
+                public void Replace(ContentNode next)
+                {
+                    (_currentChild).{|#0:Dispose|}();
+                    _currentChild = next;
+                }
+            }
+            """,
+            "_currentChild"
+        },
+
+        // S8: dispose the old child inside a property setter that switches content (a #70 shape).
+        {
+            """
+            using Termina.Layout;
+
+            public sealed class MyContainer : LayoutNode
+            {
+                private ContentNode? _currentChild;
+
+                public ContentNode? Content
+                {
+                    set
+                    {
+                        _currentChild?.{|#0:Dispose|}();
+                        _currentChild = value;
+                    }
+                }
+            }
+            """,
+            "_currentChild"
+        },
+
+        // S9: dispose a base-qualified inherited field.
+        {
+            """
+            using Termina.Layout;
+
+            public abstract class BaseContainer : LayoutNode
+            {
+                protected ContentNode? Child;
+            }
+
+            public sealed class MyContainer : BaseContainer
+            {
+                public void SwitchTo(ContentNode next)
+                {
+                    base.Child?.{|#0:Dispose|}();
+                    Child = next;
+                }
+            }
+            """,
+            "Child"
         },
     };
 
