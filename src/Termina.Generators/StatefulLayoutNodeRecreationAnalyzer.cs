@@ -10,28 +10,32 @@ using Microsoft.CodeAnalysis.Diagnostics;
 namespace Termina.Generators;
 
 /// <summary>
-/// Detects broad invalidation of dynamic layout nodes whose factory mutates stateful layout node fields.
+/// Detects broad invalidation of a dynamic layout node whose factory creates a new stateful layout node.
 ///
-/// DynamicLayoutNode re-evaluates its factory on Invalidate(). If that factory clears or recreates
-/// field-backed stateful controls (for example ScrollableContainerNode), the control loses state such as
-/// scroll offset, selected index, input text, or cursor position. Prefer invalidating the nested dynamic
-/// child that renders changed data, or use KeyedDynamicLayoutNode when switching by state.
+/// DynamicLayoutNode runs its factory again on Invalidate(). If the factory creates a new stateful control
+/// (for example ScrollableContainerNode), the control loses state such as scroll offset, selected index,
+/// input text, or cursor position. Prefer to reuse the stateful node instance, invalidate a narrower child
+/// node, or use KeyedDynamicLayoutNode when switching by state.
+///
+/// The analyzer treats a `??=` (or `?? new ...`) fallback as safe, because that pattern creates the node
+/// one time and then reuses it. It follows a private helper method one level deep. It does not do full
+/// data-flow analysis, so a manual cache inside a helper can still produce a warning.
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class StatefulLayoutNodeRecreationAnalyzer : DiagnosticAnalyzer
 {
-    public const string DiagnosticId = "TERMINA003";
+    public const string DiagnosticId = "TERMINA004";
 
     private const string Category = "Termina.State";
 
     private static readonly DiagnosticDescriptor Rule = new(
         id: DiagnosticId,
-        title: "Avoid invalidating dynamic layouts that recreate stateful nodes",
-        messageFormat: "Dynamic layout field '{0}' rebuilds stateful layout node field '{1}'. Calling Invalidate() can reset UI state such as scroll position; invalidate a narrower child node or preserve the stateful node instance.",
+        title: "Do not recreate a stateful node in a dynamic layout factory",
+        messageFormat: "The dynamic layout field '{0}' creates a new {1} in its factory. A call to Invalidate() on '{0}' runs the factory again and resets the {1} state, for example the scroll position. Reuse the {1} instance, invalidate a smaller child node, or use KeyedDynamicLayoutNode.",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: "Stateful layout nodes such as ScrollableContainerNode own UI state. Recreating them from a DynamicLayoutNode factory during broad invalidation resets that state.");
+        description: "Some layout nodes such as ScrollableContainerNode own UI state. A DynamicLayoutNode factory runs again on Invalidate(). If the factory creates the stateful node again, the node loses its state. Create the stateful node one time and reuse the instance.");
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(Rule);
 
@@ -69,30 +73,25 @@ public sealed class StatefulLayoutNodeRecreationAnalyzer : DiagnosticAnalyzer
         if (containingType is null)
             return;
 
-        var statefulFields = GetStatefulFields(containingType, terminaContext);
-        if (statefulFields.Count == 0)
-            return;
-
-        var rebuiltField = FindStatefulFieldRebuiltByDynamicFactory(
+        var recreatedType = FindStatefulNodeRecreatedByDynamicFactory(
             containingTypeSyntax,
             receiver,
-            statefulFields,
+            containingType,
             context.SemanticModel,
             terminaContext,
             context.CancellationToken);
 
-        if (rebuiltField is null)
+        if (recreatedType is null)
             return;
 
         var diagnostic = Diagnostic.Create(
             Rule,
             invalidateName.GetLocation(),
             receiver.Name,
-            rebuiltField.Name);
+            recreatedType.Name);
 
         context.ReportDiagnostic(diagnostic);
     }
-
 
     private static bool TryGetInvalidateInvocationReceiver(
         InvocationExpressionSyntax invocation,
@@ -134,25 +133,14 @@ public sealed class StatefulLayoutNodeRecreationAnalyzer : DiagnosticAnalyzer
         return receiver is not null;
     }
 
-    private static ImmutableHashSet<IFieldSymbol> GetStatefulFields(
-        INamedTypeSymbol containingType,
-        TerminaContext terminaContext)
-    {
-        var builder = ImmutableHashSet.CreateBuilder<IFieldSymbol>(SymbolEqualityComparer.Default);
-
-        foreach (var member in containingType.GetMembers())
-        {
-            if (member is IFieldSymbol field && terminaContext.IsStatefulLayoutNode(field.Type))
-                builder.Add(field);
-        }
-
-        return builder.ToImmutable();
-    }
-
-    private static IFieldSymbol? FindStatefulFieldRebuiltByDynamicFactory(
+    /// <summary>
+    /// Finds the assignment that gives <paramref name="dynamicLayoutField"/> a new DynamicLayoutNode, then
+    /// checks whether that node's factory creates a stateful layout node. Returns the created type, or null.
+    /// </summary>
+    private static ITypeSymbol? FindStatefulNodeRecreatedByDynamicFactory(
         TypeDeclarationSyntax containingTypeSyntax,
         IFieldSymbol dynamicLayoutField,
-        ImmutableHashSet<IFieldSymbol> statefulFields,
+        INamedTypeSymbol containingType,
         SemanticModel semanticModel,
         TerminaContext terminaContext,
         CancellationToken cancellationToken)
@@ -176,42 +164,121 @@ public sealed class StatefulLayoutNodeRecreationAnalyzer : DiagnosticAnalyzer
             if (factory is null)
                 continue;
 
-            var rebuiltField = FindStatefulFieldMutation(factory, statefulFields, semanticModel, cancellationToken);
-            if (rebuiltField is not null)
-                return rebuiltField;
+            var recreatedType = FindStatefulRecreationInFactory(factory, containingType, semanticModel, terminaContext, cancellationToken);
+            if (recreatedType is not null)
+                return recreatedType;
         }
 
         return null;
     }
 
-    private static IFieldSymbol? FindStatefulFieldMutation(
+    /// <summary>
+    /// Looks for a stateful node that the factory creates on every run: a direct construction in the factory
+    /// body, or a construction inside a private helper the factory calls (one level deep).
+    /// </summary>
+    private static ITypeSymbol? FindStatefulRecreationInFactory(
         ExpressionSyntax factoryExpression,
-        ImmutableHashSet<IFieldSymbol> statefulFields,
+        INamedTypeSymbol containingType,
         SemanticModel semanticModel,
+        TerminaContext terminaContext,
         CancellationToken cancellationToken)
     {
-        var body = factoryExpression switch
-        {
-            ParenthesizedLambdaExpressionSyntax lambda => (SyntaxNode?)lambda.Body,
-            SimpleLambdaExpressionSyntax lambda => lambda.Body,
-            AnonymousMethodExpressionSyntax anonymousMethod => anonymousMethod.Body,
-            _ => null
-        };
-
+        var body = GetFactoryOrMethodBody(factoryExpression);
         if (body is null)
             return null;
 
-        foreach (var assignment in body.DescendantNodesAndSelf().OfType<AssignmentExpressionSyntax>())
+        var direct = FindStatefulConstruction(body, semanticModel, terminaContext, cancellationToken);
+        if (direct is not null)
+            return direct;
+
+        foreach (var invocation in body.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>())
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var field = semanticModel.GetSymbolInfo(assignment.Left, cancellationToken).Symbol as IFieldSymbol;
-            if (field is not null && statefulFields.Contains(field))
-                return field;
+            if (semanticModel.GetSymbolInfo(invocation, cancellationToken).Symbol is not IMethodSymbol method)
+                continue;
+
+            if (!SymbolEqualityComparer.Default.Equals(method.ContainingType, containingType))
+                continue;
+
+            foreach (var reference in method.DeclaringSyntaxReferences)
+            {
+                var node = reference.GetSyntax(cancellationToken);
+                if (node.SyntaxTree != semanticModel.SyntaxTree)
+                    continue;
+
+                var helperBody = GetFactoryOrMethodBody(node);
+                if (helperBody is null)
+                    continue;
+
+                var viaHelper = FindStatefulConstruction(helperBody, semanticModel, terminaContext, cancellationToken);
+                if (viaHelper is not null)
+                    return viaHelper;
+            }
         }
 
         return null;
     }
+
+    /// <summary>
+    /// Returns the type of the first stateful layout node that <paramref name="body"/> constructs, or null.
+    /// A construction on the right of a `??=` or `??` fallback is safe (create once, then reuse) and is skipped.
+    /// </summary>
+    private static ITypeSymbol? FindStatefulConstruction(
+        SyntaxNode body,
+        SemanticModel semanticModel,
+        TerminaContext terminaContext,
+        CancellationToken cancellationToken)
+    {
+        foreach (var creation in body.DescendantNodesAndSelf().OfType<ObjectCreationExpressionSyntax>())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (IsPreservedByCoalesce(creation, body))
+                continue;
+
+            var createdType = semanticModel.GetTypeInfo(creation, cancellationToken).Type;
+            if (createdType is not null && terminaContext.IsStatefulLayoutNode(createdType))
+                return createdType;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// True when the construction is the fallback of a `??=` assignment or a `??` expression. That pattern
+    /// keeps the existing instance, so the construction runs one time only.
+    /// </summary>
+    private static bool IsPreservedByCoalesce(ObjectCreationExpressionSyntax creation, SyntaxNode boundary)
+    {
+        SyntaxNode current = creation;
+        while (current != boundary && current.Parent is { } parent)
+        {
+            if (parent is AssignmentExpressionSyntax assign
+                && assign.IsKind(SyntaxKind.CoalesceAssignmentExpression)
+                && assign.Right == current)
+                return true;
+
+            if (parent is BinaryExpressionSyntax binary
+                && binary.IsKind(SyntaxKind.CoalesceExpression)
+                && binary.Right == current)
+                return true;
+
+            current = parent;
+        }
+
+        return false;
+    }
+
+    private static SyntaxNode? GetFactoryOrMethodBody(SyntaxNode node) => node switch
+    {
+        ParenthesizedLambdaExpressionSyntax lambda => (SyntaxNode?)lambda.Body,
+        SimpleLambdaExpressionSyntax lambda => lambda.Body,
+        AnonymousMethodExpressionSyntax anonymousMethod => anonymousMethod.Body,
+        MethodDeclarationSyntax method => (SyntaxNode?)method.Body ?? method.ExpressionBody,
+        LocalFunctionStatementSyntax localFunction => (SyntaxNode?)localFunction.Body ?? localFunction.ExpressionBody,
+        _ => null
+    };
 
     private sealed class TerminaContext
     {
@@ -231,13 +298,6 @@ public sealed class StatefulLayoutNodeRecreationAnalyzer : DiagnosticAnalyzer
         }
 
         public bool HasRequiredTypes => _dynamicLayoutNode is not null;
-
-        public bool IsDynamicLayoutInvalidate(IMethodSymbol method)
-        {
-            return method.Name == "Invalidate"
-                && method.Parameters.Length == 0
-                && IsDynamicLayoutNode(method.ContainingType);
-        }
 
         public bool IsDynamicLayoutNode(ITypeSymbol type)
         {
