@@ -101,9 +101,12 @@ public sealed class ScrollableContainerNode : LayoutNode, IInvalidatingNode
     /// </summary>
     public ScrollableContainerNode WithContent(ILayoutNode content)
     {
-        // Dispose previous subscription and content
+        // Dispose the previous content's subscription, and deactivate the previous
+        // content (active/inactive pattern) rather than dispose it. Content is
+        // disposed only at teardown, in Dispose().
         _contentSubscription?.Dispose();
-        _content.Dispose();
+        if (_content is IActivatableNode oldContent)
+            oldContent.OnDeactivate();
         _content = content;
 
         // If content is invalidating, subscribe to the observable
