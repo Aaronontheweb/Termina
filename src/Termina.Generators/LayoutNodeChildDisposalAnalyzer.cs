@@ -15,11 +15,13 @@ namespace Termina.Generators;
 /// Termina layout nodes use an active/inactive lifecycle. <c>IActivatableNode.OnDeactivate()</c> pauses a
 /// child and keeps it alive. <c>Dispose()</c> destroys it, so it can no longer render or handle input. A
 /// container that swaps content should deactivate the old child, not dispose it. Disposal is only correct in
-/// the container's own <c>Dispose()</c> method (final teardown).
+/// the container's own teardown (final cleanup).
 ///
-/// To keep the false-positive rate low, the analyzer only flags <c>Dispose()</c> on a field or property of
-/// layout node type, inside a type that derives from <c>LayoutNode</c>, and never inside that type's own
-/// <c>Dispose()</c> or <c>DisposeAsync()</c> method.
+/// To keep the false-positive rate low, the analyzer only flags <c>Dispose()</c> on a field or property that
+/// this container holds — accessed on <c>this</c>/<c>base</c> — whose type implements <c>ILayoutNode</c>,
+/// inside a type that derives from <c>LayoutNode</c>. It never flags disposal inside the container's own
+/// teardown: a <c>Dispose()</c>/<c>DisposeAsync()</c> method, a <c>Dispose(bool)</c> method, or a finalizer.
+/// Locals, method parameters, collection elements, and members of other objects are out of scope.
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class LayoutNodeChildDisposalAnalyzer : DiagnosticAnalyzer
@@ -35,7 +37,7 @@ public sealed class LayoutNodeChildDisposalAnalyzer : DiagnosticAnalyzer
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: "Termina layout nodes use an active/inactive lifecycle. OnDeactivate() pauses a child and keeps it alive. Dispose() destroys it. A container should deactivate a switched-out child, not dispose it. Dispose a child only in the container's own Dispose() method.");
+        description: "Termina layout nodes use an active/inactive lifecycle. OnDeactivate() pauses a child and keeps it alive. Dispose() destroys it. A container should deactivate a switched-out child, not dispose it. Dispose a child only in the container's own teardown (Dispose/DisposeAsync/Dispose(bool)/finalizer).");
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(Rule);
 
@@ -62,7 +64,11 @@ public sealed class LayoutNodeChildDisposalAnalyzer : DiagnosticAnalyzer
         if (!TryGetDisposeInvocation(invocation, context.SemanticModel, context.CancellationToken, out var disposeName, out var receiverExpression))
             return;
 
-        // The receiver must be a field or property of layout node type (persisted content).
+        // The receiver must be a member of this container (accessed on `this`/`base`), not a member of
+        // another object, a collection element, a local, or a parameter.
+        if (!IsThisRootedMember(receiverExpression))
+            return;
+
         var receiverSymbol = context.SemanticModel.GetSymbolInfo(receiverExpression, context.CancellationToken).Symbol;
         var receiverType = receiverSymbol switch
         {
@@ -82,8 +88,8 @@ public sealed class LayoutNodeChildDisposalAnalyzer : DiagnosticAnalyzer
         if (enclosingType is null || !terminaContext.DerivesFromLayoutNode(enclosingType))
             return;
 
-        // Disposal is correct in the container's own teardown, so skip Dispose()/DisposeAsync().
-        if (IsInsideDisposeMethod(invocation))
+        // Disposal is correct in the container's own teardown, so skip those members.
+        if (IsInsideTeardownMember(invocation))
             return;
 
         var diagnostic = Diagnostic.Create(Rule, disposeName.GetLocation(), receiverSymbol!.Name);
@@ -124,14 +130,39 @@ public sealed class LayoutNodeChildDisposalAnalyzer : DiagnosticAnalyzer
     }
 
     /// <summary>
-    /// True when the invocation is inside the nearest enclosing <c>Dispose()</c> or <c>DisposeAsync()</c>
-    /// method declaration. Disposal there is the container's final teardown, which is correct.
+    /// True when the receiver is a member of the current instance: an unqualified field or property, or one
+    /// qualified with <c>this</c> or <c>base</c>. Disposing a member of another object, a collection element,
+    /// a local, or a parameter is out of scope.
     /// </summary>
-    private static bool IsInsideDisposeMethod(SyntaxNode node)
+    private static bool IsThisRootedMember(ExpressionSyntax receiver) => receiver switch
     {
-        var method = node.FirstAncestorOrSelf<MethodDeclarationSyntax>();
-        return method is not null
-            && method.Identifier.ValueText is "Dispose" or "DisposeAsync";
+        IdentifierNameSyntax => true,
+        MemberAccessExpressionSyntax memberAccess => memberAccess.Expression is ThisExpressionSyntax or BaseExpressionSyntax,
+        _ => false
+    };
+
+    /// <summary>
+    /// True when the invocation sits inside the container's own teardown: a <c>Dispose()</c>,
+    /// <c>DisposeAsync()</c>, or <c>Dispose(bool)</c> method, or a finalizer. Disposal there is correct.
+    /// Lambdas and local functions are transparent; the search walks up to the containing member.
+    /// </summary>
+    private static bool IsInsideTeardownMember(SyntaxNode node)
+    {
+        foreach (var ancestor in node.Ancestors())
+        {
+            switch (ancestor)
+            {
+                case DestructorDeclarationSyntax:
+                    return true;
+                case MethodDeclarationSyntax method:
+                    return method.Identifier.ValueText is "Dispose" or "DisposeAsync";
+                case ConstructorDeclarationSyntax:
+                case AccessorDeclarationSyntax:
+                    return false;
+            }
+        }
+
+        return false;
     }
 
     private sealed class TerminaContext

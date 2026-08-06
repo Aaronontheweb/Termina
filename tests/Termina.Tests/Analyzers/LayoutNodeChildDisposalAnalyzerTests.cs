@@ -14,8 +14,8 @@ using Verify = TerminaVerifier<LayoutNodeChildDisposalAnalyzer>;
 /// Tests for <see cref="LayoutNodeChildDisposalAnalyzer"/> (TERMINA003).
 ///
 /// SuccessCases are the happy path (correct code, no diagnostic). FailureCases are the sad path (a container
-/// that disposes a layout node child outside its own Dispose() method). Each failure case marks the expected
-/// location with <c>{|#0:Dispose|}</c> markup and passes the field name as the expected message argument.
+/// that disposes a `this`-held layout node child outside its own teardown). Each failure case marks the
+/// expected location with <c>{|#0:Dispose|}</c> markup and passes the member name as the message argument.
 /// </summary>
 public sealed class LayoutNodeChildDisposalAnalyzerTests
 {
@@ -44,6 +44,11 @@ public sealed class LayoutNodeChildDisposalAnalyzerTests
             {
                 public void OnActivate() { }
                 public void OnDeactivate() { }
+            }
+
+            public sealed class Holder
+            {
+                public ContentNode? Child { get; set; }
             }
 
             public sealed class FakeObservable
@@ -149,11 +154,93 @@ public sealed class LayoutNodeChildDisposalAnalyzerTests
             }
         }
         """,
+
+        // N7: dispose the child inside a finalizer (teardown, not a content switch).
+        """
+        using Termina.Layout;
+
+        public sealed class MyContainer : LayoutNode
+        {
+            private ContentNode? _currentChild;
+
+            ~MyContainer()
+            {
+                _currentChild?.Dispose();
+            }
+        }
+        """,
+
+        // N8: dispose the child inside a Dispose(bool) method (the classic dispose pattern).
+        """
+        using Termina.Layout;
+
+        public sealed class MyContainer : LayoutNode
+        {
+            private ContentNode? _currentChild;
+
+            public override void Dispose()
+            {
+                Dispose(true);
+                base.Dispose();
+            }
+
+            private void Dispose(bool disposing)
+            {
+                if (disposing)
+                    _currentChild?.Dispose();
+            }
+        }
+        """,
+
+        // N9: dispose a layout node that belongs to another instance, not this container.
+        """
+        using Termina.Layout;
+
+        public sealed class MyContainer : LayoutNode
+        {
+            private ContentNode? _currentChild;
+
+            public void Detach(MyContainer other)
+            {
+                other._currentChild?.Dispose();
+            }
+        }
+        """,
+
+        // N10: dispose a layout node reached through another object (a holder's member).
+        """
+        using Termina.Layout;
+
+        public sealed class MyContainer : LayoutNode
+        {
+            private Holder _holder = new Holder();
+
+            public void Clear()
+            {
+                _holder.Child?.Dispose();
+            }
+        }
+        """,
+
+        // N11: dispose a collection element, not a direct member. Out of scope.
+        """
+        using Termina.Layout;
+
+        public sealed class MyContainer : LayoutNode
+        {
+            private System.Collections.Generic.List<ContentNode> _children = new();
+
+            public void Replace()
+            {
+                _children[0].Dispose();
+            }
+        }
+        """,
     };
 
     // -------------------------------------------------------------------------------------------------
-    // Sad path: a LayoutNode container disposes a layout node child outside its own Dispose(). One warning.
-    // Tuple: (source with {|#0:Dispose|} markup, disposed field name).
+    // Sad path: a LayoutNode container disposes a this-held layout node child outside its teardown.
+    // Tuple: (source with {|#0:Dispose|} markup, disposed member name).
     // -------------------------------------------------------------------------------------------------
     public static readonly TheoryData<string, string> FailureCases = new()
     {
@@ -235,6 +322,25 @@ public sealed class LayoutNodeChildDisposalAnalyzerTests
             }
             """,
             "Current"
+        },
+
+        // S5: the child is disposed through an explicit `this.` qualifier.
+        {
+            """
+            using Termina.Layout;
+
+            public sealed class MyContainer : LayoutNode
+            {
+                private ContentNode _currentChild = new ContentNode();
+
+                public void Replace(ContentNode next)
+                {
+                    this._currentChild.{|#0:Dispose|}();
+                    _currentChild = next;
+                }
+            }
+            """,
+            "_currentChild"
         },
     };
 
