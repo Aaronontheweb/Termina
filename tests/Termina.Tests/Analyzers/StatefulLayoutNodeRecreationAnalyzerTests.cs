@@ -68,7 +68,7 @@ public sealed class StatefulLayoutNodeRecreationAnalyzerTests
             """;
 
         var expected = Verify.Diagnostic(StatefulLayoutNodeRecreationAnalyzer.DiagnosticId)
-            .WithLocation("/0/Test1.cs", 20, 23)
+            .WithLocation("/0/Test1.cs", 21, 23)
             .WithArguments("_contentNode", "_scrollNode")
             .WithSeverity(DiagnosticSeverity.Warning);
 
