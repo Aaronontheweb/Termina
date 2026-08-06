@@ -1,5 +1,19 @@
 # Termina Development Guidelines
 
+## Communication Style
+
+Write all communication to the user in ASD Simplified Technical English (ASD-STE100).
+
+- Use short sentences. Keep one idea in each sentence.
+- Use the active voice.
+- Start each instruction with the verb. Give one command in each step.
+- Use the same word for the same thing. Do not use synonyms.
+- Use simple verb tenses. Do not use gerunds as the subject of a sentence.
+- Use articles such as "the" and "a".
+- Write a list when you give more than one step or condition.
+
+This rule applies to chat replies, code review notes, and commit messages.
+
 ## Architectural Principles
 
 ### Reactive-Only Pattern (R3)
