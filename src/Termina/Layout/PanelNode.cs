@@ -92,9 +92,12 @@ public sealed class PanelNode : LayoutNode, IInvalidatingNode
     /// </summary>
     public PanelNode WithContent(ILayoutNode content)
     {
-        // Dispose old content and subscription
+        // Dispose the old content's subscription, and deactivate the old content
+        // (active/inactive pattern) rather than dispose it — a swapped-out node may
+        // still be reused. Content is disposed only at teardown, in Dispose().
         _contentInvalidationSubscription?.Dispose();
-        _content.Dispose();
+        if (_content is IActivatableNode oldContent)
+            oldContent.OnDeactivate();
 
         // Set new content
         _content = content;
