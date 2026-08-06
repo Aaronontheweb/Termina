@@ -55,17 +55,9 @@ public sealed class StatefulLayoutNodeRecreationAnalyzer : DiagnosticAnalyzer
     private static void AnalyzeInvalidateInvocation(SyntaxNodeAnalysisContext context, TerminaContext terminaContext)
     {
         var invocation = (InvocationExpressionSyntax)context.Node;
-        if (invocation.Expression is not MemberAccessExpressionSyntax memberAccess)
+        if (!TryGetInvalidateInvocationReceiver(invocation, context.SemanticModel, context.CancellationToken, out var invalidateName, out var receiver))
             return;
 
-        if (memberAccess.Name.Identifier.ValueText != "Invalidate")
-            return;
-
-        var method = context.SemanticModel.GetSymbolInfo(memberAccess, context.CancellationToken).Symbol as IMethodSymbol;
-        if (method is null || !terminaContext.IsDynamicLayoutInvalidate(method))
-            return;
-
-        var receiver = context.SemanticModel.GetSymbolInfo(memberAccess.Expression, context.CancellationToken).Symbol as IFieldSymbol;
         if (receiver is null || !terminaContext.IsDynamicLayoutNode(receiver.Type))
             return;
 
@@ -94,11 +86,52 @@ public sealed class StatefulLayoutNodeRecreationAnalyzer : DiagnosticAnalyzer
 
         var diagnostic = Diagnostic.Create(
             Rule,
-            memberAccess.Name.GetLocation(),
+            invalidateName.GetLocation(),
             receiver.Name,
             rebuiltField.Name);
 
         context.ReportDiagnostic(diagnostic);
+    }
+
+
+    private static bool TryGetInvalidateInvocationReceiver(
+        InvocationExpressionSyntax invocation,
+        SemanticModel semanticModel,
+        CancellationToken cancellationToken,
+        out SimpleNameSyntax invalidateName,
+        out IFieldSymbol? receiver)
+    {
+        invalidateName = null!;
+        receiver = null;
+
+        ExpressionSyntax? receiverExpression;
+        if (invocation.Expression is MemberAccessExpressionSyntax memberAccess)
+        {
+            invalidateName = memberAccess.Name;
+            receiverExpression = memberAccess.Expression;
+        }
+        else if (invocation.Expression is MemberBindingExpressionSyntax memberBinding)
+        {
+            invalidateName = memberBinding.Name;
+            if (invocation.Parent is not ConditionalAccessExpressionSyntax conditionalAccess)
+                return false;
+
+            receiverExpression = conditionalAccess.Expression;
+        }
+        else
+        {
+            return false;
+        }
+
+        if (invalidateName.Identifier.ValueText != "Invalidate")
+            return false;
+
+        var method = semanticModel.GetSymbolInfo(invocation, cancellationToken).Symbol as IMethodSymbol;
+        if (method is null || method.Name != "Invalidate" || method.Parameters.Length != 0)
+            return false;
+
+        receiver = semanticModel.GetSymbolInfo(receiverExpression, cancellationToken).Symbol as IFieldSymbol;
+        return receiver is not null;
     }
 
     private static ImmutableHashSet<IFieldSymbol> GetStatefulFields(
