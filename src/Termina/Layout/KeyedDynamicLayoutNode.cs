@@ -38,12 +38,23 @@ public enum KeyedDynamicCachePolicy
 public sealed class KeyedDynamicLayoutNode<TKey> : LayoutNode, IInvalidatingNode
     where TKey : notnull
 {
-    private static readonly object OwnedChildMarker = new();
+    private sealed class SeenChildMarker
+    {
+        public static SeenChildMarker Instance { get; } = new();
+
+        private SeenChildMarker()
+        {
+        }
+    }
+
     private readonly Func<TKey> _keySelector;
     private readonly Func<TKey, ILayoutNode> _contentFactory;
     private readonly KeyedDynamicCachePolicy _cachePolicy;
     private readonly Dictionary<TKey, ILayoutNode> _cache = new();
-    private readonly ConditionalWeakTable<ILayoutNode, object> _evictionOwnedChildren = new();
+
+    // Weak keys let retired children be collected after disposal. The set still rejects an instance
+    // that the factory retains and returns again.
+    private readonly ConditionalWeakTable<ILayoutNode, SeenChildMarker> _seenEvictionChildren = new();
     private readonly List<ILayoutNode> _retiredChildren = [];
     private readonly Subject<Unit> _invalidated = new();
     private IDisposable? _childInvalidationSubscription;
@@ -200,13 +211,13 @@ public sealed class KeyedDynamicLayoutNode<TKey> : LayoutNode, IInvalidatingNode
         {
             newChild = _contentFactory(key)
                 ?? throw new InvalidOperationException("The content factory returned null.");
-            if (_evictionOwnedChildren.TryGetValue(newChild, out _))
+            if (_seenEvictionChildren.TryGetValue(newChild, out _))
             {
                 throw new InvalidOperationException(
                     "The content factory reused a child with EvictOnKeyChange. Return a new child after each key change.");
             }
 
-            _evictionOwnedChildren.Add(newChild, OwnedChildMarker);
+            _seenEvictionChildren.Add(newChild, SeenChildMarker.Instance);
         }
 
         _currentKey = key;
