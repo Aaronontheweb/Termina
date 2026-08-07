@@ -221,6 +221,106 @@ public class KeyedDynamicLayoutNodeTests
         Assert.IsType<SizeConstraint.Fixed>(result.HeightConstraint);
     }
 
+    [Fact]
+    public void CurrentOnly_SameKeyPreservesTextInputState()
+    {
+        var node = new KeyedDynamicLayoutNode<int>(
+            () => 0,
+            _ => new TextInputNode(),
+            KeyedDynamicCachePolicy.CurrentOnly);
+        node.Measure(new Size(80, 24));
+        var input = Assert.IsType<TextInputNode>(node.GetChildNodes().Single());
+        input.HandleInput(new ConsoleKeyInfo('a', ConsoleKey.A, false, false, false));
+        input.HandleInput(new ConsoleKeyInfo('b', ConsoleKey.B, false, false, false));
+
+        node.Invalidate();
+
+        var preservedInput = Assert.IsType<TextInputNode>(node.GetChildNodes().Single());
+        Assert.Same(input, preservedInput);
+        Assert.Equal("ab", preservedInput.Text);
+    }
+
+    [Fact]
+    public void CurrentOnly_ReturnToPriorKeyCreatesFreshContent()
+    {
+        var currentKey = 0;
+        var factoryCallCount = 0;
+        var node = new KeyedDynamicLayoutNode<int>(
+            () => currentKey,
+            _ =>
+            {
+                factoryCallCount++;
+                return new SpyLifecycleNode();
+            },
+            KeyedDynamicCachePolicy.CurrentOnly);
+
+        node.Measure(new Size(80, 24));
+        var firstChild = node.GetChildNodes().Single();
+        currentKey = 1;
+        node.Invalidate();
+        currentKey = 0;
+        node.Invalidate();
+
+        Assert.Equal(3, factoryCallCount);
+        Assert.NotSame(firstChild, node.GetChildNodes().Single());
+    }
+
+    [Fact]
+    public void CurrentOnly_DisposesRetiredContentOnTheNextLayoutPass()
+    {
+        var currentKey = 0;
+        var children = new List<SpyLifecycleNode>();
+        var node = new KeyedDynamicLayoutNode<int>(
+            () => currentKey,
+            _ =>
+            {
+                var child = new SpyLifecycleNode();
+                children.Add(child);
+                return child;
+            },
+            KeyedDynamicCachePolicy.CurrentOnly);
+        node.OnActivate();
+        node.Measure(new Size(80, 24));
+
+        currentKey = 1;
+        node.Invalidate();
+
+        Assert.Equal(1, children[0].DeactivateCount);
+        Assert.False(children[0].WasDisposed);
+        Assert.Equal(1, children[1].ActivateCount);
+
+        node.Measure(new Size(80, 24));
+
+        Assert.True(children[0].WasDisposed);
+        Assert.False(children[1].WasDisposed);
+
+        node.Dispose();
+
+        Assert.True(children[1].WasDisposed);
+    }
+
+    [Fact]
+    public void LayoutsFactorySupportsCurrentOnlyPolicy()
+    {
+        var node = Layouts.KeyedDynamic(
+            () => 0,
+            _ => new EmptyNode(),
+            KeyedDynamicCachePolicy.CurrentOnly);
+
+        Assert.IsType<KeyedDynamicLayoutNode<int>>(node);
+    }
+
+    [Fact]
+    public void ConstructorRejectsAnUnknownCachePolicy()
+    {
+        var unknownPolicy = (KeyedDynamicCachePolicy)int.MaxValue;
+
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new KeyedDynamicLayoutNode<int>(() => 0, _ => new EmptyNode(), unknownPolicy));
+
+        Assert.Equal("cachePolicy", exception.ParamName);
+    }
+
     #region Test helpers
 
     private class SpyLifecycleNode : LayoutNode

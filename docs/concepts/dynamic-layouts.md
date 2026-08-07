@@ -1,12 +1,15 @@
 # Dynamic Layouts
 
-`DynamicLayoutNode` evaluates a factory function once on first render, then re-evaluates only when `Invalidate()` is called. For content that switches based on a key (enum, step index, tab), use `KeyedDynamicLayoutNode<TKey>` which caches content by key and preserves child state across key changes.
+`DynamicLayoutNode` evaluates a factory on the first render. It evaluates the factory again after a call to `Invalidate()`.
+
+`KeyedDynamicLayoutNode<TKey>` preserves content while a key stays active. Its cache policy controls retention of inactive content.
 
 ## When to Use
 
 | Scenario | Use |
 |----------|-----|
-| Content switches based on a key (enum, int, string) | `Layouts.KeyedDynamic<TKey>()` — caches by key, preserves state |
+| Tabs or wizard steps must keep state after a return | `Layouts.KeyedDynamic<TKey>()` with the default `AllKeys` policy |
+| A workflow screen must be fresh after a return | `Layouts.KeyedDynamic<TKey>()` with `CurrentOnly` |
 | Observable-driven content updates | `ReactiveProperty<T>` + `.AsLayout()` or `factory.AsDynamicLayout(trigger)` |
 | Advanced: custom factory with manual caching | `Layouts.Dynamic()` — low-level, you manage caching |
 
@@ -38,6 +41,21 @@ public override ILayoutNode BuildLayout()
 }
 ```
 
+### Current-Only Cache
+
+Use `CurrentOnly` for a workflow state machine. The node preserves the active screen during same-key invalidation.
+
+A new key replaces the active screen. A return to a prior key creates fresh content.
+
+```csharp
+var layout = Layouts.KeyedDynamic(
+    () => currentStep,
+    step => BuildStep(step),
+    KeyedDynamicCachePolicy.CurrentOnly);
+```
+
+Termina deactivates replaced content during invalidation. It disposes the content on the next layout pass.
+
 ### Dynamic (Low-Level)
 
 For cases where you need full control over the factory:
@@ -52,7 +70,8 @@ dynamicNode.Invalidate();
 
 | Need | Use |
 |------|-----|
-| Content switches based on a key (enum, int, string) | `Layouts.KeyedDynamic<TKey>()` — caches by key, preserves state |
+| Tabs or wizard steps must keep state after a return | `Layouts.KeyedDynamic<TKey>()` with `AllKeys` |
+| A workflow screen must be fresh after a return | `Layouts.KeyedDynamic<TKey>()` with `CurrentOnly` |
 | Observable-driven content updates | `observable.AsLayout()` or `factory.AsDynamicLayout(trigger)` |
 | Advanced: custom factory with manual caching | `Layouts.Dynamic()` — low-level, you manage caching |
 
@@ -112,7 +131,9 @@ var layout = Layouts.KeyedDynamic(
 - `Invalidate()` eagerly evaluates the factory so the new child is immediately available for tree traversal (e.g., focus propagation)
 - **Reference equality** detects child changes — returning the same instance avoids lifecycle transitions
 - When the child changes: the old child is deactivated, the new child is activated (mirrors `ReactiveLayoutNode` behavior)
-- `KeyedDynamicLayoutNode<TKey>` additionally caches content by key — navigating back to a previous key reuses the cached instance
+- The default `AllKeys` policy reuses content after a return to a prior key
+- The `CurrentOnly` policy reuses content only while the key stays active
+- `CurrentOnly` disposes replaced content on the next layout pass
 - `GetChildNodes()` returns the current child for focus tree traversal
 - Extends `LayoutNode` so fluent sizing (`.Fill()`, `.Width()`, `.Height()`) works
 
