@@ -20,6 +20,7 @@ export default defineConfig({
       { text: 'Styling', link: '/styling/' },
       { text: 'Concepts', link: '/concepts/' },
       { text: 'Advanced', link: '/advanced/' },
+      { text: 'Analyzers', link: '/analyzers/' },
       { text: 'Changelog', link: '/changelog' }
     ],
 
@@ -127,6 +128,12 @@ export default defineConfig({
         { text: 'Custom Components', link: '/advanced/custom-components' },
         { text: 'AOT Compilation', link: '/advanced/aot' },
         { text: 'Akka.NET Integration', link: '/advanced/akka-integration' }
+      ],
+      '/analyzers/': [
+        { text: 'Analyzer Reference', link: '/analyzers/' },
+        { text: 'TERMINA002: Layout Nodes in ViewModels', link: '/analyzers/termina002' },
+        { text: 'TERMINA003: Child Disposal', link: '/analyzers/termina003' },
+        { text: 'TERMINA004: Stateful Node Recreation', link: '/analyzers/termina004' }
       ],
       '/comparison/': [
         { text: 'Comparisons', link: '/comparison/' },
