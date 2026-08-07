@@ -98,8 +98,15 @@ public static class StyledWordWrapper
             }
             else if (currentWidth + 1 + wordWidth <= width)
             {
-                // Word fits with space separator
-                currentLine.Append(" ");
+                // Word fits with space separator. Only inherit background color if BOTH the preceding segment and incoming word segment share the exact same background color.
+                var prevStyle = currentLine.Segments.Count > 0 ? currentLine.Segments[^1].Style : TextStyle.Default;
+                var nextStyle = word.Segments.Count > 0 ? word.Segments[0].Style : TextStyle.Default;
+
+                var hasSameBg = prevStyle.HasBackground && nextStyle.HasBackground && prevStyle.Background.Equals(nextStyle.Background);
+                var spaceBg = hasSameBg ? nextStyle.Background : Color.Default;
+                var spaceStyle = new TextStyle(nextStyle.Foreground, spaceBg, nextStyle.Decoration);
+
+                currentLine.Append(new StyledSegment(" ", spaceStyle));
                 foreach (var segment in word.Segments)
                 {
                     currentLine.Append(segment);

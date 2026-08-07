@@ -158,6 +158,42 @@ public class StyledWordWrapperTests
         Assert.Equal("C", wrapped[2].ToPlainText());
     }
 
+    [Fact]
+    public void WrapLine_MultiWordSegmentWithBackground_PreservesBackgroundColorOnSeparatorSpace()
+    {
+        var line = new StyledLine();
+        var style = new TextStyle(Color.Black, Color.BrightMagenta, TextDecoration.Bold);
+        line.Append(new StyledSegment("[Highlighted Message]", style));
+
+        var wrapped = StyledWordWrapper.WrapLine(line, 30);
+
+        Assert.Single(wrapped);
+        Assert.Equal("[Highlighted Message]", wrapped[0].ToPlainText());
+
+        // All segments in the wrapped line (including the space separator segment between words) must inherit background color
+        foreach (var segment in wrapped[0].Segments)
+        {
+            Assert.Equal(Color.BrightMagenta, segment.Style.Background);
+        }
+    }
+
+    [Fact]
+    public void WrapLine_BackgroundWordAfterUnstyledWord_SpaceSeparatorDoesNotInheritBackground()
+    {
+        var line = new StyledLine();
+        line.Append(new StyledSegment("[YT]", new TextStyle(Color.Red))); // Unstyled background
+        line.Append(new StyledSegment(" ", TextStyle.Default));
+        line.Append(new StyledSegment("[GIFT SUB]", new TextStyle(Color.Black, Color.BrightGreen, TextDecoration.Bold)));
+
+        var wrapped = StyledWordWrapper.WrapLine(line, 30);
+
+        Assert.Single(wrapped);
+
+        // Find the space segment between [YT] and [GIFT SUB]
+        var spaceSegment = wrapped[0].Segments.First(s => s.Text == " ");
+        Assert.NotEqual(Color.BrightGreen, spaceSegment.Style.Background);
+    }
+
     private static StyledLine CreateLine(string text, Color color)
     {
         var line = new StyledLine();
