@@ -105,7 +105,7 @@ termina.RegisterRoute<DetailPage, DetailViewModel>(
 
 ## Going Back
 
-Termina keeps a navigation history for you. Every forward navigation pushes the current page onto the stack, and the built-in back APIs pop it.
+Termina tracks navigation history automatically. A forward navigation pushes the current page onto the stack, and the back APIs pop it.
 
 ### Navigation History
 
@@ -119,8 +119,8 @@ Navigate("/settings");   // "/items/42" is pushed onto history
 History rules:
 
 - The concrete path is stored, so route parameters survive a back navigation.
-- Navigating to the same path does not push a new history entry.
-- Going back restores the previous route without re-pushing the current page, so a back navigation never creates a ping-pong loop between two pages.
+- Navigating to the same path does not push a new entry.
+- Going back restores the previous route without re-pushing the current page, so you never get a ping-pong loop between two pages.
 
 ### Host-Driven Back Navigation
 
@@ -135,11 +135,11 @@ if (termina.CanGoBack)
 
 - `CanGoBack` is `true` when the history stack has at least one entry.
 - `GoBack()` is a no-op when the history is empty. It does not throw and it does not shut the application down.
-- Call `GoBack()` from host code — event handlers, commands, or app-level key handling. Use this when a destination page can be reached from more than one caller, because the history stack always returns the user to the route they actually came from.
+- Call `GoBack()` from host code when a destination page can be reached from more than one caller. The history stack returns the user to the route they actually came from, so nothing gets hard-coded.
 
 ### Page and ViewModel Patterns
 
-Pages handle back navigation through the key-binding capture phase. Key bindings registered in `OnNavigatedTo` are checked before focused components receive input, so Escape (or any key) can drive navigation even when a text input has focus:
+Pages handle back navigation through the key-binding capture phase. Key bindings registered in `OnNavigatedTo` are checked before focused components receive input, so Escape can drive navigation even when a text input has focus:
 
 ```csharp
 public override void OnNavigatedTo()
@@ -159,14 +159,14 @@ public event Action? BackRequested;
 
 Two patterns apply:
 
-1. **Fixed caller route** — when a page can only be reached from one place, register a key binding that calls `Navigate()` back to that route. This is the simplest pattern and needs no host wiring.
-2. **Multi-caller route** — when a page can be reached from several routes, do not hard-code a caller route. Raise an event or callback that host code handles by calling `TerminaApplication.GoBack()`, which returns the user to wherever they actually came from.
+1. **Fixed caller route.** When a page can only be reached from one place, register a key binding that calls `Navigate()` back to that route. This is the simplest pattern and needs no host wiring.
+2. **Multi-caller route.** When a page can be reached from several routes, do not hard-code a caller route. Raise an event or callback that host code handles by calling `TerminaApplication.GoBack()`, which returns the user to wherever they actually came from.
 
-ViewModels follow the same rules. Subscribe to `Input` for `KeyPressed` events, or expose navigation through commands that the host binds to `GoBack()`.
+ViewModels can do the same. Subscribe to `Input` for `KeyPressed` events, and expose a callback or event that host code wires to `GoBack()`.
 
 ### Nested State Consumes Escape First
 
-Components with their own internal state consume Escape before page-level navigation runs. The `WizardNode` is the reference example: Escape walks back through sub-steps and steps first, and only reports that it has nothing left to go back to when the wizard is at its first step:
+Components with their own internal state consume Escape before page-level navigation runs. `WizardNode` is the reference example: Escape walks back through sub-steps and steps first, and `TryGoBack()` returns false when the wizard is already at its first step:
 
 ```csharp
 if (wizard.TryGoBack())
@@ -175,7 +175,7 @@ if (wizard.TryGoBack())
     return;
 }
 
-// Wizard is at its first step — page-level back navigation applies
+// Wizard is at its first step, so page-level back navigation applies
 ```
 
 Follow this pattern in your own components: consume the key locally until the nested state is exhausted, then let the page (or host) handle application-level back navigation.
@@ -203,7 +203,7 @@ public sealed class BackKeyInputSource : IInputSource
 }
 ```
 
-When no history exists, a `NavigationBackRequested` is ignored — the application does not shut down and no exception is raised. Prefer calling `GoBack()` directly from host code; reserve the event for input sources and integrations that push events into the application channel.
+When no history exists, a `NavigationBackRequested` is ignored. The application does not shut down and nothing throws. Prefer calling `GoBack()` directly from host code. Reserve the event for input sources and integrations that push events into the application channel.
 
 ### Back Navigation and PreserveState
 
