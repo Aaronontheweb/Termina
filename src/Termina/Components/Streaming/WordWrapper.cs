@@ -90,7 +90,9 @@ public static class WordWrapper
             result.Add(currentLine.ToString());
         }
 
-        return result;
+        // A whitespace-only line that is wider than the width produces no words. Return one blank
+        // line so the result matches the empty-string case and the styled wrapper.
+        return result.Count > 0 ? result : [""];
     }
 
     /// <summary>

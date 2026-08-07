@@ -258,14 +258,29 @@ public sealed class StyledLine
             }
 
             var localStart = Math.Max(0, startColumn - currentColumn);
-            var localText = DisplayWidth.SliceByColumns(segment.Text, localStart, maxColumns - taken);
-            if (!string.IsNullOrEmpty(localText))
+            var remainingBudget = maxColumns - taken;
+
+            // Take the whole tail of this segment from localStart, then compare it to the budget.
+            // This tells us whether the budget ends inside this segment or the segment ends first.
+            var fullTail = DisplayWidth.SliceByColumns(segment.Text, localStart, int.MaxValue);
+            var fullTailColumns = DisplayWidth.GetColumnCount(fullTail);
+            var budgetEndsInsideSegment = fullTailColumns > remainingBudget;
+
+            var localText = budgetEndsInsideSegment
+                ? DisplayWidth.SliceByColumns(segment.Text, localStart, remainingBudget)
+                : fullTail;
+
+            if (localText.Length > 0)
             {
                 result.AppendInternal(new StyledSegment(localText, segment.Style));
                 taken += DisplayWidth.GetColumnCount(localText);
-                if (taken >= maxColumns)
-                    break;
             }
+
+            // Stop when the budget ends inside this segment. A wide glyph that straddles the budget
+            // boundary is skipped, so the slice is shorter than the budget. The slice must be a
+            // contiguous column range, so no later segment can join it.
+            if (budgetEndsInsideSegment || taken >= maxColumns)
+                break;
 
             currentColumn += segmentColumns;
         }
