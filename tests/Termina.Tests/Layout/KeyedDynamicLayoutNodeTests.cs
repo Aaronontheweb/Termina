@@ -222,12 +222,12 @@ public class KeyedDynamicLayoutNodeTests
     }
 
     [Fact]
-    public void CurrentOnly_SameKeyPreservesTextInputState()
+    public void EvictOnKeyChange_SameKeyPreservesTextInputState()
     {
         var node = new KeyedDynamicLayoutNode<int>(
             () => 0,
             _ => new TextInputNode(),
-            KeyedDynamicCachePolicy.CurrentOnly);
+            KeyedDynamicCachePolicy.EvictOnKeyChange);
         node.Measure(new Size(80, 24));
         var input = Assert.IsType<TextInputNode>(node.GetChildNodes().Single());
         input.HandleInput(new ConsoleKeyInfo('a', ConsoleKey.A, false, false, false));
@@ -241,7 +241,7 @@ public class KeyedDynamicLayoutNodeTests
     }
 
     [Fact]
-    public void CurrentOnly_ReturnToPriorKeyCreatesFreshContent()
+    public void EvictOnKeyChange_ReturnToPriorKeyCreatesFreshContent()
     {
         var currentKey = 0;
         var factoryCallCount = 0;
@@ -252,7 +252,7 @@ public class KeyedDynamicLayoutNodeTests
                 factoryCallCount++;
                 return new SpyLifecycleNode();
             },
-            KeyedDynamicCachePolicy.CurrentOnly);
+            KeyedDynamicCachePolicy.EvictOnKeyChange);
 
         node.Measure(new Size(80, 24));
         var firstChild = node.GetChildNodes().Single();
@@ -266,7 +266,7 @@ public class KeyedDynamicLayoutNodeTests
     }
 
     [Fact]
-    public void CurrentOnly_DisposesRetiredContentOnTheNextLayoutPass()
+    public void EvictOnKeyChange_DisposesRetiredContentOnTheNextLayoutPass()
     {
         var currentKey = 0;
         var children = new List<SpyLifecycleNode>();
@@ -278,7 +278,7 @@ public class KeyedDynamicLayoutNodeTests
                 children.Add(child);
                 return child;
             },
-            KeyedDynamicCachePolicy.CurrentOnly);
+            KeyedDynamicCachePolicy.EvictOnKeyChange);
         node.OnActivate();
         node.Measure(new Size(80, 24));
 
@@ -300,14 +300,113 @@ public class KeyedDynamicLayoutNodeTests
     }
 
     [Fact]
-    public void LayoutsFactorySupportsCurrentOnlyPolicy()
+    public void LayoutsFactorySupportsEvictOnKeyChangePolicy()
     {
         var node = Layouts.KeyedDynamic(
             () => 0,
             _ => new EmptyNode(),
-            KeyedDynamicCachePolicy.CurrentOnly);
+            KeyedDynamicCachePolicy.EvictOnKeyChange);
 
         Assert.IsType<KeyedDynamicLayoutNode<int>>(node);
+    }
+
+    [Fact]
+    public void EvictOnKeyChange_ReusedFactoryChildThrows()
+    {
+        var currentKey = 0;
+        var sharedChild = new EmptyNode();
+        var node = new KeyedDynamicLayoutNode<int>(
+            () => currentKey,
+            _ => sharedChild,
+            KeyedDynamicCachePolicy.EvictOnKeyChange);
+
+        node.Measure(new Size(80, 24));
+        currentKey = 1;
+
+        var exception = Assert.Throws<InvalidOperationException>(node.Invalidate);
+
+        Assert.Contains("Return a new child", exception.Message);
+    }
+
+    [Theory]
+    [InlineData(KeyedDynamicCachePolicy.RetainAll)]
+    [InlineData(KeyedDynamicCachePolicy.EvictOnKeyChange)]
+    public void NullKeyThrowsForEveryCachePolicy(KeyedDynamicCachePolicy cachePolicy)
+    {
+        string? currentKey = null;
+        var node = new KeyedDynamicLayoutNode<string>(
+            () => currentKey!,
+            _ => new EmptyNode(),
+            cachePolicy);
+
+        var exception = Assert.Throws<InvalidOperationException>(() => node.Measure(new Size(80, 24)));
+
+        Assert.Equal("The key selector returned null.", exception.Message);
+    }
+
+    [Fact]
+    public void EvictOnKeyChange_DisposalCanInvalidateWithoutMutatingTheActiveDisposalBatch()
+    {
+        var currentKey = 0;
+        var children = new Dictionary<int, SpyLifecycleNode>();
+        KeyedDynamicLayoutNode<int> node = null!;
+        node = new KeyedDynamicLayoutNode<int>(
+            () => currentKey,
+            key =>
+            {
+                var child = new SpyLifecycleNode(key == 0
+                    ? () =>
+                    {
+                        currentKey = 2;
+                        node.Invalidate();
+                    }
+                : null);
+                children.Add(key, child);
+                return child;
+            },
+            KeyedDynamicCachePolicy.EvictOnKeyChange);
+
+        node.Measure(new Size(80, 24));
+        node.Measure(new Size(80, 24));
+        currentKey = 1;
+        node.Invalidate();
+
+        node.Measure(new Size(80, 24));
+
+        Assert.True(children[0].WasDisposed);
+        Assert.False(children[1].WasDisposed);
+        Assert.Same(children[2], node.GetChildNodes().Single());
+
+        node.Measure(new Size(80, 24));
+
+        Assert.True(children[1].WasDisposed);
+    }
+
+    [Fact]
+    public void EvictOnKeyChange_TeardownIgnoresReentrantInvalidationAndDisposesAllChildren()
+    {
+        var currentKey = 0;
+        var children = new Dictionary<int, SpyLifecycleNode>();
+        KeyedDynamicLayoutNode<int> node = null!;
+        node = new KeyedDynamicLayoutNode<int>(
+            () => currentKey,
+            key =>
+            {
+                var child = new SpyLifecycleNode(key == 0 ? node.Invalidate : null);
+                children.Add(key, child);
+                return child;
+            },
+            KeyedDynamicCachePolicy.EvictOnKeyChange);
+
+        node.Measure(new Size(80, 24));
+        node.Measure(new Size(80, 24));
+        currentKey = 1;
+        node.Invalidate();
+
+        node.Dispose();
+
+        Assert.True(children[0].WasDisposed);
+        Assert.True(children[1].WasDisposed);
     }
 
     [Fact]
@@ -325,6 +424,13 @@ public class KeyedDynamicLayoutNodeTests
 
     private class SpyLifecycleNode : LayoutNode
     {
+        private readonly Action? _onDispose;
+
+        public SpyLifecycleNode(Action? onDispose = null)
+        {
+            _onDispose = onDispose;
+        }
+
         public int ActivateCount { get; private set; }
         public int DeactivateCount { get; private set; }
         public bool WasDisposed { get; private set; }
@@ -344,6 +450,7 @@ public class KeyedDynamicLayoutNodeTests
         public override void Dispose()
         {
             WasDisposed = true;
+            _onDispose?.Invoke();
             base.Dispose();
         }
 

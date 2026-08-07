@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
 using R3;
+using System.Runtime.CompilerServices;
 using Termina.Rendering;
 
 namespace Termina.Layout;
@@ -12,14 +13,16 @@ namespace Termina.Layout;
 public enum KeyedDynamicCachePolicy
 {
     /// <summary>
-    /// Retain content for every visited key. A return to a key restores its prior state.
+    /// Retain one child for every visited key until the keyed layout is disposed.
+    /// A return to a key reuses the same child and its state.
     /// </summary>
-    AllKeys,
+    RetainAll,
 
     /// <summary>
-    /// Retain content only while its key stays active. A return to a prior key creates fresh content.
+    /// Evict the active child when the selected key changes.
+    /// A return to a prior key creates a new child with fresh state.
     /// </summary>
-    CurrentOnly
+    EvictOnKeyChange
 }
 
 /// <summary>
@@ -28,17 +31,19 @@ public enum KeyedDynamicCachePolicy
 /// </summary>
 /// <typeparam name="TKey">The type of key used to identify content variants.</typeparam>
 /// <remarks>
-/// The default policy retains all visited keys. <see cref="KeyedDynamicCachePolicy.CurrentOnly"/>
-/// creates fresh content after a return to a prior key.
+/// The default policy retains a child for every visited key.
+/// <see cref="KeyedDynamicCachePolicy.EvictOnKeyChange"/> creates a new child after each key transition.
 /// Use <see cref="Layouts.KeyedDynamic{TKey}(Func{TKey}, Func{TKey, ILayoutNode})"/> to create instances.
 /// </remarks>
 public sealed class KeyedDynamicLayoutNode<TKey> : LayoutNode, IInvalidatingNode
     where TKey : notnull
 {
+    private static readonly object OwnedChildMarker = new();
     private readonly Func<TKey> _keySelector;
     private readonly Func<TKey, ILayoutNode> _contentFactory;
     private readonly KeyedDynamicCachePolicy _cachePolicy;
     private readonly Dictionary<TKey, ILayoutNode> _cache = new();
+    private readonly ConditionalWeakTable<ILayoutNode, object> _evictionOwnedChildren = new();
     private readonly List<ILayoutNode> _retiredChildren = [];
     private readonly Subject<Unit> _invalidated = new();
     private IDisposable? _childInvalidationSubscription;
@@ -49,6 +54,7 @@ public sealed class KeyedDynamicLayoutNode<TKey> : LayoutNode, IInvalidatingNode
     private bool _needsEvaluation = true;
     private bool _isEvaluating;
     private bool _reevaluationRequested;
+    private bool _disposed;
 
     // Bounds the settle loop when the key selector or content factory invalidates its own node on every
     // pass (never converges).
@@ -63,7 +69,7 @@ public sealed class KeyedDynamicLayoutNode<TKey> : LayoutNode, IInvalidatingNode
     /// <param name="keySelector">Function that returns the current key.</param>
     /// <param name="contentFactory">Function that creates content for a given key (called once per key).</param>
     public KeyedDynamicLayoutNode(Func<TKey> keySelector, Func<TKey, ILayoutNode> contentFactory)
-        : this(keySelector, contentFactory, KeyedDynamicCachePolicy.AllKeys)
+        : this(keySelector, contentFactory, KeyedDynamicCachePolicy.RetainAll)
     {
     }
 
@@ -73,6 +79,11 @@ public sealed class KeyedDynamicLayoutNode<TKey> : LayoutNode, IInvalidatingNode
     /// <param name="keySelector">Function that returns the current key.</param>
     /// <param name="contentFactory">Function that creates content for a key.</param>
     /// <param name="cachePolicy">The policy that controls retention of inactive content.</param>
+    /// <remarks>
+    /// <see cref="KeyedDynamicCachePolicy.EvictOnKeyChange"/> transfers ownership of each returned child
+    /// to this layout. The factory must return a new child after each key change.
+    /// Wrap externally owned content in a <see cref="DeferredNode"/>.
+    /// </remarks>
     public KeyedDynamicLayoutNode(
         Func<TKey> keySelector,
         Func<TKey, ILayoutNode> contentFactory,
@@ -94,6 +105,9 @@ public sealed class KeyedDynamicLayoutNode<TKey> : LayoutNode, IInvalidatingNode
     /// </summary>
     public void Invalidate()
     {
+        if (_disposed)
+            return;
+
         _needsEvaluation = true;
 
         // A re-entrant call from inside the key selector or content factory: request another pass of the
@@ -160,14 +174,16 @@ public sealed class KeyedDynamicLayoutNode<TKey> : LayoutNode, IInvalidatingNode
     {
         _needsEvaluation = false;
         var key = _keySelector();
+        if (key is null)
+            throw new InvalidOperationException("The key selector returned null.");
 
-        if (_cachePolicy == KeyedDynamicCachePolicy.CurrentOnly
+        if (_cachePolicy == KeyedDynamicCachePolicy.EvictOnKeyChange
             && _hasCurrentKey
             && EqualityComparer<TKey>.Default.Equals(key, _currentKey))
             return;
 
         ILayoutNode newChild;
-        if (_cachePolicy == KeyedDynamicCachePolicy.AllKeys)
+        if (_cachePolicy == KeyedDynamicCachePolicy.RetainAll)
         {
             if (_cache.TryGetValue(key, out var cachedChild))
             {
@@ -175,13 +191,22 @@ public sealed class KeyedDynamicLayoutNode<TKey> : LayoutNode, IInvalidatingNode
             }
             else
             {
-                newChild = _contentFactory(key);
+                newChild = _contentFactory(key)
+                    ?? throw new InvalidOperationException("The content factory returned null.");
                 _cache[key] = newChild;
             }
         }
         else
         {
-            newChild = _contentFactory(key);
+            newChild = _contentFactory(key)
+                ?? throw new InvalidOperationException("The content factory returned null.");
+            if (_evictionOwnedChildren.TryGetValue(newChild, out _))
+            {
+                throw new InvalidOperationException(
+                    "The content factory reused a child with EvictOnKeyChange. Return a new child after each key change.");
+            }
+
+            _evictionOwnedChildren.Add(newChild, OwnedChildMarker);
         }
 
         _currentKey = key;
@@ -199,7 +224,7 @@ public sealed class KeyedDynamicLayoutNode<TKey> : LayoutNode, IInvalidatingNode
 
         // Invalidate can run inside the old child's input callback. Defer disposal until the next
         // layout pass, after input dispatch completes.
-        if (_cachePolicy == KeyedDynamicCachePolicy.CurrentOnly)
+        if (_cachePolicy == KeyedDynamicCachePolicy.EvictOnKeyChange)
             _retiredChildren.Add(_currentChild);
 
         _currentChild = newChild;
@@ -211,6 +236,8 @@ public sealed class KeyedDynamicLayoutNode<TKey> : LayoutNode, IInvalidatingNode
         {
             newLayoutNode.OnActivate();
         }
+
+        RuntimeContext?.NotifyLayoutStructureChanged();
     }
 
     /// <summary>
@@ -262,13 +289,17 @@ public sealed class KeyedDynamicLayoutNode<TKey> : LayoutNode, IInvalidatingNode
 
     private void DisposeRetiredChildren()
     {
-        foreach (var child in _retiredChildren)
+        if (_retiredChildren.Count == 0)
+            return;
+
+        var retiredChildren = _retiredChildren.ToArray();
+        _retiredChildren.Clear();
+
+        foreach (var child in retiredChildren)
         {
             if (!ReferenceEquals(child, _currentChild))
                 child.Dispose();
         }
-
-        _retiredChildren.Clear();
     }
 
     /// <inheritdoc />
@@ -306,9 +337,11 @@ public sealed class KeyedDynamicLayoutNode<TKey> : LayoutNode, IInvalidatingNode
     /// <inheritdoc />
     public override void Dispose()
     {
+        if (_disposed)
+            return;
+
+        _disposed = true;
         _childInvalidationSubscription?.Dispose();
-        _invalidated.OnCompleted();
-        _invalidated.Dispose();
 
         DisposeRetiredChildren();
 
@@ -327,6 +360,9 @@ public sealed class KeyedDynamicLayoutNode<TKey> : LayoutNode, IInvalidatingNode
         {
             _currentChild.Dispose();
         }
+
+        _invalidated.OnCompleted();
+        _invalidated.Dispose();
 
         base.Dispose();
     }

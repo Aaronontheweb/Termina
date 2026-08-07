@@ -104,6 +104,10 @@ public static class Layouts
     /// <typeparam name="TKey">The type of key used to identify content variants.</typeparam>
     /// <param name="keySelector">Function that returns the current key.</param>
     /// <param name="contentFactory">Function that creates content for a given key (called once per key).</param>
+    /// <remarks>
+    /// The keyed layout owns every child that <paramref name="contentFactory"/> returns.
+    /// Wrap externally owned content in a <see cref="DeferredNode"/>.
+    /// </remarks>
     public static KeyedDynamicLayoutNode<TKey> KeyedDynamic<TKey>(
         Func<TKey> keySelector,
         Func<TKey, ILayoutNode> contentFactory)
@@ -116,6 +120,11 @@ public static class Layouts
     /// <param name="keySelector">A function that returns the current key.</param>
     /// <param name="contentFactory">A function that creates content for a key.</param>
     /// <param name="cachePolicy">The policy that controls retention of inactive content.</param>
+    /// <remarks>
+    /// The keyed layout owns every child that <paramref name="contentFactory"/> returns.
+    /// <see cref="KeyedDynamicCachePolicy.EvictOnKeyChange"/> requires a new child after each key change.
+    /// Wrap externally owned content in a <see cref="DeferredNode"/>.
+    /// </remarks>
     public static KeyedDynamicLayoutNode<TKey> KeyedDynamic<TKey>(
         Func<TKey> keySelector,
         Func<TKey, ILayoutNode> contentFactory,
