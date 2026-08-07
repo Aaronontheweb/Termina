@@ -28,6 +28,18 @@ namespace Termina.Components.Streaming;
 public static class StyledWordWrapper
 {
     /// <summary>
+    /// A word split out of a styled line, together with the style of the whitespace
+    /// that separated it from the previous word in the source line.
+    /// </summary>
+    /// <remarks>
+    /// The wrapper discards whitespace when it splits a line into words, then re-inserts a
+    /// single space between words that share an output line. That separator must carry the
+    /// style of the original whitespace, so a background highlight stays contiguous and an
+    /// unstyled gap between two styled words does not pick up a background color.
+    /// </remarks>
+    private readonly record struct StyledWord(StyledLine Line, TextStyle SeparatorStyle);
+
+    /// <summary>
     /// Wraps a styled line to fit within the specified width, preserving styling.
     /// </summary>
     /// <param name="line">The line to wrap.</param>
@@ -55,7 +67,7 @@ public static class StyledWordWrapper
 
         foreach (var word in words)
         {
-            var wordWidth = word.ColumnCount;
+            var wordWidth = word.Line.ColumnCount;
 
             // If word itself is longer than width, break it
             if (wordWidth > width)
@@ -69,7 +81,7 @@ public static class StyledWordWrapper
                 }
 
                 // Break long word into chunks while preserving styles
-                var remaining = word;
+                var remaining = word.Line;
                 while (remaining.ColumnCount > width)
                 {
                     var chunk = remaining.SliceByColumns(0, width);
@@ -90,7 +102,7 @@ public static class StyledWordWrapper
             else if (currentWidth == 0)
             {
                 // Start of line - add word directly
-                foreach (var segment in word.Segments)
+                foreach (var segment in word.Line.Segments)
                 {
                     currentLine.Append(segment);
                 }
@@ -98,27 +110,22 @@ public static class StyledWordWrapper
             }
             else if (currentWidth + 1 + wordWidth <= width)
             {
-                // Word fits with space separator. Only inherit background color if BOTH the preceding segment and incoming word segment share the exact same background color.
-                var prevStyle = currentLine.Segments.Count > 0 ? currentLine.Segments[^1].Style : TextStyle.Default;
-                var nextStyle = word.Segments.Count > 0 ? word.Segments[0].Style : TextStyle.Default;
-
-                var hasSameBg = prevStyle.HasBackground && nextStyle.HasBackground && prevStyle.Background.Equals(nextStyle.Background);
-                var spaceBg = hasSameBg ? nextStyle.Background : Color.Default;
-                var spaceStyle = new TextStyle(nextStyle.Foreground, spaceBg, nextStyle.Decoration);
-
-                currentLine.Append(new StyledSegment(" ", spaceStyle));
-                foreach (var segment in word.Segments)
+                // Word fits with a single-space separator. The separator carries the style of the
+                // whitespace that separated the two words in the source line, so a background
+                // highlight stays contiguous and an unstyled gap stays unstyled.
+                currentLine.Append(new StyledSegment(" ", word.SeparatorStyle));
+                foreach (var segment in word.Line.Segments)
                 {
                     currentLine.Append(segment);
                 }
-                currentWidth = currentLine.ColumnCount;
+                currentWidth += 1 + wordWidth;
             }
             else
             {
                 // Word doesn't fit, start new line
                 result.Add(currentLine);
                 currentLine = new StyledLine();
-                foreach (var segment in word.Segments)
+                foreach (var segment in word.Line.Segments)
                 {
                     currentLine.Append(segment);
                 }
@@ -176,12 +183,16 @@ public static class StyledWordWrapper
     /// <remarks>
     /// This handles the complex case where a word may span multiple segments with
     /// different styles. Each resulting "word" is a StyledLine that may contain
-    /// multiple segments.
+    /// multiple segments, together with the style of the whitespace that preceded it.
     /// </remarks>
-    private static List<StyledLine> SplitIntoStyledWords(StyledLine line)
+    private static List<StyledWord> SplitIntoStyledWords(StyledLine line)
     {
-        var words = new List<StyledLine>();
+        var words = new List<StyledWord>();
         var currentWord = new StyledLine();
+
+        // Style of the whitespace that precedes the word currently being built.
+        // The first word has no preceding whitespace, so its separator style is never used.
+        var separatorStyle = TextStyle.Default;
 
         foreach (var segment in line.Segments)
         {
@@ -203,10 +214,12 @@ public static class StyledWordWrapper
                     // If we have a word, add it to results
                     if (!currentWord.IsEmpty)
                     {
-                        words.Add(currentWord);
+                        words.Add(new StyledWord(currentWord, separatorStyle));
                         currentWord = new StyledLine();
                     }
 
+                    // The style of this whitespace separates the previous word from the next one.
+                    separatorStyle = segment.Style;
                     currentSegmentStart = i + 1;
                 }
             }
@@ -222,7 +235,7 @@ public static class StyledWordWrapper
         // Add final word if any
         if (!currentWord.IsEmpty)
         {
-            words.Add(currentWord);
+            words.Add(new StyledWord(currentWord, separatorStyle));
         }
 
         return words;
