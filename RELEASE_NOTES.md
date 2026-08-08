@@ -1,3 +1,19 @@
+# Release Notes — Termina 0.16.1
+
+**Release date:** 2026-08-08
+
+####
+
+**New Features**
+
+- **Added cache policy to keyed dynamic layouts** ([#361](https://github.com/Aaronontheweb/termina/pull/361))
+  - `KeyedDynamicLayoutNode` now supports `AllKeys` and `CurrentOnly` cache policies.
+  - `AllKeys` remains the default policy, preserving existing behavior and source compatibility.
+  - `CurrentOnly` keeps only the active child and replaces it when the key changes.
+  - Replaced children deactivate immediately and dispose during the next layout pass.
+
+####
+
 # Release Notes — Termina 0.16.0
 
 **Release date:** 2026-08-07
