@@ -10,8 +10,12 @@
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <VersionPrefix>0.17.0-beta.1</VersionPrefix>
+    <VersionPrefix>0.17.0-beta.2</VersionPrefix>
     <PackageReleaseNotes>**New Features**
+
+- **Added semantic clipboard content for copyable text**
+  - `WithSemanticContent` separates complete clipboard text from compact display text.
+  - `TryCopy` reports clipboard failure and preserves the current selection.
 
 - **Added an opt-in inline presentation mode** ([#366](https://github.com/Aaronontheweb/termina/issues/366))
   - `TerminalPresentationMode.Inline` keeps settled output in the primary buffer.
