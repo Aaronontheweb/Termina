@@ -37,10 +37,11 @@ namespace Termina;
 /// ViewModels subscribe to Input observable to handle keyboard events.
 /// </para>
 /// </remarks>
-public sealed class TerminaApplication
+public sealed class TerminaApplication : IInlineOutput
 {
     private readonly IAnsiTerminal _terminal;
     private readonly DiffingTerminal? _diffingTerminal;
+    private readonly InlineTerminal? _inlineTerminal;
     private readonly TerminaRuntimeOptions _runtimeOptions;
     private readonly IServiceProvider? _serviceProvider;
     private readonly Channel<object> _eventChannel;
@@ -66,6 +67,7 @@ public sealed class TerminaApplication
     private static readonly TimeSpan CtrlCDoublePressWindow = TimeSpan.FromSeconds(2);
     private bool _rawInputActive;
     private bool _kittyKeyboardPushed;
+    private bool _mouseEnabledByApp;
     private bool _wheelScrollEnabledByApp;
     private int _pendingNavigationRequests;
 
@@ -99,31 +101,47 @@ public sealed class TerminaApplication
         TerminaRuntimeOptions? runtimeOptions = null,
         IServiceProvider? serviceProvider = null)
     {
+        _runtimeOptions = runtimeOptions ?? new TerminaRuntimeOptions();
+        ValidateRuntimeOptions(_runtimeOptions);
+
         ObservableSystem.RegisterUnhandledExceptionHandler(ex =>
         {
             TerminaTrace.Reactive.Error("ObservableSystem", "Unhandled observable error: {0}", ex);
         });
 
-        // Wrap terminal with DiffingTerminal for flicker-free rendering
-        // unless it's already a DiffingTerminal or VirtualTerminal (for tests)
-        if (terminal is DiffingTerminal diffing)
+        if (_runtimeOptions.PresentationMode == TerminalPresentationMode.Inline)
+        {
+            if (terminal is not IInlineTerminalControl inlineControl)
+            {
+                throw new InvalidOperationException(
+                    $"Inline mode requires a terminal that implements {nameof(IInlineTerminalControl)}.");
+            }
+
+            _inlineTerminal = new InlineTerminal(terminal, inlineControl);
+            _terminal = _inlineTerminal;
+            _diffingTerminal = null;
+        }
+        // Wrap the full-screen terminal for flicker-free output.
+        else if (terminal is DiffingTerminal diffing)
         {
             _terminal = terminal;
             _diffingTerminal = diffing;
+            _inlineTerminal = null;
         }
         else if (terminal is VirtualTerminal)
         {
-            // Don't wrap VirtualTerminal - it's used for testing
+            // Keep direct virtual output for current full-screen tests.
             _terminal = terminal;
             _diffingTerminal = null;
+            _inlineTerminal = null;
         }
         else
         {
             _diffingTerminal = new DiffingTerminal(terminal);
             _terminal = _diffingTerminal;
+            _inlineTerminal = null;
         }
 
-        _runtimeOptions = runtimeOptions ?? new TerminaRuntimeOptions();
         _serviceProvider = serviceProvider;
         _eventChannel = Channel.CreateUnbounded<object>();
         _renderFrameProvider = new TerminaRenderFrameProvider(
@@ -400,6 +418,42 @@ public sealed class TerminaApplication
         _eventChannel.Writer.TryWrite(RedrawRequested.Instance);
     }
 
+    /// <inheritdoc />
+    public ValueTask CommitAsync(ILayoutNode content, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+
+        if (_inlineTerminal is null)
+            throw new InvalidOperationException("Stable content commits require inline presentation mode.");
+
+        if (_shutdownCts is null)
+            throw new InvalidOperationException("The Termina application must be active before it can commit inline output.");
+
+        if (cancellationToken.IsCancellationRequested)
+            return new ValueTask(Task.FromCanceled(cancellationToken));
+
+        var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            _shutdownCts.Token);
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var registration = linkedCancellation.Token.Register(
+            () => completion.TrySetCanceled(linkedCancellation.Token));
+        var request = new InlineCommitRequested(
+            content,
+            completion,
+            linkedCancellation,
+            registration);
+
+        if (!_eventChannel.Writer.TryWrite(request))
+        {
+            registration.Dispose();
+            linkedCancellation.Dispose();
+            throw new InvalidOperationException("Unable to post an inline commit to the Termina event loop.");
+        }
+
+        return new ValueTask(completion.Task);
+    }
+
     /// <summary>
     /// Enqueues work to run on the Termina render loop thread.
     /// </summary>
@@ -553,110 +607,128 @@ public sealed class TerminaApplication
 
         try
         {
-            // Enter alternate screen and hide cursor
-            TerminaTrace.Render.Debug(this, "About to enter alternate screen");
-            _terminal.EnterAlternateScreen();
-            _terminal.SetCursorVisible(false);
-            _terminal.Flush();
-            TerminaTrace.Render.Debug(this, "Entered alternate screen, cursor hidden, flushed");
-
-            var inTmux = Environment.GetEnvironmentVariable("TMUX") is not null;
-            Console.Write(AnsiCodes.EnableBracketedPaste);
-
-            // When running inside tmux, the inner-pane ESC[?2004h above is intercepted by tmux
-            // and never reaches the outer terminal. The outer terminal therefore does not know
-            // to wrap Ctrl+Shift+V pastes with ESC[200~...ESC[201~. Use a DCS passthrough to
-            // also enable bracketed paste in the outer terminal.
-            // Requires: set -g allow-passthrough on  in ~/.tmux.conf (tmux 3.3+).
-            if (inTmux)
+            try
             {
-                Console.Write(AnsiCodes.TmuxPassthrough(AnsiCodes.EnableBracketedPaste));
+                if (_runtimeOptions.PresentationMode == TerminalPresentationMode.FullScreen)
+                {
+                    TerminaTrace.Render.Debug(this, "About to enter alternate screen");
+                    _terminal.EnterAlternateScreen();
+                }
+
+                _terminal.SetCursorVisible(false);
+                _terminal.Flush();
+                TerminaTrace.Render.Debug(this, "Terminal presentation mode entered, cursor hidden, flushed");
+
+                var inTmux = Environment.GetEnvironmentVariable("TMUX") is not null;
+                Console.Write(AnsiCodes.EnableBracketedPaste);
+
+                // When running inside tmux, the inner-pane ESC[?2004h above is intercepted by tmux
+                // and never reaches the outer terminal. The outer terminal therefore does not know
+                // to wrap Ctrl+Shift+V pastes with ESC[200~...ESC[201~. Use a DCS passthrough to
+                // also enable bracketed paste in the outer terminal.
+                // Requires: set -g allow-passthrough on  in ~/.tmux.conf (tmux 3.3+).
+                if (inTmux)
+                {
+                    Console.Write(AnsiCodes.TmuxPassthrough(AnsiCodes.EnableBracketedPaste));
+                }
+
+                var kittyFlags = GetKittyKeyboardFlags();
+                _kittyKeyboardPushed = KittyKeyboardEnhancement.TryEnter(this, kittyFlags, inTmux);
+
+                if (_runtimeOptions.ScrollInputMode == ScrollInputMode.AlternateScroll && _rawInputActive)
+                {
+                    // Alternate-scroll preserves native selection/clipboard behavior but only works
+                    // correctly when the input parser sees raw byte sequences.
+                    _terminal.EnableWheelScroll();
+                    _wheelScrollEnabledByApp = true;
+                    _mouseEnabledByApp = false;
+                }
+                else if (_runtimeOptions.ScrollInputMode != ScrollInputMode.NativeTerminal)
+                {
+                    _terminal.EnableMouse();
+                    _mouseEnabledByApp = true;
+                    _wheelScrollEnabledByApp = false;
+                }
+                else
+                {
+                    _mouseEnabledByApp = false;
+                    _wheelScrollEnabledByApp = false;
+                }
+
+                _terminal.Flush();
+
+                // Initial render
+                TerminaTrace.Render.Debug(this, "Starting initial render");
+                if (!HasPendingNavigationRequests())
+                    RenderCurrentPage();
+                TerminaTrace.Render.Debug(this, "Initial render complete");
+
+                // Single-threaded event loop - all input sources merge here
+                await foreach (var evt in _eventChannel.Reader.ReadAllAsync(linkedToken))
+                {
+                    ProcessEventAndMaybeRender(evt);
+                }
             }
-
-            var kittyFlags = GetKittyKeyboardFlags();
-            _kittyKeyboardPushed = KittyKeyboardEnhancement.TryEnter(this, kittyFlags, inTmux);
-
-            if (_runtimeOptions.ScrollInputMode == ScrollInputMode.AlternateScroll && _rawInputActive)
+            catch (OperationCanceledException)
             {
-                // Alternate-scroll preserves native selection/clipboard behavior but only works
-                // correctly when the input parser sees raw byte sequences.
-                _terminal.EnableWheelScroll();
-                _wheelScrollEnabledByApp = true;
+                // Expected on shutdown
             }
-            else
+            finally
             {
-                _terminal.EnableMouse();
-                _wheelScrollEnabledByApp = false;
+                _shutdownCts.Cancel();
+                var inTmux = Environment.GetEnvironmentVariable("TMUX") is not null;
+
+                // Disable bracketed paste and kitty keyboard protocol before restoring terminal
+                if (_kittyKeyboardPushed)
+                {
+                    KittyKeyboardEnhancement.TryLeave(inTmux);
+                    _kittyKeyboardPushed = false;
+                }
+
+                Console.Write(AnsiCodes.DisableBracketedPaste);
+                if (inTmux)
+                {
+                    Console.Write(AnsiCodes.TmuxPassthrough(AnsiCodes.DisableBracketedPaste));
+                }
+
+                if (_wheelScrollEnabledByApp)
+                    _terminal.DisableWheelScroll();
+                if (_mouseEnabledByApp)
+                    _terminal.DisableMouse();
+
+                _inlineTerminal?.ClearLiveRegion();
+                _terminal.SetCursorVisible(true);
+                _terminal.ResetColors();
+                if (_runtimeOptions.PresentationMode == TerminalPresentationMode.FullScreen)
+                    _terminal.ExitAlternateScreen();
+                _terminal.Flush();
+
+                if (_runtimeOptions.PresentationMode == TerminalPresentationMode.FullScreen)
+                    Console.WriteLine();
+
+                // Complete the input subject
+                _inputSubject.OnCompleted();
+
+                // Restore and dispose platform console
+                platformConsole?.Dispose();
             }
-
-            _terminal.Flush();
-
-            // Initial render
-            TerminaTrace.Render.Debug(this, "Starting initial render");
-            if (!HasPendingNavigationRequests())
-                RenderCurrentPage();
-            TerminaTrace.Render.Debug(this, "Initial render complete");
-
-            // Single-threaded event loop - all input sources merge here
-            await foreach (var evt in _eventChannel.Reader.ReadAllAsync(linkedToken))
-            {
-                ProcessEventAndMaybeRender(evt);
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            // Expected on shutdown
         }
         finally
         {
-            var inTmux = Environment.GetEnvironmentVariable("TMUX") is not null;
-
-            // Disable bracketed paste and kitty keyboard protocol before restoring terminal
-            if (_kittyKeyboardPushed)
+            // Wait for all input sources to complete.
+            try
             {
-                KittyKeyboardEnhancement.TryLeave(inTmux);
-                _kittyKeyboardPushed = false;
+                await Task.WhenAll(inputTasks);
             }
-
-            Console.Write(AnsiCodes.DisableBracketedPaste);
-            if (inTmux)
+            catch (OperationCanceledException)
             {
-                Console.Write(AnsiCodes.TmuxPassthrough(AnsiCodes.DisableBracketedPaste));
+                // Expected on shutdown
             }
-
-            if (_wheelScrollEnabledByApp)
-                _terminal.DisableWheelScroll();
-            else
-                _terminal.DisableMouse();
-
-            _terminal.SetCursorVisible(true);
-            _terminal.ResetColors();
-            _terminal.ExitAlternateScreen();
-            _terminal.Flush();
-
-            // Clear any partial line artifacts
-            Console.WriteLine();
-
-            // Complete the input subject
-            _inputSubject.OnCompleted();
-
-            // Restore and dispose platform console
-            platformConsole?.Dispose();
-        }
-
-        // Wait for all input sources to complete
-        try
-        {
-            await Task.WhenAll(inputTasks);
-        }
-        catch (OperationCanceledException)
-        {
-            // Expected on shutdown
-        }
-        finally
-        {
-            _shutdownCts.Dispose();
-            _shutdownCts = null;
+            finally
+            {
+                _shutdownCts.Dispose();
+                _shutdownCts = null;
+            }
         }
     }
 
@@ -811,6 +883,12 @@ public sealed class TerminaApplication
 
     private void ProcessEventAndMaybeRender(object evt)
     {
+        if (evt is InlineCommitRequested inlineCommit)
+        {
+            ProcessInlineCommit(inlineCommit);
+            return;
+        }
+
         ProcessEvent(evt);
 
         // If this event enqueued a navigation, do not render the page that is
@@ -819,6 +897,33 @@ public sealed class TerminaApplication
             return;
 
         RenderCurrentPage();
+    }
+
+    private void ProcessInlineCommit(InlineCommitRequested request)
+    {
+        try
+        {
+            if (request.Completion.Task.IsCompleted)
+                return;
+
+            request.Cancellation.Token.ThrowIfCancellationRequested();
+            _inlineTerminal!.Commit(request.Content);
+            RenderCurrentPage();
+            request.Completion.TrySetResult();
+        }
+        catch (OperationCanceledException) when (request.Cancellation.IsCancellationRequested)
+        {
+            request.Completion.TrySetCanceled(request.Cancellation.Token);
+        }
+        catch (Exception ex)
+        {
+            request.Completion.TrySetException(ex);
+        }
+        finally
+        {
+            request.Registration.Dispose();
+            request.Cancellation.Dispose();
+        }
     }
 
     private bool HasPendingNavigationRequests() =>
@@ -866,6 +971,25 @@ public sealed class TerminaApplication
     }
 
     private int GetKittyKeyboardFlags() => (int)_runtimeOptions.KittyKeyboardMode;
+
+    private static void ValidateRuntimeOptions(TerminaRuntimeOptions options)
+    {
+        if (options.PresentationMode == TerminalPresentationMode.Inline
+            && options.ScrollInputMode != ScrollInputMode.NativeTerminal)
+        {
+            throw new ArgumentException(
+                $"{nameof(TerminalPresentationMode.Inline)} mode requires {nameof(ScrollInputMode.NativeTerminal)} scroll input.",
+                nameof(options));
+        }
+
+        if (options.PresentationMode == TerminalPresentationMode.FullScreen
+            && options.ScrollInputMode == ScrollInputMode.NativeTerminal)
+        {
+            throw new ArgumentException(
+                $"{nameof(ScrollInputMode.NativeTerminal)} scroll input requires {nameof(TerminalPresentationMode.Inline)} mode.",
+                nameof(options));
+        }
+    }
 
     private bool ShouldInterceptCtrlC() => _runtimeOptions.CtrlCHandlingMode switch
     {
@@ -984,6 +1108,12 @@ public sealed class TerminaApplication
     }
 
     private sealed record LoopWorkRequested(Action Action);
+
+    private sealed record InlineCommitRequested(
+        ILayoutNode Content,
+        TaskCompletionSource Completion,
+        CancellationTokenSource Cancellation,
+        CancellationTokenRegistration Registration);
 
     private sealed class RenderFrameRequested
     {

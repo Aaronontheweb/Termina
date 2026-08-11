@@ -10,14 +10,30 @@
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <VersionPrefix>0.16.1</VersionPrefix>
+    <VersionPrefix>0.17.0-beta.1</VersionPrefix>
     <PackageReleaseNotes>**New Features**
 
-- **Added cache policy to keyed dynamic layouts** ([#361](https://github.com/Aaronontheweb/termina/pull/361))
-  - `KeyedDynamicLayoutNode` now supports `AllKeys` and `CurrentOnly` cache policies.
-  - `AllKeys` remains the default policy, preserving existing behavior and source compatibility.
-  - `CurrentOnly` keeps only the active child and replaces it when the key changes.
-  - Replaced children deactivate immediately and dispose during the next layout pass.</PackageReleaseNotes>
+- **Added an opt-in inline presentation mode** ([#366](https://github.com/Aaronontheweb/termina/issues/366))
+  - `TerminalPresentationMode.Inline` keeps settled output in the primary buffer.
+  - `IInlineOutput` commits stable layouts above one bounded live region.
+  - `ScrollInputMode.NativeTerminal` leaves selection and scrollback under terminal control.
+
+- **Added extend-only terminal control APIs** ([#370](https://github.com/Aaronontheweb/termina/issues/370))
+  - `IInlineTerminalControl` adds relative cursor operations without a change to `IAnsiTerminal`.
+  - `AnsiTerminal` and `VirtualTerminal` implement the new contract.
+  - Full-screen mode remains the default mode.
+
+**Bug Fixes**
+
+- **Restored all terminal and input state after a render failure**
+  - Termina now cancels input tasks before it propagates a render exception.
+  - Termina restores the cursor, mouse modes, keyboard modes, and input mode.
+
+**Compatibility**
+
+- Current enum values and public signatures keep their behavior.
+- The current `AnsiTerminal(bool)` constructor keeps its behavior.
+- An API approval test now prevents accidental contract changes.</PackageReleaseNotes>
   </PropertyGroup>
   <PropertyGroup>
     <!-- Target framework versions -->
