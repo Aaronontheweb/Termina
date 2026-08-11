@@ -627,6 +627,7 @@ namespace Termina.Layout
         public string SelectedText { get; }
         public Termina.Terminal.Color SelectionBackground { get; }
         public Termina.Terminal.Color SelectionForeground { get; }
+        public string SemanticContent { get; }
         public Termina.Notifications.ToastPosition ToastPosition { get; }
         public override void Dispose() { }
         public bool HandleInput(System.ConsoleKeyInfo key) { }
@@ -634,6 +635,7 @@ namespace Termina.Layout
         public void OnBlurred() { }
         public void OnFocused() { }
         public override void Render(Termina.Rendering.IRenderContext context, Termina.Layout.Rect bounds) { }
+        public bool TryCopy() { }
         public Termina.Layout.CopyableTextNode WithContent(string content) { }
         public Termina.Layout.CopyableTextNode WithCopyBindings(params Termina.Layout.CopyKeyBinding[] bindings) { }
         public Termina.Layout.CopyableTextNode WithFeedbackDuration(System.TimeSpan duration) { }
@@ -643,6 +645,7 @@ namespace Termina.Layout
         public Termina.Layout.CopyableTextNode WithHint(string? hint) { }
         public Termina.Layout.CopyableTextNode WithInlineIndicator(string text, Termina.Terminal.Color? foreground = default) { }
         public Termina.Layout.CopyableTextNode WithSelectionColors(Termina.Terminal.Color foreground, Termina.Terminal.Color background) { }
+        public Termina.Layout.CopyableTextNode WithSemanticContent(string semanticContent) { }
         public Termina.Layout.CopyableTextNode WithToastPosition(Termina.Notifications.ToastPosition position) { }
     }
     public sealed class DefaultFileSystemProvider : Termina.Layout.IFileSystemProvider
