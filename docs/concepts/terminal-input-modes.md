@@ -1,11 +1,14 @@
 # Terminal Input Modes
 
-Termina supports two runtime input strategies:
+Termina supports three runtime input strategies:
 
 - legacy mouse tracking, which is the compatibility-first default
 - raw input plus alternate-scroll, which is the higher-fidelity mode for apps like NetClaw
+- native terminal input for inline applications
 
 This page explains when to use each mode, how to configure them, and what to expect in tmux and kitty-capable terminals.
+
+See [Terminal Presentation Modes](/concepts/presentation-modes) for primary-buffer output ownership.
 
 ::: tip Upgrading to 0.11.0
 If you are upgrading an app that needs native terminal selection, clipboard copy, or paste into focused inputs, start with the [0.11.0 upgrade advisory](/guide/upgrade-0.11).
@@ -90,6 +93,13 @@ If raw input is requested on Unix and stdin is not a TTY, Termina falls back cle
 - only activated when raw input is actually active
 - preserves native selection and clipboard integration
 - falls back to legacy mouse tracking when raw input is unavailable
+
+`NativeTerminal`
+
+- opt-in
+- requires `TerminalPresentationMode.Inline`
+- leaves wheel input and native selection under terminal control
+- does not emit `MouseScrollEvent` values
 
 ### `KittyKeyboardMode`
 

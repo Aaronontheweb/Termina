@@ -95,6 +95,12 @@ public sealed class RegionRenderContext : IRenderContext
             return;
         }
 
+        if (_terminal is InlineTerminal inlineTerminal)
+        {
+            inlineTerminal.SetDecoration(decoration);
+            return;
+        }
+
         // Reset any previous decorations first
         if (decoration == TextDecoration.None)
         {
