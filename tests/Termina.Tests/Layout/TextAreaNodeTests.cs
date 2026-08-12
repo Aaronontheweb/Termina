@@ -403,7 +403,7 @@ public class TextAreaNodeTests : IDisposable
 
     #endregion
 
-    #region Up/Down History (when empty)
+    #region Up/Down History
 
     [Fact]
     public void UpArrow_WhenEmpty_NoHistory_ReturnsFalse()
@@ -445,6 +445,37 @@ public class TextAreaNodeTests : IDisposable
         // Down arrow with empty text and history enabled — should consume the key
         var handled = node.HandleInput(new ConsoleKeyInfo('\0', ConsoleKey.DownArrow, false, false, false));
         Assert.True(handled);
+    }
+
+    [Fact]
+    public void UpArrow_AtTop_WithHistory_RecallsEntryAndSavesDraft()
+    {
+        using var node = new TextAreaNode().WithHistory();
+
+        TypeText(node, "previous entry");
+        Submit(node);
+        node.Clear();
+        TypeText(node, "saved draft");
+
+        PressUpArrow(node);
+
+        Assert.Equal("previous entry", node.Text);
+    }
+
+    [Fact]
+    public void DownArrow_AtBottom_AfterHistoryRecall_RestoresDraft()
+    {
+        using var node = new TextAreaNode().WithHistory();
+
+        TypeText(node, "previous entry");
+        Submit(node);
+        node.Clear();
+        TypeText(node, "saved draft");
+        PressUpArrow(node);
+
+        PressDownArrow(node);
+
+        Assert.Equal("saved draft", node.Text);
     }
 
     #endregion

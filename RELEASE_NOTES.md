@@ -1,3 +1,18 @@
+# Release Notes — Termina 0.17.0-beta.5
+
+**Release date:** 2026-08-11
+
+####
+
+**Bug Fixes**
+
+- **Corrected text-area prompt history traversal** ([#368](https://github.com/Aaronontheweb/termina/issues/368))
+  - Up recalls prompt history from the first visual line and saves the current draft.
+  - Down restores the saved draft from the last visual line.
+  - Up and Down keep their current visual movement between multiline rows.
+
+####
+
 # Release Notes — Termina 0.17.0-beta.4
 
 **Release date:** 2026-08-11
