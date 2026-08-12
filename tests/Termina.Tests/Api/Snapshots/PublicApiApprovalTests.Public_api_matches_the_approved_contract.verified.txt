@@ -30,6 +30,7 @@ namespace Termina
         public string? CurrentPath { get; }
         public Termina.Input.IFocusManager Focus { get; }
         public R3.Observable<Termina.Input.IInputEvent> Input { get; }
+        public Termina.Input.TerminalInputCapabilities InputCapabilities { get; }
         public R3.FrameProvider RenderFrameProvider { get; }
         public Termina.TerminaApplication AddInputSource(Termina.Input.IInputSource inputSource) { }
         public System.Threading.Tasks.ValueTask CommitAsync(Termina.Layout.ILayoutNode content, System.Threading.CancellationToken cancellationToken) { }
@@ -541,6 +542,31 @@ namespace Termina.Input
         public ResizeEvent(int Width, int Height) { }
         public int Height { get; init; }
         public int Width { get; init; }
+    }
+    public enum TerminalCapabilityAvailability
+    {
+        Unknown = 0,
+        Available = 1,
+        Unavailable = 2,
+    }
+    public readonly struct TerminalInputCapabilities : System.IEquatable<Termina.Input.TerminalInputCapabilities>
+    {
+        public TerminalInputCapabilities(Termina.Input.TerminalCapabilityAvailability ModifiedEnterKeySupport, Termina.Input.TerminalInputCapabilitySource Source) { }
+        public Termina.Input.TerminalCapabilityAvailability ModifiedEnterKeySupport { get; init; }
+        public Termina.Input.TerminalInputCapabilitySource Source { get; init; }
+    }
+    public sealed class TerminalInputCapabilitiesChanged : System.IEquatable<Termina.Input.TerminalInputCapabilitiesChanged>, Termina.Input.IInputEvent
+    {
+        public TerminalInputCapabilitiesChanged(Termina.Input.TerminalInputCapabilities Capabilities) { }
+        public Termina.Input.TerminalInputCapabilities Capabilities { get; init; }
+    }
+    public enum TerminalInputCapabilitySource
+    {
+        None = 0,
+        NativeConsole = 1,
+        KittyKeyboardProtocol = 2,
+        LegacyTerminal = 3,
+        CustomInput = 4,
     }
     public sealed class VirtualInputSource : Termina.Input.IInputSource
     {
@@ -1683,6 +1709,7 @@ namespace Termina.Platform
     public readonly struct TerminalCapabilities : System.IEquatable<Termina.Platform.TerminalCapabilities>
     {
         public TerminalCapabilities(bool RawInputActive) { }
+        public bool PreservesKeyModifiers { get; init; }
         public bool RawInputActive { get; init; }
     }
     [System.Runtime.Versioning.SupportedOSPlatform("linux")]

@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
+using R3;
 using Termina.Hosting;
 using Termina.Input;
 using Termina.Layout;
@@ -239,6 +240,50 @@ public class TerminaRuntimeOptionsTests
     }
 
     [Fact]
+    public void ProcessEvent_KittyFlagReportMarksModifiedEnterAvailable()
+    {
+        var app = CreateApp(new VirtualTerminal(), new TerminaRuntimeOptions());
+        var changes = new List<TerminalInputCapabilitiesChanged>();
+        using var subscription = app.Input
+            .OfType<IInputEvent, TerminalInputCapabilitiesChanged>()
+            .Subscribe(changes.Add);
+        SetInputCapabilities(app, new TerminalInputCapabilities(
+            TerminalCapabilityAvailability.Unknown,
+            TerminalInputCapabilitySource.KittyKeyboardProtocol));
+
+        InvokeProcessEvent(app, new KittyKeyboardFlagsReported(9));
+
+        Assert.Equal(
+            new TerminalInputCapabilities(
+                TerminalCapabilityAvailability.Available,
+                TerminalInputCapabilitySource.KittyKeyboardProtocol),
+            app.InputCapabilities);
+        Assert.Equal(app.InputCapabilities, Assert.Single(changes).Capabilities);
+    }
+
+    [Fact]
+    public void ProcessEvent_DeviceAttributesWithoutKittyReportMarksModifiedEnterUnavailable()
+    {
+        var app = CreateApp(new VirtualTerminal(), new TerminaRuntimeOptions());
+        var changes = new List<TerminalInputCapabilitiesChanged>();
+        using var subscription = app.Input
+            .OfType<IInputEvent, TerminalInputCapabilitiesChanged>()
+            .Subscribe(changes.Add);
+        SetInputCapabilities(app, new TerminalInputCapabilities(
+            TerminalCapabilityAvailability.Unknown,
+            TerminalInputCapabilitySource.KittyKeyboardProtocol));
+
+        InvokeProcessEvent(app, new PrimaryDeviceAttributesReported());
+
+        Assert.Equal(
+            new TerminalInputCapabilities(
+                TerminalCapabilityAvailability.Unavailable,
+                TerminalInputCapabilitySource.LegacyTerminal),
+            app.InputCapabilities);
+        Assert.Equal(app.InputCapabilities, Assert.Single(changes).Capabilities);
+    }
+
+    [Fact]
     public void EscapeSequenceParser_CsiArrowIsKeyBeforeDeckmConfirmed_AndKeyWithKitty()
     {
         // Without DECCKM confirmed, CSI A is a keyboard arrow.
@@ -286,6 +331,16 @@ public class TerminaRuntimeOptionsTests
     {
         var field = typeof(TerminaApplication).GetField(
             "_rawInputActive",
+            BindingFlags.NonPublic | BindingFlags.Instance);
+
+        Assert.NotNull(field);
+        field!.SetValue(app, value);
+    }
+
+    private static void SetInputCapabilities(TerminaApplication app, TerminalInputCapabilities value)
+    {
+        var field = typeof(TerminaApplication).GetField(
+            "_inputCapabilities",
             BindingFlags.NonPublic | BindingFlags.Instance);
 
         Assert.NotNull(field);

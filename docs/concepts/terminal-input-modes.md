@@ -113,6 +113,18 @@ Termina can negotiate kitty keyboard protocol flags during app startup:
 
 Use `ReportAllKeys` or `ReportAllKeysPlusDisambiguate` when you want the parser to treat real arrows and wheel ticks as structurally distinct byte streams under alternate-scroll.
 
+## Input capability result
+
+Termina queries the active Kitty flags after it requests a keyboard mode. A primary device
+attributes response closes the query. The result does not depend on a terminal name.
+
+Subscribe to `TerminalInputCapabilitiesChanged` through the normal input event stream. The
+`ModifiedEnterKeySupport` value tells the application whether modified Enter keys remain distinct.
+`TerminaApplication.InputCapabilities` contains the latest result.
+
+Windows console records preserve modifiers without Kitty. Termina reports that native path as
+available. A legacy byte path reports unavailable when the terminal does not answer the Kitty query.
+
 ### `CtrlCHandlingMode`
 
 `DoublePressWhenRawInput` is the default.

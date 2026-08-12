@@ -83,6 +83,11 @@ Ctrl+Enter will behave the same as Enter (submit). **Alt+Enter always works** as
 fallback because terminals encode the Alt modifier as an ESC prefix (`ESC` + `CR`), which is
 reliably detected even inside tmux.
 
+Termina probes the active Kitty flags at startup. It publishes a
+`TerminalInputCapabilitiesChanged` event after the probe. Read
+`TerminalInputCapabilities.ModifiedEnterKeySupport` before you claim that a modified Enter
+shortcut works. The result is also available from `TerminaApplication.InputCapabilities`.
+
 ## Word Wrap
 
 Word wrap is enabled by default. Text wraps at word boundaries when it exceeds the available width:

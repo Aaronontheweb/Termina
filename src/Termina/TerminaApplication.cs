@@ -70,6 +70,9 @@ public sealed class TerminaApplication : IInlineOutput
     private bool _mouseEnabledByApp;
     private bool _wheelScrollEnabledByApp;
     private int _pendingNavigationRequests;
+    private TerminalInputCapabilities _inputCapabilities = new(
+        TerminalCapabilityAvailability.Unknown,
+        TerminalInputCapabilitySource.None);
 
     /// <summary>
     /// Creates a new Termina application.
@@ -167,6 +170,11 @@ public sealed class TerminaApplication : IInlineOutput
     /// Observable stream of input events. ViewModels subscribe to this.
     /// </summary>
     public Observable<IInputEvent> Input => _inputSubject.AsObservable();
+
+    /// <summary>
+    /// Gets the latest capabilities of the active terminal input path.
+    /// </summary>
+    public TerminalInputCapabilities InputCapabilities => _inputCapabilities;
 
     /// <summary>
     /// Gets the R3 frame provider bound to this application's render loop.
@@ -584,11 +592,18 @@ public sealed class TerminaApplication : IInlineOutput
 
             var kittyFlags = GetKittyKeyboardFlags();
             var kittyReportAllKeysVisible = _rawInputActive && (kittyFlags & 8) != 0;
+            _inputCapabilities = InitialInputCapabilities(platformConsole.Capabilities, kittyFlags);
 
             _inputSources.Add(new PlatformInputSource(
                 platformConsole,
                 new PlatformInputConfiguration(_rawInputActive, kittyReportAllKeysVisible)));
             TerminaTrace.Input.Debug(this, "Added PlatformInputSource");
+        }
+        else
+        {
+            _inputCapabilities = new TerminalInputCapabilities(
+                TerminalCapabilityAvailability.Unknown,
+                TerminalInputCapabilitySource.CustomInput);
         }
 
         // Create linked token - cancelled by either external token OR Shutdown()
@@ -604,7 +619,6 @@ public sealed class TerminaApplication : IInlineOutput
             .ToList();
 
         TerminaTrace.Input.Debug(this, "Input tasks started, count={0}", inputTasks.Count);
-
         try
         {
             try
@@ -634,6 +648,17 @@ public sealed class TerminaApplication : IInlineOutput
 
                 var kittyFlags = GetKittyKeyboardFlags();
                 _kittyKeyboardPushed = KittyKeyboardEnhancement.TryEnter(this, kittyFlags, inTmux);
+                if (_rawInputActive && kittyFlags > 0)
+                {
+                    if (!_kittyKeyboardPushed || !KittyKeyboardEnhancement.TryQuery(this))
+                    {
+                        _inputCapabilities = new TerminalInputCapabilities(
+                            TerminalCapabilityAvailability.Unavailable,
+                            TerminalInputCapabilitySource.LegacyTerminal);
+                    }
+                }
+
+                _inputSubject.OnNext(new TerminalInputCapabilitiesChanged(_inputCapabilities));
 
                 if (_runtimeOptions.ScrollInputMode == ScrollInputMode.AlternateScroll && _rawInputActive)
                 {
@@ -774,6 +799,29 @@ public sealed class TerminaApplication : IInlineOutput
         // Handle system events
         switch (evt)
         {
+            case KittyKeyboardFlagsReported keyboardFlags:
+                var supportsModifiedEnter = (keyboardFlags.Flags & 9) != 0;
+                PublishInputCapabilities(new TerminalInputCapabilities(
+                    supportsModifiedEnter
+                        ? TerminalCapabilityAvailability.Available
+                        : TerminalCapabilityAvailability.Unavailable,
+                    TerminalInputCapabilitySource.KittyKeyboardProtocol));
+                return;
+
+            case PrimaryDeviceAttributesReported:
+                if (_inputCapabilities.ModifiedEnterKeySupport == TerminalCapabilityAvailability.Unknown
+                    && _inputCapabilities.Source == TerminalInputCapabilitySource.KittyKeyboardProtocol)
+                {
+                    PublishInputCapabilities(new TerminalInputCapabilities(
+                        TerminalCapabilityAvailability.Unavailable,
+                        TerminalInputCapabilitySource.LegacyTerminal));
+                }
+                return;
+
+            case TerminalInputCapabilitiesChanged capabilitiesChanged:
+                _inputCapabilities = capabilitiesChanged.Capabilities;
+                break;
+
             case ShutdownRequested:
                 TerminaTrace.Page.Info(this, "ShutdownRequested received");
                 Shutdown();
@@ -971,6 +1019,35 @@ public sealed class TerminaApplication : IInlineOutput
     }
 
     private int GetKittyKeyboardFlags() => (int)_runtimeOptions.KittyKeyboardMode;
+
+    private static TerminalInputCapabilities InitialInputCapabilities(
+        TerminalCapabilities platformCapabilities,
+        int kittyFlags)
+    {
+        if (platformCapabilities.PreservesKeyModifiers)
+        {
+            return new TerminalInputCapabilities(
+                TerminalCapabilityAvailability.Available,
+                TerminalInputCapabilitySource.NativeConsole);
+        }
+
+        return kittyFlags > 0 && platformCapabilities.RawInputActive
+            ? new TerminalInputCapabilities(
+                TerminalCapabilityAvailability.Unknown,
+                TerminalInputCapabilitySource.KittyKeyboardProtocol)
+            : new TerminalInputCapabilities(
+                TerminalCapabilityAvailability.Unavailable,
+                TerminalInputCapabilitySource.LegacyTerminal);
+    }
+
+    private void PublishInputCapabilities(TerminalInputCapabilities capabilities)
+    {
+        if (_inputCapabilities == capabilities)
+            return;
+
+        _inputCapabilities = capabilities;
+        _inputSubject.OnNext(new TerminalInputCapabilitiesChanged(capabilities));
+    }
 
     private static void ValidateRuntimeOptions(TerminaRuntimeOptions options)
     {
