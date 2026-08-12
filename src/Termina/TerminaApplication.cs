@@ -16,6 +16,8 @@ using Termina.Reactive;
 using Termina.Rendering;
 using Termina.Routing;
 using Termina.Terminal;
+using InputMouseButton = Termina.Input.MouseButton;
+using InputMouseEventType = Termina.Input.MouseEventType;
 
 namespace Termina;
 
@@ -885,15 +887,22 @@ public sealed class TerminaApplication : IInlineOutput
 
             case MouseScrollEvent mouseScroll:
                 const int linesPerTick = 3;
-                if (_focusManager.CurrentFocus is IScrollable scrollable)
+                if (RouteMouseScroll(mouseScroll, linesPerTick))
+                    return;
+                break; // No scroll target — fall through to the ViewModel input observable
+
+            case MouseEvent { EventType: InputMouseEventType.Scroll } mouseEvent:
+                var adaptedScroll = new MouseScrollEvent(
+                    mouseEvent.Button == InputMouseButton.WheelUp ? +1 : -1)
                 {
-                    if (mouseScroll.Delta > 0)
-                        scrollable.ScrollUp(linesPerTick);
-                    else
-                        scrollable.ScrollDown(linesPerTick);
-                    return; // Handled by focused scrollable
-                }
-                break; // No focused scrollable — fall through to ViewModel input observable
+                    X = mouseEvent.X,
+                    Y = mouseEvent.Y,
+                    Modifiers = mouseEvent.Modifiers,
+                };
+                if (mouseEvent.Button is InputMouseButton.WheelUp or InputMouseButton.WheelDown
+                    && RouteMouseScroll(adaptedScroll, linesPerTick))
+                    return;
+                break; // Preserve the current public MouseEvent path when no target handles it
         }
 
         // Route input events: Page (capture) -> Focus Manager (bubble) -> ViewModel
@@ -1016,6 +1025,48 @@ public sealed class TerminaApplication : IInlineOutput
             if (found != null) return found;
         }
         return null;
+    }
+
+    private bool RouteMouseScroll(MouseScrollEvent mouseScroll, int linesPerTick)
+    {
+        var scrollable = mouseScroll is { X: { } x, Y: { } y }
+            ? FindScrollableAt(GetCurrentLayoutRoot(), x, y)
+            : null;
+        scrollable ??= _focusManager.CurrentFocus as IScrollable;
+
+        if (scrollable is null)
+            return false;
+
+        if (mouseScroll.Delta > 0)
+            scrollable.ScrollUp(linesPerTick);
+        else if (mouseScroll.Delta < 0)
+            scrollable.ScrollDown(linesPerTick);
+
+        return mouseScroll.Delta != 0;
+    }
+
+    private static IScrollable? FindScrollableAt(ILayoutNode? node, int x, int y)
+    {
+        if (node is null)
+            return null;
+
+        var children = node switch
+        {
+            LayoutNode layoutNode => layoutNode.GetChildNodes(),
+            IContainerNode container => container.Children,
+            _ => Enumerable.Empty<ILayoutNode>()
+        };
+
+        foreach (var child in children.Reverse())
+        {
+            if (FindScrollableAt(child, x, y) is { } childTarget)
+                return childTarget;
+        }
+
+        return node is IPointerScrollable pointerScrollable
+            && pointerScrollable.LastRenderedBounds.Contains(x, y)
+                ? pointerScrollable
+                : null;
     }
 
     private int GetKittyKeyboardFlags() => (int)_runtimeOptions.KittyKeyboardMode;

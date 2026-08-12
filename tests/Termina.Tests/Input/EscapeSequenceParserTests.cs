@@ -75,6 +75,8 @@ public class EscapeSequenceParserTests
         var scroll = Assert.Single(events);
         var mse = Assert.IsType<MouseScrollEvent>(scroll);
         Assert.Equal(+1, mse.Delta);
+        Assert.Equal(4, mse.X);
+        Assert.Equal(9, mse.Y);
     }
 
     [Fact]
