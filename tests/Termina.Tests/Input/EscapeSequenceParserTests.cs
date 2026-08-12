@@ -64,6 +64,18 @@ public class EscapeSequenceParserTests
         Assert.IsType<KeyPressed>(events[0]);
     }
 
+    [Fact]
+    public void ConsoleRecord_ShiftEnter_PreservesShiftModifier()
+    {
+        var parser = new EscapeSequenceParser();
+
+        var pressed = Assert.IsType<KeyPressed>(Assert.Single(parser.Process(
+            new ConsoleKeyInfo('\r', ConsoleKey.Enter, shift: true, alt: false, control: false))));
+
+        Assert.Equal(ConsoleKey.Enter, pressed.KeyInfo.Key);
+        Assert.True(pressed.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Shift));
+    }
+
     // --- Mouse scroll up (button 64) ---
 
     [Fact]
