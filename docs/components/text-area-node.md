@@ -129,6 +129,17 @@ var textArea = new TextAreaNode()
     .WithHistory(maxEntries: 20);
 ```
 
+Cancel active history navigation to restore the saved draft:
+
+```csharp
+if (textArea.CancelHistoryNavigation())
+{
+    // The draft now contains the text from before the first Up key.
+}
+```
+
+The method returns `false` when no history navigation is active.
+
 ## Paste Handling
 
 Paste behavior is identical to `TextInputNode` — both use the shared `TextInputBaseNode` logic:
@@ -224,6 +235,7 @@ Text areas attached to a page layout tree receive runtime context automatically,
 | `HandlePaste(PasteEvent)` | Handle pasted content (shared base class logic) |
 | `Clear()` | Clear text and reset cursor |
 | `AddHistory(string)` | Programmatically add a history entry |
+| `CancelHistoryNavigation()` | Cancel history navigation and restore the saved draft |
 | `Start()` | Start cursor animation |
 | `Stop()` | Stop cursor animation |
 
