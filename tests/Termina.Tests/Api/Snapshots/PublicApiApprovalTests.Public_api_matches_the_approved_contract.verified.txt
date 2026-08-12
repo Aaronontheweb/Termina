@@ -1407,6 +1407,7 @@ namespace Termina.Layout
         public R3.Observable<string> TextChanged { get; }
         public void AddHistory(string entry) { }
         protected void ApplyHistoryEntry(string entry) { }
+        public bool CancelHistoryNavigation() { }
         public virtual void Clear() { }
         protected void DeleteSelection() { }
         public override void Dispose() { }
