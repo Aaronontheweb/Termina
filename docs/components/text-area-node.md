@@ -32,7 +32,7 @@ textArea.Submitted.Subscribe(text => Console.WriteLine($"Submitted:\n{text}"));
 | `←/→` | Move cursor |
 | `Ctrl+←/→` | Move by word |
 | `Shift+←/→` | Select text |
-| `↑/↓` | Move between visual lines (or history when text is empty) |
+| `↑/↓` | Move between visual lines, then traverse history at the first or last boundary |
 | `Home` | Start of current visual line |
 | `End` | End of current visual line |
 | `Ctrl+Home` | Start of document |
@@ -122,7 +122,8 @@ When at the limit, Ctrl+Enter is consumed but no newline is inserted.
 
 ## Input History
 
-Like `TextInputNode`, history is opt-in. When the text area is empty, Up/Down navigate history. When there is content, Up/Down navigate between visual lines instead:
+Like `TextInputNode`, history is opt-in. Up and Down move between visual lines first.
+Up recalls history from the first visual line. Down restores the saved draft from the last visual line.
 
 ```csharp
 var textArea = new TextAreaNode()
@@ -179,7 +180,7 @@ new TextAreaNode()
 | **Lines** | Single-line | Multi-line |
 | **Enter** | Submit | Submit |
 | **Newline** | N/A | `Ctrl+Enter` or `Alt+Enter` (configurable) |
-| **Up/Down** | History only | Visual lines (history when empty) |
+| **Up/Down** | History only | Visual lines, then history at the first or last boundary |
 | **Home/End** | Start/end of text | Start/end of visual line |
 | **Multi-line paste** | Summary placeholder | Summary placeholder |
 | **Height** | Fixed 1 row | Auto (1–10 rows, configurable) |

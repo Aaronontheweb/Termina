@@ -184,7 +184,10 @@ public sealed class TextAreaNode : TextInputBaseNode
         var (row, col) = GetVisualPosition(displayPos, lines);
 
         if (row == 0)
-            return true; // At top — consume the key
+        {
+            base.HandleUpArrow();
+            return true;
+        }
 
         var previousLine = lines[row - 1];
         var targetCol = Math.Min(col, previousLine.ColumnCount);
@@ -205,7 +208,10 @@ public sealed class TextAreaNode : TextInputBaseNode
         var (row, col) = GetVisualPosition(displayPos, lines);
 
         if (row >= lines.Count - 1)
-            return true; // At bottom — consume the key
+        {
+            base.HandleDownArrow();
+            return true;
+        }
 
         var nextLine = lines[row + 1];
         var targetCol = Math.Min(col, nextLine.ColumnCount);
