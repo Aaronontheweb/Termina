@@ -314,6 +314,45 @@ public class TextInputNodeTests : IDisposable
     }
 
     [Fact]
+    public void CancelHistoryNavigation_RestoresSavedInput()
+    {
+        using var node = new TextInputNode().WithHistory();
+        node.AddHistory("submitted");
+        TypeText(node, "in-progress");
+
+        PressUp(node);
+
+        Assert.True(node.CancelHistoryNavigation());
+        Assert.Equal("in-progress", node.Text);
+    }
+
+    [Fact]
+    public void CancelHistoryNavigation_ResetsNavigation()
+    {
+        using var node = new TextInputNode().WithHistory();
+        node.AddHistory("first");
+        node.AddHistory("second");
+        TypeText(node, "draft");
+
+        PressUp(node);
+        PressUp(node);
+        node.CancelHistoryNavigation();
+        PressDown(node);
+
+        Assert.Equal("draft", node.Text);
+    }
+
+    [Fact]
+    public void CancelHistoryNavigation_WithoutNavigation_ReturnsFalse()
+    {
+        using var node = new TextInputNode().WithHistory();
+        TypeText(node, "draft");
+
+        Assert.False(node.CancelHistoryNavigation());
+        Assert.Equal("draft", node.Text);
+    }
+
+    [Fact]
     public void History_MaxEntries_EvictsOldest()
     {
         using var node = new TextInputNode().WithHistory(maxEntries: 2);

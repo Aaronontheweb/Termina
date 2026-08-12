@@ -304,6 +304,22 @@ public abstract class TextInputBaseNode : LayoutNode, IAnimatedNode, IInvalidati
     }
 
     /// <summary>
+    /// Cancels active history navigation and restores the input that existed before navigation started.
+    /// </summary>
+    /// <returns><see langword="true"/> when active history navigation was canceled; otherwise, <see langword="false"/>.</returns>
+    public bool CancelHistoryNavigation()
+    {
+        if (_historyIndex < 0)
+            return false;
+
+        var savedInput = _savedInput ?? "";
+        _historyIndex = -1;
+        _savedInput = null;
+        ApplyHistoryEntry(savedInput);
+        return true;
+    }
+
+    /// <summary>
     /// Clears the text and resets cursor position.
     /// Call this from ViewModel after handling submission.
     /// </summary>

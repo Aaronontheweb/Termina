@@ -101,6 +101,17 @@ If raw input is requested on Unix and stdin is not a TTY, Termina falls back cle
 - leaves wheel input and native selection under terminal control
 - does not emit `MouseScrollEvent` values
 
+### Pointer-aware wheel routing
+
+SGR wheel input adds zero-based `X` and `Y` values to `MouseScrollEvent`.
+The values remain `null` when the input protocol does not report a position.
+
+Termina routes a positioned wheel event to the measured scroll region under the pointer.
+If no region matches, Termina uses the focused `IScrollable` component.
+
+`StreamingTextNode` and `ScrollableContainerNode` implement `IScrollable`.
+Their scroll operations use the dimensions from the most recent render pass.
+
 ### `KittyKeyboardMode`
 
 Termina can negotiate kitty keyboard protocol flags during app startup:

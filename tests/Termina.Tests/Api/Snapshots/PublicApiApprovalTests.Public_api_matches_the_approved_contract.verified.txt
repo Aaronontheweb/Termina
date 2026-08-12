@@ -512,6 +512,9 @@ namespace Termina.Input
     {
         public MouseScrollEvent(int Delta) { }
         public int Delta { get; init; }
+        public System.ConsoleModifiers Modifiers { get; init; }
+        public int? X { get; init; }
+        public int? Y { get; init; }
     }
     public sealed class PageKeyBindings
     {
@@ -1103,7 +1106,7 @@ namespace Termina.Layout
         public Termina.Layout.ScreenBounds Intersect(Termina.Layout.ScreenBounds other) { }
         public bool Intersects(Termina.Layout.ScreenBounds other) { }
     }
-    public sealed class ScrollableContainerNode : Termina.Layout.LayoutNode, System.IDisposable, Termina.Layout.IInvalidatingNode, Termina.Layout.ILayoutNode
+    public sealed class ScrollableContainerNode : Termina.Layout.LayoutNode, System.IDisposable, Termina.Layout.IInvalidatingNode, Termina.Layout.ILayoutNode, Termina.Layout.IScrollable
     {
         public ScrollableContainerNode() { }
         public Termina.Layout.AutoScrollPolicy AutoScroll { get; set; }
@@ -1407,6 +1410,7 @@ namespace Termina.Layout
         public R3.Observable<string> TextChanged { get; }
         public void AddHistory(string entry) { }
         protected void ApplyHistoryEntry(string entry) { }
+        public bool CancelHistoryNavigation() { }
         public virtual void Clear() { }
         protected void DeleteSelection() { }
         public override void Dispose() { }

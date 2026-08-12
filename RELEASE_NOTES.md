@@ -1,10 +1,19 @@
-# Release Notes — Termina 0.17.0-beta.3
+# Release Notes — Termina 0.17.0-beta.4
 
 **Release date:** 2026-08-11
 
 ####
 
 **New Features**
+
+- **Added prompt history cancellation** ([#368](https://github.com/Aaronontheweb/termina/issues/368))
+  - `CancelHistoryNavigation` restores the draft that existed before history navigation.
+  - The API resets history navigation without a change to current method signatures.
+
+- **Added pointer-aware wheel routing** ([#240](https://github.com/Aaronontheweb/termina/issues/240))
+  - `MouseScrollEvent` preserves zero-based pointer coordinates and keyboard modifiers.
+  - Termina routes wheel input to the measured scroll region under the pointer.
+  - `ScrollableContainerNode` now implements the current `IScrollable` contract.
 
 - **Added a modified Enter key capability result** ([#240](https://github.com/Aaronontheweb/termina/issues/240))
   - Termina queries active Kitty keyboard flags without a terminal-name guess.
