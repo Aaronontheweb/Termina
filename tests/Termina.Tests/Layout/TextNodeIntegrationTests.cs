@@ -224,6 +224,33 @@ public class TextNodeIntegrationTests
     }
 
     [Fact]
+    public void BorderlessPanel_Background_FillsScrollableContentCells()
+    {
+        var terminal = new VirtualTerminal(24, 8);
+        var context = new RegionRenderContext(terminal, 0, 0, 24, 8);
+        var surface = Color.FromRgb(23, 27, 34);
+        var detail = new ScrollableContainerNode()
+            .WithScrollbar(false)
+            .WithContent(new TextNode("First detail line\nSecond detail line\nThird detail line")
+                .WithForeground(Color.White));
+        var panel = new PanelNode()
+            .WithBorder(BorderStyle.None)
+            .WithBackground(surface)
+            .WithContent(Layouts.Vertical()
+                .WithChild(new TextNode("DETAIL").WithForeground(Color.BrightBlue))
+                .WithChild(detail.Fill())
+                .WithChild(new TextNode("Y copy").WithForeground(Color.Gray)))
+            .Width(24)
+            .Height(8);
+
+        panel.Render(context, new Rect(0, 0, 24, 8));
+
+        for (var y = 0; y < 8; y++)
+        for (var x = 0; x < 24; x++)
+            Assert.Equal(surface, terminal.GetBackground(x, y));
+    }
+
+    [Fact]
     public void TextNode_SameInstance_WrapsCorrectlyOnResize()
     {
         // Arrange: A single TextNode that will be rendered at different widths
