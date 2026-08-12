@@ -356,6 +356,31 @@ public class EscapeSequenceParserTests
     }
 
     [Fact]
+    public void KittyKeyboardFlagResponse_EmitsCapabilityReport()
+    {
+        var parser = new EscapeSequenceParser();
+        var events = new List<IInputEvent>();
+        events.AddRange(parser.Process(EscKey()));
+        events.AddRange(FeedString(parser, "[?9u"));
+
+        var report = Assert.IsType<KittyKeyboardFlagsReported>(Assert.Single(events));
+        Assert.Equal(9, report.Flags);
+        Assert.False(parser.IsBufferingEscape);
+    }
+
+    [Fact]
+    public void PrimaryDeviceAttributesResponse_ClosesCapabilityProbe()
+    {
+        var parser = new EscapeSequenceParser();
+        var events = new List<IInputEvent>();
+        events.AddRange(parser.Process(EscKey()));
+        events.AddRange(FeedString(parser, "[?1;2c"));
+
+        Assert.IsType<PrimaryDeviceAttributesReported>(Assert.Single(events));
+        Assert.False(parser.IsBufferingEscape);
+    }
+
+    [Fact]
     public void CsiU_CtrlEnter_InsertsNewlineInTextAreaNode()
     {
         // End-to-end: CSI u Ctrl+Enter should insert a newline in a TextAreaNode

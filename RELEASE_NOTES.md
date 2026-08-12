@@ -1,10 +1,19 @@
-# Release Notes — Termina 0.17.0-beta.1
+# Release Notes — Termina 0.17.0-beta.3
 
 **Release date:** 2026-08-11
 
 ####
 
 **New Features**
+
+- **Added a modified Enter key capability result** ([#240](https://github.com/Aaronontheweb/termina/issues/240))
+  - Termina queries active Kitty keyboard flags without a terminal-name guess.
+  - `TerminalInputCapabilitiesChanged` reports whether modified Enter keys remain distinct.
+  - Windows console records report native modifier support.
+
+- **Added semantic clipboard content for copyable text**
+  - `WithSemanticContent` separates complete clipboard text from compact display text.
+  - `TryCopy` reports clipboard failure and preserves the current selection.
 
 - **Added an opt-in inline presentation mode** ([#366](https://github.com/Aaronontheweb/termina/issues/366))
   - `TerminalPresentationMode.Inline` keeps settled output in the primary buffer.
