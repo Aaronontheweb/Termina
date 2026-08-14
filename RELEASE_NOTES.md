@@ -1,3 +1,18 @@
+# Release Notes — Termina 0.16.2
+
+**Release date:** 2026-08-14
+
+####
+
+**Bug Fixes**
+
+- **Made container disposal safe when layout retirement overlaps teardown** ([#384](https://github.com/Aaronontheweb/termina/pull/384))
+  - `ContainerNode.Dispose()` now claims teardown atomically.
+  - Concurrent or repeated disposal no longer completes the same reactive invalidation subject twice.
+  - Child layout nodes are still disposed exactly once.
+
+####
+
 # Release Notes — Termina 0.16.1
 
 **Release date:** 2026-08-08

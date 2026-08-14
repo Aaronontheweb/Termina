@@ -10,14 +10,13 @@
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <VersionPrefix>0.16.1</VersionPrefix>
-    <PackageReleaseNotes>**New Features**
+    <VersionPrefix>0.16.2</VersionPrefix>
+    <PackageReleaseNotes>**Bug Fixes**
 
-- **Added cache policy to keyed dynamic layouts** ([#361](https://github.com/Aaronontheweb/termina/pull/361))
-  - `KeyedDynamicLayoutNode` now supports `AllKeys` and `CurrentOnly` cache policies.
-  - `AllKeys` remains the default policy, preserving existing behavior and source compatibility.
-  - `CurrentOnly` keeps only the active child and replaces it when the key changes.
-  - Replaced children deactivate immediately and dispose during the next layout pass.</PackageReleaseNotes>
+- **Made container disposal safe when layout retirement overlaps teardown** ([#384](https://github.com/Aaronontheweb/termina/pull/384))
+  - `ContainerNode.Dispose()` now claims teardown atomically.
+  - Concurrent or repeated disposal no longer completes the same reactive invalidation subject twice.
+  - Child layout nodes are still disposed exactly once.</PackageReleaseNotes>
   </PropertyGroup>
   <PropertyGroup>
     <!-- Target framework versions -->
